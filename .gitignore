@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Build output (docs/ is committed for GitHub Pages)
+dist/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# PDF templates and manuals (copyrighted)
+schede/
+
+# PWA dev
+dev-dist/
+
+# Claude Code
+.claude/

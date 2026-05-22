@@ -1,0 +1,252 @@
+<script setup lang="ts">
+import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
+import { useCharacterStore } from '@/stores/character'
+import { useAppStore } from '@/stores/app'
+import type { GameVariant } from '@/stores/app'
+import { generateRandomCharacter } from '@/utils/randomCharacter'
+import { preloadVariantData, ensureStepData } from '@/data'
+import { useGameTerms } from '@/composables/useGameTerms'
+
+const { t } = useI18n()
+const router = useRouter()
+const characterStore = useCharacterStore()
+const appStore = useAppStore()
+const gt = useGameTerms()
+
+const fileInputDnd5e = ref<HTMLInputElement | null>(null)
+const importMessage = ref<{ type: 'error' | 'warning' | 'success'; text: string } | null>(null)
+// Base URL del proyecto (configurada en vite.config.ts). Vite la inyecta en
+// import.meta.env.BASE_URL — necesaria para resolver assets de public/.
+const baseUrl = import.meta.env.BASE_URL
+
+async function startNew(variant: GameVariant) {
+  characterStore.resetCharacter()
+  characterStore.character.variant = variant
+  // WSG 3.8: Load only race data for Step 2 (rest loaded per step)
+  await ensureStepData(variant, 1)
+  // Skip Step1 (variant selection) — already chosen from the home card
+  appStore.setStep(1)
+  router.push('/builder')
+}
+
+async function randomChar(variant: GameVariant) {
+  // WSG 3.8: Preload data before generating random character
+  await preloadVariantData(variant)
+  const char = generateRandomCharacter(variant)
+  characterStore.character = char
+  appStore.setStep(8)
+  router.push('/builder')
+}
+
+function triggerImport(variant: GameVariant) {
+  importMessage.value = null
+  const refs = { dnd5e: fileInputDnd5e }
+  refs[variant].value?.click()
+}
+
+function handleImport(event: Event, expectedVariant: GameVariant) {
+  const file = (event.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    try {
+      const result = characterStore.importJson(e.target?.result as string)
+
+      // Check variant mismatch
+      if (result.data.variant !== expectedVariant) {
+        importMessage.value = {
+          type: 'warning',
+          text: t('import.variantMismatch', {
+            expected: t(`variant.${expectedVariant}`),
+            actual: t(`variant.${result.data.variant}`),
+          }),
+        }
+        // Still load — but warn
+        setTimeout(() => {
+          appStore.setStep(8)
+          router.push('/builder')
+        }, 3000)
+        return
+      }
+
+      // Show warnings if any
+      if (result.warnings.length > 0) {
+        const warningTexts = result.warnings.map(w => t(`import.${w}`)).join(', ')
+        importMessage.value = { type: 'warning', text: warningTexts }
+        setTimeout(() => {
+          appStore.setStep(8)
+          router.push('/builder')
+        }, 2000)
+        return
+      }
+
+      appStore.setStep(8)
+      router.push('/builder')
+    } catch (err) {
+      const msg = (err as Error).message
+      if (msg === 'JSON_PARSE_ERROR') {
+        importMessage.value = { type: 'error', text: t('import.parseError') }
+      } else if (msg === 'JSON_NOT_OBJECT') {
+        importMessage.value = { type: 'error', text: t('import.notObject') }
+      } else if (msg.startsWith('VALIDATION:')) {
+        const codes = msg.replace('VALIDATION:', '').split(',')
+        const errorTexts = codes.map(c => t(`import.${c}`)).join('. ')
+        importMessage.value = { type: 'error', text: errorTexts }
+      } else {
+        importMessage.value = { type: 'error', text: t('import.unknownError') }
+      }
+    }
+  }
+  reader.readAsText(file)
+  // Reset input so same file can be re-selected
+  const input = event.target as HTMLInputElement
+  if (input) input.value = ''
+}
+
+function dismissMessage() {
+  importMessage.value = null
+}
+
+const variants: { id: GameVariant; emoji: string; color: string; border: string }[] = [
+  { id: 'dnd5e', emoji: '🐉', color: 'amber', border: 'border-amber-600/40' },
+]
+</script>
+
+<template>
+  <section class="py-8 px-4" aria-label="Character Builder Home">
+    <!-- Import message banner (a ancho completo arriba de las 3 columnas) -->
+    <Transition name="fade">
+      <div
+        v-if="importMessage"
+        :class="[
+          'w-full max-w-7xl mx-auto mb-6 p-4 rounded-lg border flex items-start gap-3',
+          importMessage.type === 'error' ? 'bg-red-900/30 border-red-700 text-red-300' :
+          importMessage.type === 'warning' ? 'bg-amber-900/30 border-amber-700 text-amber-300' :
+          'bg-green-900/30 border-green-700 text-green-300'
+        ]"
+        role="alert"
+      >
+        <span class="text-xl" aria-hidden="true">{{ importMessage.type === 'error' ? '❌' : importMessage.type === 'warning' ? '⚠️' : '✅' }}</span>
+        <p class="flex-1 text-sm">{{ importMessage.text }}</p>
+        <button @click="dismissMessage" class="text-stone-400 hover:text-stone-200 cursor-pointer text-lg" :aria-label="t('common.cancel')">&times;</button>
+      </div>
+    </Transition>
+
+    <!-- Hidden file inputs for each variant -->
+    <input ref="fileInputDnd5e" type="file" accept=".json" class="hidden" @change="handleImport($event, 'dnd5e')" aria-hidden="true" tabindex="-1" />
+
+    <!-- Layout principal: 3 columnas en desktop (logo | variante | saved),
+         apilado en móvil. Proporciones: 5/3/4 — el logo y los saved son los
+         protagonistas visuales, el bloque de variante es más estrecho. -->
+    <div class="w-full max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[5fr_3fr_4fr] gap-8 items-start">
+
+      <!-- ── Columna izquierda: logo ─────────────────────────────────── -->
+      <div class="flex justify-center lg:justify-start">
+        <img
+          :src="`${baseUrl}logo.png`"
+          alt="D&D Character Builder logo"
+          class="w-full max-w-md rounded-2xl shadow-lg object-cover"
+        />
+      </div>
+
+      <!-- ── Columna central: bloque de crear personaje ──────────────── -->
+      <div class="w-full">
+        <article
+          v-for="v in variants"
+          :key="v.id"
+          :class="['bg-stone-800 rounded-xl border p-6 flex flex-col items-center gap-4', v.border]"
+        >
+          <div class="text-4xl" aria-hidden="true">{{ v.emoji }}</div>
+          <h3 class="text-xl font-bold text-stone-100 font-gothic text-center">{{ t(`variant.${v.id}`) }}</h3>
+          <p class="text-sm text-stone-400 text-center leading-relaxed">{{ t(`variant.${v.id}Desc`) }}</p>
+
+          <div class="flex flex-col gap-2 w-full mt-auto">
+            <button
+              @click="startNew(v.id)"
+              :class="[
+                'w-full px-4 py-2.5 font-semibold rounded-lg transition-colors cursor-pointer text-sm',
+                v.id === 'dnd5e' ? 'bg-amber-600 hover:bg-amber-500 text-stone-900' :
+                v.id === 'brancalonia' ? 'bg-emerald-600 hover:bg-emerald-500 text-stone-900' :
+                'bg-red-600 hover:bg-red-500 text-stone-100'
+              ]"
+            >
+              <span aria-hidden="true">✨</span> {{ t('home.newFrom') }}
+            </button>
+
+            <button
+              @click="randomChar(v.id)"
+              class="w-full px-4 py-2 bg-stone-700 hover:bg-stone-600 text-stone-200 rounded-lg transition-colors cursor-pointer text-sm border border-stone-600"
+            >
+              <span aria-hidden="true">🎲</span> {{ t('home.randomButton') }}
+            </button>
+
+            <button
+              @click="triggerImport(v.id)"
+              class="w-full px-4 py-2 bg-stone-700 hover:bg-stone-600 text-stone-200 rounded-lg transition-colors cursor-pointer text-sm border border-stone-600"
+            >
+              <span aria-hidden="true">📂</span> {{ t('home.importJson') }}
+            </button>
+          </div>
+        </article>
+      </div>
+
+      <!-- ── Columna derecha: personajes guardados ───────────────────── -->
+      <section
+        class="w-full"
+        aria-labelledby="saved-heading"
+      >
+        <h3 id="saved-heading" class="text-xl font-semibold text-stone-300 mb-4 font-gothic">{{ t('home.savedCharacters') }}</h3>
+        <ul
+          v-if="characterStore.savedCharacters.length > 0"
+          class="space-y-2"
+          role="list"
+        >
+          <li
+            v-for="char in characterStore.savedCharacters"
+            :key="char.id"
+          >
+            <button
+              class="w-full bg-stone-800 rounded-lg p-4 flex items-center justify-between border border-stone-700 hover:border-amber-700/50 transition-colors cursor-pointer text-left"
+              @click="characterStore.loadCharacter(char.id); appStore.setStep(8); $router.push('/builder')"
+              :aria-label="`${char.name || t('common.unnamed')} - ${char.race} ${char.className} Lv.${char.level}`"
+            >
+              <div class="min-w-0 flex-1">
+                <span class="font-medium text-amber-400">{{ char.name || t('common.unnamed') }}</span>
+                <span class="text-stone-500 ml-2 text-sm">
+                  {{ gt.speciesDisplay(char.race, char.subrace) }} {{ gt.className(char.className, char.variant) }} Lv.{{ char.level }}
+                </span>
+              </div>
+              <span
+                :class="[
+                  'text-xs uppercase px-2 py-0.5 rounded shrink-0 ml-2',
+                  char.variant === 'dnd5e' ? 'bg-amber-900/40 text-amber-400' :
+                  char.variant === 'brancalonia' ? 'bg-emerald-900/40 text-emerald-400' :
+                  'bg-red-900/40 text-red-400'
+                ]"
+              >{{ char.variant }}</span>
+            </button>
+          </li>
+        </ul>
+        <!-- Estado vacío: si no hay personajes, decirlo en lugar de no mostrar
+             la columna. Sin esto la columna derecha quedaba en blanco. -->
+        <p
+          v-else
+          class="text-sm text-stone-500 italic"
+        >
+          {{ t('home.noSavedCharacters') }}
+        </p>
+      </section>
+    </div>
+  </section>
+</template>
+
+<style scoped>
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
+}
+</style>
