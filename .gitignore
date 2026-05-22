@@ -19,6 +19,8 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
+changelog.txt
+CLAUDE.md
 
 # Logs
 *.log
