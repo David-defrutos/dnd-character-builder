@@ -1,0 +1,2919 @@
+D&D 2024 Character Builder — Changelog
+═══════════════════════════════════════
+
+Convenciones:
+- Fechas en formato AAAA-MM-DD HH:MM (UTC+2). Antes del 2026-05-19 son aproximadas
+  (reconstruidas a partir de la memoria de Claude, sin marca de tiempo exacta).
+- # = referencia al bug/feature en la memoria de trabajo.
+
+────────────────────────────────────────
+2026-05-22 18:55 · #117 — FEATURE Historial de niveles (snapshot + reset)
+────────────────────────────────────────
+NUEVA FUNCIONALIDAD pedida por el usuario:
+  - La app guarda un snapshot completo del personaje cada vez que se
+    alcanza un nivel "limpio" (sin decisiones pendientes).
+  - Desde el Step 9 Review se puede consultar cualquier snapshot anterior.
+  - Botón "Reset to this level" restaura el PJ a ese punto y descarta
+    los niveles posteriores. Acción destructiva con confirmación.
+
+MODELO:
+- src/stores/character.ts:
+    · Nuevo type LevelSnapshot { level, snapshotAt: ISO, snapshot }.
+    · Nuevo campo CharacterData.levelHistory?: LevelSnapshot[]. Opcional;
+      PJs existentes sin historial empiezan con campo vacío y se acumulan
+      snapshots desde el próximo level-up (decisión del usuario).
+    · El snapshot interno OMITE levelHistory para no anidar el historial
+      dentro de sí mismo (sería recursivo y pesaría exponencialmente).
+
+LÓGICA:
+- src/utils/levelHistory.ts (nuevo):
+    · commitLevelSnapshot(char): añade/reemplaza el snapshot del nivel
+      actual si no hay decisiones pendientes (lo verifica con
+      pendingLevelDecisions). No-op si quedan elecciones por hacer.
+      Si ya existe un snapshot para el mismo nivel, lo reemplaza
+      (para reflejar cambios de elección hechos antes de subir).
+    · restoreToLevel(char, level): restaura el PJ al estado del snapshot
+      indicado, manteniendo el id, y poda los snapshots de niveles
+      posteriores. Mutación directa.
+
+INTEGRACIÓN:
+- saveCharacter(): llama a commitLevelSnapshot ANTES de persistir, así el
+  snapshot queda dentro del JSON guardado.
+- levelUp(): hace lo mismo en el auto-save tras subir. Si quedan
+  pendientes (caso normal — el level-up suele dejar decisiones a tomar),
+  el commit es no-op; se hará al próximo guardado tras resolverlas.
+- importJson(): allowlist incluye levelHistory. Validación defensiva
+  por entrada (level number, snapshotAt string, snapshot objeto).
+  Entradas malformadas se filtran silenciosamente.
+
+UI:
+- src/components/shared/LevelHistoryPanel.vue (nuevo):
+    · Lista de botones Lv.1 Lv.2 ... clickables.
+    · Modal con resumen del snapshot (nivel, nombre, clase/subclase,
+      especie, max HP) — no la ficha entera (eso ya es el Step 9).
+    · Botón "Reset to this level" con confirmación inline en rojo.
+      Solo visible si el snapshot es de un nivel ANTERIOR al actual
+      (no tiene sentido "restaurar" al nivel actual).
+- src/components/steps/Step9Review.vue: panel insertado justo antes
+  de los botones de Export.
+- src/i18n/locales/en.json: nuevo bloque history.* + common.close +
+  common.hp.
+
+ARCHIVOS:
+- src/stores/character.ts (modelo, save, levelUp, importer)
+- src/utils/levelHistory.ts (nuevo)
+- src/utils/levelHistory.test.ts (nuevo, 11 tests)
+- src/components/shared/LevelHistoryPanel.vue (nuevo)
+- src/components/steps/Step9Review.vue (panel insertado)
+- src/i18n/locales/en.json (bloque history + 2 claves common)
+
+TESTS: 753/753 pasando (742 previos + 11 de #117). npm run build OK.
+
+────────────────────────────────────────
+2026-05-22 18:25 · #116 — Wizard solo para nivel 1: lv.2+ va directo a Review
+────────────────────────────────────────
+CAUSA: el wizard de Steps 1-8 (Variant, Race, Class, Abilities, ...) se
+diseñó para crear personajes a nivel 1. Una vez el PJ sube a nivel 2,
+los Steps anteriores ya no tienen sentido (no se cambia la raza, clase
+o background al subir de nivel; todas las decisiones de level-up se
+gestionan desde Step 9 Review). Pero la barra de pasos seguía visible
+y el usuario podía navegar a esos Steps, confundiendo el flujo.
+
+FIX:
+- src/views/BuilderView.vue:
+    · Nuevo computed isLockedToReview = level >= 2.
+    · Nuevo watch: si lockedToReview y currentStep != 8, fuerza setStep(8).
+      Cubre todos los flujos de entrada (URL directa, navegación lateral,
+      datos cargados después del mount, level-up dentro del Step 9).
+    · Template: StepNavigation y la nav de Back/Next se ocultan con
+      v-if="!isLockedToReview".
+
+Flujos NO afectados (intencional):
+- "From Scratch" en HomeView: resetCharacter() pone level=1, entra a
+  Step 2 Race (saltando Variant). Wizard funciona como siempre.
+- Random Character: ya ponía setStep(8) y level se queda en lo random.
+- Editar PJ guardado / Importar JSON: ya iban a setStep(8); ahora
+  ADEMÁS no hay forma de salirse de Review sin volver a Home.
+- Subir de nivel dentro de Step 9: el level cambia a 2; watch se
+  dispara pero currentStep ya es 8, no hace nada visible.
+
+ARCHIVOS:
+- src/views/BuilderView.vue
+
+TESTS: 742/742 pasando, npm run build OK.
+
+────────────────────────────────────────
+2026-05-22 18:00 · UX — Contraste de text-stone-500 en ambos modos
+────────────────────────────────────────
+CAUSA: la clase text-stone-500 se usa en ~20 componentes como "texto
+secundario suave" (FeatPicker, WeaponMasteryPicker, AsiSelector, etc.).
+El valor por defecto de Tailwind (#78716c) tiene poco contraste sobre
+fondos oscuros, especialmente sobre tarjetas con tinte ámbar como
+bg-amber-900/20 (cards de feats seleccionados, lista de masteries
+agrupadas, descripción del feat en italic). Resultado: el card del feat
+y la descripción de Weapon Mastery quedaban casi ilegibles tanto en
+modo oscuro como en modo claro.
+
+FIX:
+- src/style.css: actualizado override existente de text-stone-500 en
+  modo claro de #78716c a #57534e (ratio ~7.5:1 sobre #f5f5f4).
+- src/style.css: añadido override nuevo para modo oscuro:
+  html:not([data-theme="light"]) .text-stone-500 { color: #a8a29e; }
+  (ratio ~7.5:1 sobre #1c1917).
+
+ALCANCE: cambio global, beneficia a los 20 componentes que usan
+text-stone-500 (107 ocurrencias). Sin modificación de markup.
+
+────────────────────────────────────────
+2026-05-22 18:00 · UX — Step 9 Review: Saving Throws en una sola columna
+────────────────────────────────────────
+CAUSA: la sección "Saving Throws" del paso 9 usaba grid-cols-2,
+distribuyendo las 6 saving throws en dos columnas. Generaba espacio
+en blanco innecesario y desbalanceaba visualmente con la sección
+Skills al lado.
+
+FIX:
+- src/components/steps/Step9Review.vue: grid-cols-2 → flex flex-col
+  en el contenedor de saving throws.
+
+────────────────────────────────────────
+2026-05-22 18:00 · UX — Step 9 Review: Skills en orden por columna
+────────────────────────────────────────
+CAUSA: la lista de Skills usaba grid-cols-2, que CSS Grid rellena
+por filas: item 1 fila 1 col 1, item 2 fila 1 col 2, etc. Resultado:
+Acrobatics arriba-izquierda y Animal Handling arriba-derecha, lo que
+rompe la lectura natural alfabética por columna.
+
+FIX:
+- src/components/steps/Step9Review.vue: grid-cols-2 → columns-2 (CSS
+  multi-column). Ahora la columna izquierda lista Acrobatics, Animal
+  Handling, Arcana, Athletics... y al llegar al final salta a la
+  segunda columna. Los items reciben break-inside-avoid para no
+  partirse entre columnas.
+
+────────────────────────────────────────
+2026-05-22 18:00 · PDF Anexo — Headers en Title Case y -1pt de tamaño
+────────────────────────────────────────
+CAUSA: los headers de sección del Detailed Reference iban en ALL CAPS
+(CLASS FEATURES, SPECIES TRAITS, etc.). El usuario prefiere un estilo
+más legible y menos agresivo: Title Case.
+
+FIX:
+- src/utils/pdfAppendix.ts: SECTION_HEADER_SIZE 14 → 13.
+- src/utils/pdfAppendix.ts: todos los headers reescritos:
+    ABILITY SCORES        → Ability Scores
+    CLASS FEATURES        → Class Features
+    SPECIES TRAITS        → Species Traits
+    FEATS                 → Feats
+    MAGIC ITEMS           → Magic Items
+    SPECIES SPELLS        → Species Spells
+    SPELLS                → Spells
+    WEAPON ATTACKS        → Weapon Attacks
+    WEAPON MASTERIES      → Weapon Masteries
+    LIMITED-USE RESOURCES → Limited-Use Resources
+- MAGIC INITIATE recibe tratamiento especial: ver entrada siguiente.
+
+────────────────────────────────────────
+2026-05-22 18:00 · PDF Anexo — "MAGIC INITIATE" → "Origin: {background}"
+────────────────────────────────────────
+CAUSA: en el PHB 2024 el "Origin" de un personaje es su Background
+(ej. Guide), y cada Background trae un Origin Feat asignado (ej.
+Magic Initiate). El header "MAGIC INITIATE" no reflejaba esa
+relación. El usuario quería ver "Origin: Guide" como header, con
+"Magic Initiate" como subheader debajo y la descripción del feat
+antes de los cantrips/spells.
+
+FIX:
+- src/utils/pdfAppendix.ts (drawMagicInitiate):
+  - Header de sección: 'MAGIC INITIATE' → `Origin: ${char.background}`
+    cuando hay al menos un choice con source === 'origin'.
+  - Caso límite: si TODOS los choices son ASI (Magic Initiate es
+    repeatable y puede tomarse en checkpoint), header neutro
+    'Magic Initiate' para no etiquetar como Origin algo que no lo es.
+  - Subheader nuevo: 'Magic Initiate' (nombre del feat) seguido del
+    cuerpo con feat.description, antes del listado de cantrips/spells.
+
+────────────────────────────────────────
+2026-05-22 18:00 · PDF Anexo — Reordenar secciones
+────────────────────────────────────────
+CAUSA: el orden del Detailed Reference tenía Class Features arriba
+del todo, pero el usuario prefiere agrupar primero la identidad del
+personaje (qué especie es, qué origin tiene) antes de los rasgos
+de clase.
+
+FIX:
+- src/utils/pdfAppendix.ts (appendCharacterAppendix): orden de
+  llamadas reordenado a:
+    1. Ability Scores
+    2. Species Traits
+    3. Origin: {background}  (drawMagicInitiate)
+    4. Class Features
+    5. Feats
+    6. Species Spells
+    7. Spells
+    8. Magic Items
+    9. Weapon Attacks
+   10. Weapon Masteries
+   11. Limited-Use Resources
+
+────────────────────────────────────────
+2026-05-22 18:00 · PDF Anexo — Columna "Lv." sin padding interno
+────────────────────────────────────────
+CAUSA: las tablas de Class Features y Feats tenían la columna "Lv."
+con align: 'center', que centraba el texto dentro de su columna de
+30pt. El "Lv." quedaba visualmente separado del margen izquierdo,
+desalineado respecto al inicio del cuerpo del texto en otras
+secciones (ej. "Darkvision" en Species Traits).
+
+FIX:
+- src/utils/pdfAppendix.ts: tabla Class Features y tabla Feats,
+  columna Lv.: eliminado align: 'center'. Pasa a left por defecto,
+  alineando "Lv." y los números con el margen izquierdo del cuerpo.
+
+────────────────────────────────────────
+2026-05-22 16:40 · #113 — Catálogo de hechizos: PHB 2024 completo
+────────────────────────────────────────
+CAUSA: el catálogo del proyecto tenía 215 hechizos (mezcla 2014/2024).
+La auditoría detectó: 126 hechizos del PHB 2024 ausentes, 2 sobrantes
+(Blade Ward, Feeblemind→Befuddlement) y 104 hechizos comunes con
+diferencias de metadatos (escuela, casting, duración) porque eran texto
+2014. Ej: Cure Wounds estaba como Evocation 1d8+mod (2014) cuando en
+2024 es Abjuration 2d8+mod.
+
+El usuario corrió la auditoría por su cuenta con el script Python que
+le entregué (auditoria-hechizos.zip) y produjo un catálogo regenerado
+desde /mnt/project/spells.md (PHB 2024 íntegro).
+
+FIX:
+- src/data/dnd5e/spells.ts: reemplazado por catálogo nuevo. 183 entradas
+  (cantrips a nivel 3). Cantrip count: 27.
+- src/data/dnd5e/spells-4-9.ts: reemplazado por catálogo nuevo. 156
+  entradas (niveles 4-9).
+- Total: 339 hechizos (PHB 2024 completo, sin faltantes ni sobrantes).
+- Interface Spell sin cambios (mismos campos, mismo type).
+- 213 IDs comunes mantienen el mismo id: los personajes guardados con
+  esos hechizos siguen funcionando sin migración. 126 IDs nuevos
+  añadidos (los faltantes). 2 IDs eliminados (blade-ward, 8-feeblemind);
+  verificado que ningún personaje guardado, código o test los referencia.
+- Descripciones canónicas extraídas del PHB 2024 con su markdown ligero
+  (_Cantrip Upgrade._, _Using a Higher-Level Spell Slot._, etc.). En la
+  UI y en el PDF se muestran como texto plano con underscores literales;
+  funciona pero podría mejorar renderizando el markdown. Pendiente
+  opcional, no afecta a funcionalidad.
+
+TESTS ACTUALIZADOS:
+- src/data/dnd5e/milestone8.test.ts: dos tests cuyo regex esperaba el
+  texto antiguo. Ajustados:
+  · Counterspell: "CON saving throw" → "Constitution saving throw|
+    CON saving throw|CON save" (acepta ambas formas).
+  · Dispel Magic: "level 4\+" → "level 4(\+|\s+or higher)".
+
+ARCHIVOS:
+- src/data/dnd5e/spells.ts (reescrito íntegro)
+- src/data/dnd5e/spells-4-9.ts (reescrito íntegro)
+- src/data/dnd5e/milestone8.test.ts (2 regex ajustados)
+
+TESTS: 742/742 pasando, npm run build OK. Catálogo precache aumenta de
+~1684 KiB a ~1925 KiB (+240 KiB por las descripciones completas).
+
+────────────────────────────────────────
+2026-05-22 16:05 · #115 — UX Weapon Mastery: cabeceras ilegibles en modo claro
+────────────────────────────────────────
+CAUSA: en WeaponMasteryPicker, las cabeceras de cada grupo (Cleave,
+Graze, Nick, Push...) son <h4> con clase `bg-stone-800/95`. En modo
+oscuro se ven bien (fondo gris muy oscuro casi negro, texto amber).
+En modo claro, esa clase no tenía override en style.css, así que se
+quedaba con el color original (gris oscuro casi negro) sobre un fondo
+de página blanco, generando una banda negra muy fea con texto amarillo
+encima de difícil lectura.
+
+FIX:
+- src/style.css: nuevo override
+    html[data-theme="light"] .bg-stone-800\/95 { background-color: #e7e5e4; }
+  Beige claro (stone-200) que destaca como agrupador pero no choca con
+  el resto de la UI clara. El texto sigue siendo text-amber-500
+  (que ya tiene su propio override a #d97706 en modo claro), con
+  contraste correcto contra #e7e5e4.
+
+ARCHIVOS:
+- src/style.css
+
+TESTS: 742/742 pasando, npm run build OK. Cambio puramente CSS.
+
+────────────────────────────────────────
+2026-05-22 15:55 · #114 — Detailed Reference: solapamiento + columnas + fuente
+────────────────────────────────────────
+Tres mejoras al PDF anexo, todas detectadas en la primera prueba real de
+#110/#111 con un PJ de nivel 10:
+
+1. SOLAPAMIENTO DE COLUMNAS
+   ANTES: en pdfTable.ts solo la última columna hacía word-wrap. Si el
+   contenido de una columna intermedia (típicamente la del nombre del
+   feat) excedía su ancho, se dibujaba físicamente sobre la siguiente.
+   Ejemplo visible: "Magic Initiate (Cleric: Guidance Resistance Bless)"
+   sobrescribía la columna Description con "Choose a spell list...".
+   FIX: drawTableRow y estimateRowLines ahora hacen wrap en TODAS las
+   columnas. La altura de la fila se calcula como el máximo de líneas
+   entre todas las celdas; celdas con menos líneas dejan blanco abajo.
+
+2. COLUMNA LV. CON DEMASIADO ESPACIO
+   ANTES: colLevel = 60pt para mostrar "0", "4", "20". Innecesariamente
+   ancho; el espacio sobrante se restaba a la columna Description.
+   FIX: colLevel = 30pt en CLASS FEATURES y FEATS. ABILITY SCORES:
+   colAbility 60→50, colTotal 50→35 (mismo motivo).
+
+3. SUBHEADERS DEMASIADO GRANDES
+   ANTES: SUBSECTION_HEADER_SIZE = 11pt frente a BODY_SIZE = 9pt. Los
+   nombres de los trait/spell/magic item se veían exagerados sobre sus
+   descripciones.
+   FIX: SUBSECTION_HEADER_SIZE = 9pt (mismo que body) pero MANTENIENDO
+   font bold y color gris oscuro. Pequeño gap extra (+3 vs +2) tras el
+   subheader para que respire ahora que es del mismo tamaño que el body.
+   Afecta a TODOS los drawSubheader del anexo: SPECIES TRAITS (Gnomish
+   Cunning, Lineage: ...), MAGIC INITIATE (lista, level-1 spell),
+   MAGIC ITEMS (nombre de cada item), drawSpellDetail (cabecera de
+   cada hechizo en SPECIES SPELLS y CHARACTER SPELLS).
+
+EXTRA: descripciones completas de los cantrips de Magic Initiate
+======================================================================
+ANTES: drawMagicInitiate mostraba "Cantrips: Guidance, Resistance" en
+una sola línea sin descripción, y solo el level-1 spell tenía su texto
+completo. Resultado: Guidance y Resistance quedaban sin descripción en
+ningún sitio del PDF (no aparecían en CHARACTER SPELLS porque están
+excluidos para no duplicar).
+FIX: drawMagicInitiate ahora usa drawSpellDetail (el mismo helper que
+SPECIES SPELLS y CHARACTER SPELLS) tanto para los 2 cantrips como para
+el level-1 spell, con sourceTag "Magic Initiate" para distinguirlos.
+Reportado por el usuario tras revisar el PDF de Cecino lv.10.
+
+ARCHIVOS:
+- src/utils/pdfTable.ts (drawTableRow, estimateRowLines reescritos)
+- src/utils/pdfAppendix.ts (SUBSECTION_HEADER_SIZE, drawSubheader,
+  drawMagicInitiate, anchos de columnas en drawAbilityBreakdown,
+  drawClassFeatures, drawFeats)
+
+TESTS: 742/742 pasando, npm run build OK.
+
+────────────────────────────────────────
+2026-05-22 15:20 · #111 — PDF Anexo LIMITED-USE RESOURCES: 4 columnas + sin tachado
+────────────────────────────────────────
+CAUSA: la tabla LIMITED-USE RESOURCES dibujaba líneas separadoras entre
+filas en una Y que caía SOBRE el texto, tachándolo y haciéndolo ilegible.
+Además solo tenía 3 columnas útiles (Resource/Max/Recharge/Remaining con
+N checkboxes) cuando lo que pediste son 4: Nombre/Fuente/Usos máx/Usos
+restantes en blanco.
+
+FIX:
+- src/utils/pdfAppendix.ts (drawResourceTable): rediseño usando el helper
+  drawTable de #110.
+  Columnas: Resource | Source | Max | Remaining
+  · Resource: nombre (Action Surge, Channel Divinity, ...).
+  · Source: clase/raza/feat de origen (Fighter lv.2, Dragonborn, Echo
+    Knight lv.3...). Ya existía en ResourceUsage.source pero se ignoraba.
+  · Max: número (∞ si uses >= 999).
+  · Remaining: hueco en blanco con un subrayado discreto debajo, para
+    apuntar a mano. Sustituye a los N checkboxes anteriores; permite
+    escribir "3/5 usados" en vez de marcar uno a uno (más útil con
+    recursos como Wild Shape ilimitado a lv.20).
+- Sin líneas tachando texto. Sin bordes ni rayas internas; solo el
+  subrayado fino de la columna Remaining como guía visual de escritura.
+
+ARCHIVOS:
+- src/utils/pdfAppendix.ts (drawResourceTable, ~80 líneas → ~70)
+
+TESTS: 742/742 pasando, npm run build OK.
+
+────────────────────────────────────────
+2026-05-22 15:15 · #107 + #109 + #110 — Detailed Reference rediseñado
+────────────────────────────────────────
+Tres pendientes resueltos en bloque porque todos tocan la misma área (el
+PDF anexo "Detailed Reference") y se benefician de los mismos helpers.
+
+#107 — Feats con elección deben mostrar qué se escogió
+======================================================
+ANTES: dos Resilient se mostraban como dos tags idénticos "ASI Feat:
+Resilient (lv.6)" / "ASI Feat: Resilient (lv.8)" sin indicar para qué
+ability se cogió cada uno. Igual para Fighting Style, Skilled, etc.
+
+FIX: nuevo módulo src/utils/featChoiceDescription.ts con 3 helpers:
+  - describeAsiFeatChoice(choice, char): devuelve la elección de un ASI
+    feat ("WIS" para Resilient, "+1 STR" para Crusher, "Athletics, Stealth,
+    Perception" para Skilled, "skill: Arcana — expertise: Perception" para
+    Skill Expert con sus 2 grupos).
+  - describeOriginFeatChoice(featId, char): equivalente para origin feats.
+    Soporta Magic Initiate desde background.
+  - describeFightingStyle(featId): devuelve el efecto mecánico del estilo
+    ("+2 to ranged weapon attack rolls" para Archery, "+1 AC while wearing
+    armor" para Defense, etc.).
+
+Aplicado en dos sitios:
+  - src/components/steps/Step9Review.vue: featureTraitsDisplay enriquece
+    los tags antes de mostrarlos. featDescriptionFromTag actualizado para
+    reconocer los nuevos formatos.
+  - src/utils/pdfAppendix.ts (drawFeats): la columna "Feat" del PDF
+    incluye la elección entre paréntesis.
+
+#109 — Detailed Reference: desglose de cada Ability Score
+=========================================================
+Nuevo módulo src/utils/abilityScoreBreakdown.ts. Para cada ability,
+descompone el total en sus fuentes:
+  - Base (lo asignado en Step 4)
+  - Species (en 2024 suele ser 0)
+  - Background (con el nombre)
+  - ASI bumps puros (+2 a una o +1+1 a dos)
+  - Feat asiBonus (Crossbow Expert lv.4 +1 DEX, Resilient lv.6 +1 WIS, ...)
+
+Si la suma de fuentes no cuadra con el char.asiBonuses agregado, se añade
+una fila "Other" con la diferencia (defensivo contra datos viejos).
+
+Aplicado en pdfAppendix.ts: nueva sección ABILITY SCORES antes de
+CLASS FEATURES, con tabla de 3 columnas (Ability | Total | Sources).
+
+Solo es display; no toca el modelo del personaje ni los cálculos.
+
+#110 — Detailed Reference: tablas de 3 columnas con tipografía uniforme
+=======================================================================
+Nuevo módulo src/utils/pdfTable.ts con helpers genéricos:
+  - drawTableHeader / drawTableRow / estimateRowLines.
+  - Tipografía uniforme (BODY_SIZE para todo, sin negritas ni cabeceras
+    grandes; solo el header de fila va en negrita gris).
+  - Sin bordes ni rayas; el espaciado guía la lectura.
+  - Word-wrap solo en la última columna (la descripción).
+  - estimateRowLines evita cortar filas a medio camino al saltar de página.
+
+Secciones rediseñadas en pdfAppendix.ts:
+
+  CLASS FEATURES → Lv. | Feature | Description
+    UNA FILA POR ESCALADO (#110 explícito): si Action Surge sube a 2 usos
+    en lv.17, ahora hay dos filas (una para lv.2, otra para lv.17). Las
+    features de subclass quedan suffix " (sub)" en el nombre.
+
+  FEATS → Lv. | Feat | Description
+    Origin feats con nivel 0. ASI feats con su nivel del checkpoint.
+    Fighting Style con lv.1 (placeholder; el nivel real depende de la
+    clase). El nombre del feat ya incluye la elección entre paréntesis
+    (gracias a #107).
+
+  WEAPON MASTERIES → Weapon | Mastery | Description
+    Mastery property + descripción de la propiedad (Vex, Topple, Sap...).
+
+WEAPON ATTACKS se deja como está: el formato existente con cálculo de
+ataque y daño desglosado (Attack: d20 +8 (DEX +3, PB +4, magic +1,
+Archery +2) y Damage: 1d6+4 piercing (DEX +3, magic +1)) no encaja bien
+en formato tabular y es funcional para el combate.
+
+ARCHIVOS:
+- src/utils/featChoiceDescription.ts (nuevo)
+- src/utils/featChoiceDescription.test.ts (nuevo, 14 tests)
+- src/utils/abilityScoreBreakdown.ts (nuevo)
+- src/utils/abilityScoreBreakdown.test.ts (nuevo, 7 tests con datos
+  reales de Cecino lv.9)
+- src/utils/pdfTable.ts (nuevo)
+- src/utils/pdfAppendix.ts (drawTable, drawAbilityBreakdown,
+  drawClassFeatures, drawFeats, drawWeaponMasteries rediseñados)
+- src/components/steps/Step9Review.vue (featureTraitsDisplay enriquecido,
+  featDescriptionFromTag actualizado)
+
+TESTS: 742/742 pasando (721 previos + 14 de #107 + 7 de #109).
+       npm run build OK.
+
+────────────────────────────────────────
+2026-05-22 09:45 · #112 — UX: "Race" → "Species" en toda la app
+────────────────────────────────────────
+CAUSA: la app seguía usando "Race"/"Subrace"/"Racial" en la UI, terminología
+del PHB 2014. El PHB 2024 cambió oficialmente Race → Species y eliminó
+Subrace en favor de Lineage (Tiefling) o de no tener subgrupo (Dwarf/Elf).
+
+DECISIÓN: aplicar el término canónico WotC 2024 en toda la UI:
+  - Race → Species
+  - Subrace → Lineage
+  - Racial Traits → Species Traits
+
+ALCANCE: solo strings visibles al usuario. NO se renombra:
+  - el campo char.race del modelo (refactor del store, no UX)
+  - las claves JSON del bloque "race" en i18n (rompería referencias en
+    componentes; solo se cambian los VALORES)
+  - el campo 'Race ' del PDF oficial WotC (es la key del form field
+    impuesta por el documento PDF, no es texto editable)
+
+FIX:
+- src/i18n/locales/en.json:
+    · validation.MISSING_RACE: "Missing character race" → "Missing character species"
+    · steps.race: "Race" → "Species"
+    · variant.dnd5eDesc: "...with all SRD classes and races" → "...and species"
+    · variant.dnd5eFeatures: "12 classes • 9 races • Level 1-20" → "• 9 species •"
+    · race.title: "Choose Race" → "Choose a Species"
+    · race.traits: "Racial Traits" → "Species Traits"
+    · race.subrace: "Subrace" → "Lineage"
+    · pdf.charRace: "Race" → "Species"
+    · validation.selectRace: "Select a race before continuing" → "...a species..."
+- src/utils/pdfAppendix.ts: sourceTag de SPECIES SPELLS de 'Race' a
+  'Species'. De paso, typo "Speciess" → "Species" en comentario.
+- src/main.ts: array stepNames del devLog: 'Race' → 'Species'. Log key
+  'race:' → 'species:' (consistencia interna, no UI).
+
+ESPAÑOL: el proyecto solo tiene i18n en/, no es/. Los comentarios en
+código en español que mencionan "raza" se mantienen (no son UI).
+
+ARCHIVOS:
+- src/i18n/locales/en.json
+- src/utils/pdfAppendix.ts
+- src/main.ts
+
+TESTS: 721/721 pasando, npm run build OK.
+
+────────────────────────────────────────
+2026-05-22 08:40 · UX HomeView — layout 3 columnas
+────────────────────────────────────────
+CAUSA: el HomeView mostraba el logo arriba (pequeño), debajo el bloque
+"D&D 5.5th Edition" centrado, y debajo la lista de personajes guardados
+ocupando toda la anchura. El usuario pidió:
+  - Logo más grande, a la IZQUIERDA.
+  - En el CENTRO el bloque para crear personajes.
+  - A la DERECHA la lista de personajes guardados.
+
+FIX:
+- src/views/HomeView.vue: rediseño completo del template. Ahora un único
+  grid (lg:grid-cols-[5fr_3fr_4fr]) con 3 columnas a partir de breakpoint
+  lg (≥1024px); en móvil/tablet se apila en una sola columna.
+    · Columna izquierda: <img> del logo a w-full max-w-md (vs 40-52 px
+      anteriores), conservando aspect ratio.
+    · Columna central: la tarjeta "D&D 5.5th Edition" (sin grid de 3
+      sub-columnas porque solo existe una variante tras la limpieza de
+      Brancalonia y Apocalisse).
+    · Columna derecha: lista de "Saved Characters". Si está vacía, ahora
+      se muestra un mensaje en su lugar (antes la columna desaparecía y
+      el grid quedaba descuadrado).
+- src/i18n/locales/en.json: nueva clave home.noSavedCharacters para el
+  estado vacío.
+
+ARCHIVOS:
+- src/views/HomeView.vue
+- src/i18n/locales/en.json
+
+TESTS: 721/721 pasando, npm run build OK.
+
+────────────────────────────────────────
+2026-05-22 08:15 · #103 — UX Fighting Style: texto invisible en modo claro
+────────────────────────────────────────
+CAUSA: FightingStylePicker aplica al botón seleccionado las clases
+`bg-amber-900/40 border-amber-600 text-amber-100`. En modo oscuro se ve
+bien (ámbar oscuro de fondo + ámbar muy claro de texto). En modo claro
+el override de style.css convierte `bg-amber-900/40` en una tinta ámbar
+clara (rgba(180,83,9,0.12)) pero `text-amber-100` (≈ #fef3c7, casi
+blanco) no tenía override → texto casi blanco sobre fondo casi blanco,
+ilegible.
+
+FIX:
+- src/style.css: nuevo override
+    html[data-theme="light"] .text-amber-100 { color: #78350f; }
+  (ámbar muy oscuro). Aplica al Fighting Style seleccionado y a cualquier
+  otro botón "active" que use esa combinación.
+
+ARCHIVOS:
+- src/style.css
+
+TESTS: 721/721 pasando (cambio puramente CSS).
+
+────────────────────────────────────────
+2026-05-22 08:00 · #100 — UX Species naming
+────────────────────────────────────────
+CAUSA: dos problemas relacionados con el nombre de la especie:
+
+  1. En el PDF (hojas 5e 2014 y 2024) aparecía "Gnome (Dnd5e) (Forest
+     Gnome)". El call site de pdfRaceName() pasaba char.variant como
+     segundo argumento (que se llamaba subraceId), así que el variant
+     se concatenaba como si fuera una subespecie, y luego el código
+     añadía la subespecie real entre paréntesis aparte.
+
+  2. En la UI de la ficha (Step9Review), CharacterListView, HomeView y
+     BlogCharacterView se mostraba "Gnome (Forest Gnome)" — sin el bug
+     del variant pero con el nombre de la especie redundante delante.
+
+REGLA pedida: si hay subespecie/linaje, mostrar SOLO la subespecie
+("Forest Gnome", "Drow", "Wood Elf"). Si no, mostrar SOLO el nombre
+de la especie ("Gnome", "Human").
+
+FIX:
+
+1. src/composables/useGameTerms.ts — nuevo helper unificado
+   speciesDisplay(raceId, subraceId?): resuelve los IDs contra el
+   catálogo de razas, aplica i18n, y devuelve solo la subespecie si
+   existe, o el nombre de la especie. Fallback al raceId en bruto si
+   la especie no está en el catálogo (datos huérfanos).
+
+2. src/utils/pdfFieldMapping.ts — pdfRaceName() reescrita con la misma
+   regla. Los 2 call sites (mapping 5e 2014 línea ~107 y mapping 2024
+   línea ~378) corregidos para pasar char.subrace en lugar de
+   char.variant. El campo "Species" / "Race " del PDF ahora muestra
+   "Forest Gnome" en lugar de "Gnome (Dnd5e) (Forest Gnome)".
+
+3. src/components/steps/Step9Review.vue — el computed displayRace ahora
+   delega en gt.speciesDisplay.
+
+4. src/views/CharacterListView.vue, src/views/HomeView.vue,
+   src/views/BlogCharacterView.vue — los listados que mostraban
+   "{{ gt.raceName(char.race) }} ({{ gt.subraceName(char.subrace) }})"
+   pasan a usar gt.speciesDisplay(char.race, char.subrace).
+
+ARCHIVOS:
+- src/composables/useGameTerms.ts
+- src/utils/pdfFieldMapping.ts
+- src/components/steps/Step9Review.vue
+- src/views/CharacterListView.vue
+- src/views/HomeView.vue
+- src/views/BlogCharacterView.vue
+
+TESTS: 721/721 pasando.
+
+────────────────────────────────────────
+2026-05-22 08:05 · #99 — UX: Skills/Saving Throws en 2 columnas
+────────────────────────────────────────
+CAUSA: las secciones "Saving Throws" y "Skills" en la ficha (Step9Review)
+usaban `space-y-1` con una sola columna interna. El nombre quedaba a la
+izquierda y el número alineado tras flex-1, dejando un espacio en blanco
+muy ancho entre ambos. Además, Skills tenía un max-h con scroll vertical
+en lugar de aprovechar el espacio horizontal.
+
+FIX:
+- src/components/steps/Step9Review.vue: el div interior de cada bloque
+  pasa de `space-y-1` a `grid grid-cols-2 gap-x-4 gap-y-1`. Saving
+  Throws (6 entradas) queda en 3 filas × 2 columnas; Skills (18 entradas)
+  en 9 filas × 2 columnas. Eliminado el max-h-60 + overflow-y-auto de
+  Skills: con 2 columnas todo cabe sin scroll.
+
+ARCHIVOS:
+- src/components/steps/Step9Review.vue
+
+TESTS: 721/721 pasando (sin tests de UI tocados; cambio puramente CSS).
+
+────────────────────────────────────────
+2026-05-22 07:55 · #104 — Detailed Reference: hechizos sin descripción
+────────────────────────────────────────
+CAUSA: el anexo PDF (Detailed Reference) no listaba los hechizos del
+personaje en ninguna sección con sus datos completos. El PDF hoja 2
+tenía un grid compacto con nombre + nivel, pero el anexo (que existe
+precisamente para dar el detalle largo) los omitía. El jugador tenía
+que buscar cada hechizo en el PHB o memorizarlo.
+
+FIX:
+
+1. src/utils/pdfAppendix.ts — nuevo helper drawSpellDetail(state, id, opts)
+   que dibuja un hechizo de forma uniforme:
+     Subheader: "<Name> (Level X, School)  [<tag>, always prepared]"
+     Body 1:    "Casting: X  |  Range: Y  |  Duration: Z  |  Components: V/S/M"
+     Body 2..:  descripción completa del spell.
+   Si el id no está en el catálogo, fallback al id en bruto sin meta.
+
+2. drawSpeciesSpells() (introducida en #105) refactorizada para usar
+   drawSpellDetail con sourceTag='Race' y alwaysPrepared=true en spells
+   (no en cantrips). Resultado: los hechizos de linaje también ganan
+   meta + descripción completa, antes sólo tenían descripción.
+
+3. Nueva función drawCharacterSpells() añadida al pipeline después de
+   drawSpeciesSpells. Itera char.cantrips y char.spellsKnown EXCLUYENDO
+   los IDs que ya están cubiertos por SPECIES SPELLS (char.speciesGranted*)
+   y por MAGIC INITIATE / Blessed-Druidic Warrior, para no duplicar.
+   Cada hechizo se pinta con drawSpellDetail sin tag, mostrando su
+   nivel, escuela, casting time, range, duration, components y descripción.
+
+ARCHIVOS:
+- src/utils/pdfAppendix.ts
+
+TESTS: 721/721 pasando. Smoke test del PDF y tests de pdfAppendix OK.
+
+────────────────────────────────────────
+2026-05-22 07:35 · #105 — Hechizos de linaje racial no aplicados
+────────────────────────────────────────
+CAUSA: las especies/subrazas del PHB 2024 conceden cantrips/spells
+("Forest Gnome → Know Minor Illusion; always have Speak with Animals
+prepared", "Drow → Dancing Lights; Lv.3 Faerie Fire; Lv.5 Darkness",
+"Tiefling → Thaumaturgy + spells de legacy", "Aasimar → Light", etc.).
+Estos rasgos sólo existían como cadenas descriptivas en race.traits[]
+y no se materializaban en char.cantrips / char.spellsKnown. Resultado:
+el jugador no veía ningún hechizo concedido por la especie en la
+ficha ni en el PDF, y los rasgos de Tiefling/High Elf/Drow/etc. con
+escalado a lv.3 y lv.5 jamás se aplicaban.
+
+FIX:
+
+1. src/data/dnd5e/spells.ts — añadidos los hechizos que faltaban en el
+   catálogo y eran necesarios para los grants raciales:
+     1-speak-with-animals, 1-false-life, 1-longstrider, 1-ray-of-sickness
+     2-darkness, 2-pass-without-trace, 2-ray-of-enfeeblement
+   (los demás ya estaban: dancing-lights, druidcraft, faerie-fire,
+   detect-magic, misty-step, hold-person, hellish-rebuke, fire-bolt,
+   poison-spray, chill-touch, minor-illusion, mending, prestidigitation,
+   light, thaumaturgy).
+   Los 7 hechizos nuevos usan los textos canónicos del PHB 2024
+   (extraídos de /mnt/project/spells.md): mecánica 2024 correcta para
+   Ray of Sickness (sin save adicional, Poisoned auto), Ray of
+   Enfeeblement (CON save, no spell attack), False Life (2d4+4 Temp HP
+   Instantaneous), Speak with Animals (lista de clases Bard/Druid/
+   Ranger/Warlock, casting Action or Ritual), etc.
+
+2. src/data/dnd5e/races.ts — nuevo tipo SpeciesSpellGrant
+   { spellId, kind: 'cantrip' | 'spell', minCharLevel? } y campo
+   spellGrants?: SpeciesSpellGrant[] en Race y Subrace.
+   Rellenados los grants para Forest Gnome, Rock Gnome, Drow, High Elf,
+   Wood Elf, Tiefling (raza base + las 3 legacies Abyssal/Chthonic/
+   Infernal) y Aasimar. minCharLevel: 3 / 5 según el rasgo.
+
+3. src/stores/character.ts — campos opcionales nuevos en CharacterData:
+     speciesGrantedCantrips?: string[]
+     speciesGrantedSpells?:   string[]
+   Son PARALELOS a char.cantrips / char.spellsKnown — no cuentan contra
+   el máximo de cantrips/spells preparados de la clase. Allowlist de
+   importJson y validación de string-arrays actualizadas para preservar
+   estos campos al exportar/importar.
+
+4. src/utils/speciesSpells.ts — módulo nuevo:
+     recomputeSpeciesGrants(char): recorre race.spellGrants y
+       subrace.spellGrants, filtra por minCharLevel ≤ char.level,
+       puebla los dos arrays nuevos del PJ.
+     clearSpeciesGrants(char): reset.
+
+5. src/components/steps/Step2Race.vue — applyRaceBonuses() ahora llama
+   a recomputeSpeciesGrants() después de aplicar speciesBonuses, así
+   los grants se materializan en cuanto el jugador elige raza/subraza.
+
+6. src/stores/character.ts — levelUp() llama a recomputeSpeciesGrants()
+   tras incrementar nivel, para que los grants con minCharLevel: 3 / 5
+   aparezcan al subir el PJ.
+
+7. src/components/steps/Step9Review.vue — el bloque "Spells" antes sólo
+   aparecía si char.spellcastingAbility (clase caster). Ahora aparece
+   también si speciesGrantedCantrips o speciesGrantedSpells están
+   pobladas (un Fighter Forest Gnome ya verá Minor Illusion y Speak
+   with Animals). Cada grant se muestra con etiqueta "(Race)" en
+   color amber para distinguirlo de los hechizos elegidos de clase.
+
+8. src/utils/pdfFieldMapping.ts — la lista de spells del PDF hoja 2
+   (SLevel_n / SName_n) incluye ahora también los grants raciales,
+   etiquetados " (Race)" como ya se hace con " (MI)" para Magic
+   Initiate y " (BW)/(DW)" para Blessed/Druidic Warrior.
+
+9. src/utils/pdfAppendix.ts — nueva sección "SPECIES SPELLS" en el
+   anexo PDF (Detailed Reference), entre SPECIES TRAITS y FEATS.
+   Lista los cantrips/spells concedidos por la raza/subraza con su
+   nivel y descripción completa.
+
+ARCHIVOS:
+- src/data/dnd5e/spells.ts
+- src/data/dnd5e/races.ts
+- src/stores/character.ts
+- src/utils/speciesSpells.ts (nuevo)
+- src/components/steps/Step2Race.vue
+- src/components/steps/Step9Review.vue
+- src/utils/pdfFieldMapping.ts
+- src/utils/pdfAppendix.ts
+
+TESTS: 721/721 pasando. vue-tsc --noEmit OK.
+
+────────────────────────────────────────
+2026-05-21 22:35 · #101 + #102 — Fighting Style invisible y +2 Archery no aplicado
+────────────────────────────────────────
+CAUSA: El Fighting Style feat se guarda en char.fightingStyleFeat (campo
+dedicado por #94), no en char.featuresTraits[]. Dos efectos:
+
+#101: La ficha del personaje (Step9Review.vue) y el PDF hoja 1 sólo leen
+char.featuresTraits para listar feats, así que el Fighting Style escogido
+quedaba invisible (en el PDF anexo "Detailed Reference" sí aparecía
+porque pdfAppendix.ts:278 lee fightingStyleFeat directamente).
+
+#102: computeWeaponAttack() en weaponCalc.ts construye la lista de feats
+elegidos a partir de char.asiChoices, donde NO está el Fighting Style.
+Como consecuencia el +2 de Archery a ataques con armas a distancia no se
+sumaba al attack bonus. Cecino lv.2 (DEX +3, PB +2, Archery) con Hand
+Crossbow mostraba +5 en vez de +7.
+
+FIX:
+
+1. src/utils/weaponCalc.ts — computeWeaponAttack(): además de los feats
+   ASI, ahora también se incluye char.fightingStyleFeat en la lista de
+   feats que pueden aplicar rangedAttackBonus / duelingDamageBonus.
+
+2. src/utils/pdfFieldMapping.ts — getDnd2024FieldMapping(): después de
+   procesar char.featuresTraits, se añade "Fighting Style: <Name>" al
+   campo Feats del PDF hoja 1 si char.fightingStyleFeat está presente.
+   Se importa getFeatById para resolver el nombre del feat.
+
+3. src/utils/pdfFieldMapping.ts — nuevo export buildPdfFields(char) como
+   alias de getDnd2024FieldMapping. Existe para que tests externos
+   puedan invocar el mapping del PDF 2024 con un nombre estable, sin
+   acoplarse al nombre interno (también facilita test de #101).
+
+4. src/components/steps/Step9Review.vue:
+   - Nuevo computed featureTraitsDisplay que devuelve [...featuresTraits,
+     "Fighting Style: <Name>"] cuando hay Fighting Style. Sin esto, el
+     bloque "Features & Traits" lo ignoraba.
+   - Template: v-for/v-if cambiados de char.featuresTraits a
+     featureTraitsDisplay.
+   - featDescriptionFromTag() extendida con un caso 0 que reconoce el
+     prefijo "Fighting Style:" y devuelve la descripción del feat
+     correspondiente (ej. "+2 bonus to attack rolls with Ranged weapons").
+
+ARCHIVOS:
+- src/utils/weaponCalc.ts
+- src/utils/pdfFieldMapping.ts
+- src/components/steps/Step9Review.vue
+
+TESTS: 721/721 pasando. Los 4 tests nuevos vivían ya en
+src/utils/fightingStyleVisibility.test.ts (escritos en TDD en sesión
+anterior) y ahora pasan:
+  - Archery +2 attack bonus con Hand Crossbow
+  - Sin Fighting Style, sólo DEX + PB
+  - Archery NO aplica a armas melee
+  - Campo Feats del PDF incluye "Archery"
+
+────────────────────────────────────────
+2026-05-21 19:35 · #98 — Export JSON con nombre formateado
+────────────────────────────────────────
+CAUSA: el botón "Download JSON" generaba un archivo llamado solo
+"<nombre>.json" o "character.json". Sin clase, nivel ni timestamp el
+usuario no podía organizar fácilmente backups de un mismo personaje a
+distintos niveles.
+
+FIX:
+
+1. Nuevo helper src/utils/exportFilename.ts: buildExportFilename(char, now)
+   Formato pedido: "Nombre - clase - lvXX - AAAA-MM-DD-HHMM.json"
+   - Nivel con padding a 2 dígitos (lv01, lv10, lv20)
+   - Timestamp local (no UTC)
+   - Saneo de caracteres prohibidos en filenames (: / \ ? * < > |)
+   - Fallbacks: sin nombre → "character"; sin clase → segmento omitido
+
+2. downloadJson() en Step9Review.vue refactorizado:
+   - Async ahora
+   - Si el navegador soporta showSaveFilePicker (Chromium moderno),
+     abre el diálogo nativo donde el usuario PUEDE EDITAR el nombre
+     antes de guardar.
+   - Si no, fallback al <a download> clásico (en la mayoría de
+     navegadores también abre "Save As" con el nombre sugerido).
+   - AbortError (usuario cancela) se ignora silenciosamente.
+
+8 tests en exportFilename.test.ts:
+  - Ejemplo del usuario: "Cecino - fighter - lv10 - 2026-05-21-2048.json"
+  - Padding lv01 / lv20
+  - Sin nombre → "character"
+  - Sin clase → omite segmento
+  - Saneo de caracteres prohibidos
+  - Timestamp con minutos 0X
+  - Termina siempre en .json
+
+Tests: 717/717 (709 → 717, +8).
+
+Archivos tocados:
+  - src/utils/exportFilename.ts (nuevo)
+  - src/utils/exportFilename.test.ts (nuevo, 8 tests)
+  - src/components/steps/Step9Review.vue (import + refactor downloadJson)
+
+────────────────────────────────────────
+2026-05-21 19:25 · #97 — UX Weapon Mastery con filtros y agrupación
+────────────────────────────────────────
+CAUSA: el selector mostraba todas las armas elegibles en una sola lista
+sin orden ni filtrado. Difícil encontrar un arma concreta o comparar
+armas con la misma mastery property.
+
+FIX en src/components/shared/WeaponMasteryPicker.vue (rewrite completo):
+
+1. Filtros (tres campos en una fila):
+   - Búsqueda por nombre (input text)
+   - Selector de categoría: All / Simple / Martial (usa simpleWeapons /
+     martialWeapons del archivo equipment.ts para clasificar)
+   - Selector de mastery property: All / Cleave / Graze / Nick / Push /
+     Sap / Slow / Topple / Vex (las 8 del PHB 2024)
+   - Botón "Clear filters" que aparece cuando hay algún filtro activo
+
+2. Modo agrupar (toggle, por defecto ON):
+   - "Group by mastery" muestra cabeceras por property (sticky en scroll)
+     con la descripción al lado: "Cleave — On a hit with a melee
+     attack… etc."
+   - Armas ordenadas alfabéticamente dentro de cada grupo
+   - Etiqueta SIMPLE/MARTIAL en cada tarjeta (esquina superior derecha)
+
+3. Modo lista plana:
+   - Armas ordenadas alfabéticamente
+   - Cada tarjeta muestra mastery property como badge + categoría
+
+4. Mensaje "No weapons match the current filters" cuando los filtros
+   no devuelven resultados.
+
+Tests existentes (709/709) siguen pasando — no cambia la lógica de
+selección, solo la UI.
+
+Archivos tocados:
+  - src/components/shared/WeaponMasteryPicker.vue (rewrite completo)
+
+────────────────────────────────────────
+2026-05-21 19:00 · #96 — Background Artisan PHB 2024 (Crafter origin feat)
+────────────────────────────────────────
+CAUSA: el background Artisan estaba solo en missing-backgrounds.ts con
+la versión 2014 (sin abilityScores ni originFeat). En la UI aparecía
+como bg PHB 2024 pero sin las elecciones obligatorias de
+características y feat.
+
+FIX en src/data/dnd5e/backgrounds.ts:
+- Añadida entry 'artisan' al array baseBackgrounds con datos PHB 2024:
+  - skillProficiencies: ['investigation', 'persuasion']
+  - toolProficiencies: ["Artisan's Tools (choose one)"]
+  - abilityScores: ['str', 'dex', 'int']
+  - originFeat: 'crafter'
+  - equipment: ["Artisan's Tools (chosen)", 'Pouch', "Maker's Mark Chisel",
+                "Traveler's Clothes", '32 GP']
+  - equipmentChoice con optionA (el paquete) y optionB ('50 GP')
+
+NOTA sobre comillas: el nombre "Maker's Mark Chisel" contiene apóstrofe.
+Las strings con apóstrofes en este file usan comillas DOBLES (`"..."`)
+para evitar conflicto con los strings delimitados por simple comilla.
+
+La versión legacy 2014 sigue en missing-backgrounds.ts pero el id 'artisan'
+ahora gana con la versión PHB 2024 (baseBackgrounds tiene prioridad).
+
+Tests: 709/709 sin cambios (no requiere tests nuevos — todos los
+existentes que iteran sobre baseBackgrounds o phbBackgrounds capturan
+el nuevo bg automáticamente).
+
+Archivos tocados:
+  - src/data/dnd5e/backgrounds.ts (entry Artisan en baseBackgrounds)
+
+────────────────────────────────────────
+2026-05-21 18:55 · #95 — Quitar texto informativo sobre ASIs
+────────────────────────────────────────
+CAUSA: tras la mejora del flujo el aviso "ⓘ In the 2024 rules, ability
+score increases come from your background, not your species" ya no era
+necesario. El usuario lo entiende por el propio funcionamiento.
+
+FIX en src/components/steps/Step2Race.vue:
+- Eliminado el bloque <div v-if="isModern2024(selectedRace)"> que
+  contenía el aviso en la cabecera del detalle de especie.
+
+El helper isModern2024() sigue usándose en otras tres partes del
+template para distinguir contenido legacy 2014 vs 2024, así que se
+queda. Solo se eliminó el bloque cosmético.
+
+Archivos tocados:
+  - src/components/steps/Step2Race.vue (-3 líneas)
+
+────────────────────────────────────────
+2026-05-21 18:30 · #93 — Step 2 bloquea avance si faltan elecciones de clase
+────────────────────────────────────────
+CAUSA (reportada con JSON de Cecino): el wizard permitía pasar de Step
+2 (Class) a Step 3 sin haber elegido las skills de proficiency de la
+clase. Cecino lv.2 Fighter quedaba con classSkillProficiencies=[]
+porque el usuario nunca seleccionó las 2 skills obligatorias y la UI
+no bloqueaba el avance. Falta análoga con Fighting Style y Expertise.
+
+FIX:
+
+1. BuilderView.vue:
+   - Nuevo helper classStepValidationError() que devuelve un mensaje
+     i18n específico (o null si OK) comprobando 3 cosas en orden:
+     a) classSkillProficiencies.length >= cls.numSkillChoices
+     b) Si hasFightingStyleFeature(char): requiere fightingStyleFeat
+        O martialCasterAlt (Blessed/Druidic Warrior)
+     c) Para cada feature en getActiveExpertiseFeatures(char):
+        expertiseSources[sourceId].length >= feat.count
+   - isCurrentStepValid case 2 usa el nuevo helper.
+   - tryNextStep() muestra el mensaje específico (no el genérico
+     "selectClass") cuando estás en Step 2.
+
+2. Nuevas claves i18n en en.json:
+   - validation.missingClassSkills (con count)
+   - validation.missingFightingStyle
+   - validation.missingExpertise (con label y count)
+
+3. Step3Class.vue: añadido <ExpertisePicker> tras <FightingStylePicker>
+   para que el jugador tenga ACCESIBLE el selector de Expertise en el
+   mismo paso donde se valida. Antes solo estaba en Step 9 (Review).
+
+20 tests en classStepValidation.test.ts:
+  - Class skills: vacío, parcial, completo
+  - Reproducción exacta del JSON de Cecino (Fighter lv.2, classSkills=[]
+    → missingClassSkills) + caso arreglado
+  - Fighting Style: Fighter lv.1 sin feat, Paladin lv.1 (sin feature aún),
+    Paladin lv.2 sin/con feat, Blessed Warrior cuenta como válido,
+    Ranger lv.2 sin feat, Wizard lv.5 sin la feature → OK
+  - Expertise: Bard lv.2/lv.10, Rogue lv.1, Wizard lv.2 Scholar
+  - Orden de fallos: skills tiene prioridad sobre Fighting Style
+
+Tests: 709/709 (689 → 709, +20).
+
+Archivos tocados:
+  - src/views/BuilderView.vue (imports + helper + integración)
+  - src/i18n/locales/en.json (3 claves nuevas)
+  - src/components/steps/Step3Class.vue (ExpertisePicker import + render)
+  - src/utils/classStepValidation.test.ts (nuevo, 20 tests)
+
+────────────────────────────────────────
+2026-05-21 17:45 · H5 — Paladin Blessed Warrior / Ranger Druidic Warrior
+────────────────────────────────────────
+CAUSA (auditoría externa): Paladin lv.2 y Ranger lv.2 pueden elegir
+EN LUGAR del Fighting Style feat una alternativa caster: Blessed Warrior
+(2 cantrips Cleric, CHA spellcasting) o Druidic Warrior (2 cantrips
+Druid, WIS spellcasting). Esta opción no estaba modelada.
+
+FIX:
+
+1. Nuevo helper src/utils/martialCasterAlt.ts:
+   - Catálogo MARTIAL_CASTER_ALT_OPTIONS con las 2 opciones
+     (paladin-blessed → cleric, ranger-druidic → druid)
+   - getApplicableAltOption(char): devuelve la opción aplicable según
+     clase + nivel mínimo
+   - setMartialCasterAlt(char, source, cantrips): persiste la elección
+     y borra fightingStyleFeat (exclusivo)
+   - hasMartialCasterAlt(char): boolean
+
+2. Nuevo campo en CharacterData:
+   martialCasterAlt?: { source: 'paladin-blessed' | 'ranger-druidic'; cantrips: string[] }
+   Añadido al allowlist de import.
+
+3. FightingStylePicker.vue extendido:
+   - Si la clase tiene una opción Alt aplicable, muestra un toggle al
+     principio con descripción
+   - Al activarlo aparece sub-selector con los cantrips de cleric/druid
+     correspondientes (color púrpura para distinguir)
+   - Al activar Alt, los Fighting Style feats quedan deshabilitados
+     visualmente (gris)
+   - Al elegir un Fighting Style feat, se desactiva Alt automáticamente
+
+4. PDF render: pdfFieldMapping.ts incluye los cantrips del Alt en la
+   tabla de hechizos del PJ, etiquetados con "(BW)" o "(DW)" para que
+   se distingan de los cantrips de clase.
+
+12 tests nuevos en martialCasterAlt.test.ts:
+  - Catálogo (presencia de ambas opciones)
+  - getApplicableAltOption (Paladin lv.1 → null, lv.2 → BW, Ranger lv.5 → DW)
+  - Fighter (cualquier nivel) → null
+  - setMartialCasterAlt (activa, desactiva, borra fightingStyleFeat)
+  - hasMartialCasterAlt
+
+Tests: 689/689 (677 → 689, +12).
+
+Archivos tocados:
+  - src/stores/character.ts (campo + allowlist)
+  - src/utils/martialCasterAlt.ts (nuevo)
+  - src/utils/martialCasterAlt.test.ts (nuevo, 12 tests)
+  - src/components/shared/FightingStylePicker.vue (refactor con Alt)
+  - src/utils/pdfFieldMapping.ts (cantrips Alt en tabla con etiqueta BW/DW)
+
+────────────────────────────────────────
+2026-05-21 17:15 · H5 — Wizard Scholar (lv.2: skill proficiency + Expertise)
+────────────────────────────────────────
+CAUSA (auditoría externa, parte de H5): Wizard lv.2 Scholar elige 1
+skill de un set específico (Arcana, History, Investigation, Nature,
+Religion). Gana proficiency Y Expertise en ella simultáneamente. No
+estaba modelado.
+
+FIX:
+
+1. Interface ExpertiseFeature extendido con 2 campos opcionales:
+   - skillOptions?: lista cerrada de skills elegibles (en lugar de
+     "cualquier skill proficient")
+   - grantsProficiency?: si true, añade la skill a skillProficiencies
+     (no la requiere previamente)
+
+2. Catálogo EXPERTISE_FEATURES: nueva entry 'wizard-scholar' con
+   skillOptions = ['arcana', 'history', 'investigation', 'nature',
+   'religion'] y grantsProficiency = true.
+
+3. setExpertiseChoice() refactorizado: si feature.grantsProficiency
+   está activo, gestiona char.skillProficiencies:
+   - Skills DESELECCIONADAS de esta fuente que no estaban en bg/clase
+     → se quitan de skillProficiencies
+   - Skills NUEVAS → se añaden a skillProficiencies si no estaban
+   La idea es: si el jugador elige Arcana → la skill aparece como
+   proficient + expertise. Si cambia a History → Arcana se quita
+   (porque solo la dio Scholar), History se añade.
+
+4. ExpertisePicker.vue:
+   - Nueva computed eligibleSkillsFor(feat): usa skillOptions si
+     existe, si no las proficientSkills del PJ
+   - showProficiencyWarning() oculta el aviso "no tienes profs" cuando
+     la feature grantsProficiency (no es relevante)
+   - Texto descriptivo distinto para features que dan proficiency
+
+5 tests adicionales en expertiseFeatures.test.ts:
+  - Wizard lv.2 activa wizard-scholar
+  - Wizard lv.1 → ninguna
+  - Selección añade skill a skillProficiencies
+  - Deselección la quita si no estaba en bg/cls
+  - Skill ya en bg/cls NO se quita al deseleccionar de Scholar
+
+Tests: 677/677 (672 → 677, +5).
+
+Archivos tocados:
+  - src/utils/expertiseFeatures.ts (interface + catálogo + lógica)
+  - src/utils/expertiseFeatures.test.ts (5 tests + actualización del
+    test "otras clases" para excluir wizard)
+  - src/components/shared/ExpertisePicker.vue (eligibleSkillsFor,
+    showProficiencyWarning, textos dinámicos)
+
+────────────────────────────────────────
+2026-05-21 17:10 · H5 — Rogue Expertise (lv.1 y lv.6)
+────────────────────────────────────────
+CAUSA (auditoría externa, parte de H5): Rogue Expertise estaba
+declarada como pendiente. La infraestructura de H5-Bard ya cubría el
+caso — solo había que añadir las entries al catálogo.
+
+FIX:
+- src/utils/expertiseFeatures.ts: añadidas 2 entries al catálogo:
+  · rogue-lv1 (count: 2) — Expertise inicial
+  · rogue-lv6 (count: 2) — Expertise adicional a nivel 6
+
+3 tests adicionales en expertiseFeatures.test.ts:
+  - Rogue lv.1 → rogue-lv1 activa
+  - Rogue lv.5 → solo rogue-lv1 (lv.6 aún no)
+  - Rogue lv.6 → ambas
+
+Sin tocar ningún otro archivo — el ExpertisePicker es genérico.
+
+Tests: 672/672 (668 → 672, +4 [incluye 1 test al hacer commit
+intermedio]).
+
+Archivos tocados:
+  - src/utils/expertiseFeatures.ts (2 entries)
+  - src/utils/expertiseFeatures.test.ts (3 tests)
+
+────────────────────────────────────────
+2026-05-21 16:10 · H8 — recomputeMaxHp centralizado
+────────────────────────────────────────
+CAUSA (auditoría externa): levelUp() sumaba `hpGained` incrementalmente
+al maxHp, dejando el valor inconsistente si después se cambiaba CON, ASI
+o se añadía/quitaba Tough. Tampoco se aplicaba Dwarven Toughness (+1
+HP/nivel para Dwarves).
+
+FIX:
+
+1. Nuevo helper src/utils/recomputeHp.ts: `recomputeMaxHp(char)` calcula
+   desde cero combinando:
+   - HP base por clase: max hit die a lv.1 + averaged en niveles posteriores
+   - CON modifier (incluyendo speciesBonuses + backgroundBonuses + asiBonuses)
+   - Feat Tough: toughHpBonus (level × 2)
+   - Dwarven Toughness: +1 HP/nivel para race='dwarf'
+   - currentHp se ajusta hacia abajo si maxHp baja, NO sube si maxHp sube
+     (mantiene el daño acumulado).
+
+2. Llamadas:
+   - levelUp(): tras incrementar el nivel, recalcular y resetear currentHp
+   - addMulticlass(): recalcular tras añadir clase
+   - removeMulticlass(): reemplaza el bloque de cálculo manual duplicado
+
+3. Mantiene la firma de `hpGained` que devuelve levelUp() para que la UI
+   pueda mostrar feedback "you gained X HP" si quiere.
+
+NOTA SOBRE WATCHERS: el helper NO se llama automáticamente al cambiar
+CON o Tough vía mutación directa del store (e.g. `char.abilityScores.con
+= 16`). Eso requeriría watchers que tienen efectos secundarios al
+cargar. El flujo natural (level-up, applyAsis, selectClass) cubre los
+casos comunes. Si en el futuro hay inconsistencias por mutaciones
+externas, añadir un watcher.
+
+9 tests en recomputeHp.test.ts:
+  - Fighter lv.1 / lv.5 con distintas CON
+  - Wizard lv.1
+  - Cambio de CON recalcula bien
+  - Feat Tough +2 HP/nivel
+  - Dwarven Toughness +1 HP/nivel
+  - currentHp se ajusta a maxHp si baja
+  - currentHp se mantiene si maxHp sube
+  - Caso degenerado: sin clase → maxHp = 1
+
+Tests: 668/668 (659 → 668, +9).
+
+Archivos tocados:
+  - src/utils/recomputeHp.ts (nuevo)
+  - src/utils/recomputeHp.test.ts (nuevo, 9 tests)
+  - src/stores/character.ts (import + 3 llamadas + eliminación bloque
+    duplicado en removeMulticlass)
+
+────────────────────────────────────────
+2026-05-21 15:50 · H6 — Origin feats SOLO a través del background (lv.1)
+────────────────────────────────────────
+CAUSA (auditoría externa): eligibleFeats() en src/data/dnd5e/asi.ts
+devolvía feats de category 'origin' Y 'general' en los ASI normales
+(lv.4/8/12/16). En PHB 2024 los Origin feats se eligen UNA SOLA VEZ
+a través del background a lv.1; los ASI ofrecen solo General feats.
+
+FIX en src/data/dnd5e/asi.ts:
+  - eligibleFeats() ahora filtra solo por category === 'general' (o
+    'epic-boon' a lv.19).
+  - Comentario actualizado explicando la regla PHB 2024.
+
+Test antiguo `exposes Origin + General feats at non-19 levels` en
+milestone10.test.ts reescrito a `exposes ONLY General feats at non-19
+levels (PHB 2024 H6)` con asserts negativos para origin y epic-boon.
+
+Tests: 659/659 (sin cambio numérico, solo actualización del test
+existente — el conteo se mantiene).
+
+Archivos tocados:
+  - src/data/dnd5e/asi.ts (eligibleFeats: quitar 'origin')
+  - src/data/dnd5e/milestone10.test.ts (actualizar test)
+
+────────────────────────────────────────
+2026-05-21 15:10 · H5-Bard — Bard Expertise como decisión mecánica
+────────────────────────────────────────
+CAUSA (auditoría externa): Bard Expertise (lv.2 y lv.10) aparecía como
+texto descriptivo en featuresTraits pero el jugador no tenía dónde
+elegir las skills concretas. El array `skillExpertise` existía en el
+store pero quedaba siempre vacío para Bards.
+
+ALCANCE DE ESTE FIX: solo Bard. Rogue Expertise (lv.1, lv.6) y Wizard
+Scholar (lv.2) quedan PENDIENTES en H5 (la infraestructura ya está
+para añadirlos en una entrada de EXPERTISE_FEATURES).
+
+INFRAESTRUCTURA (generalizada para extender después):
+
+1. Nuevo campo opcional en CharacterData:
+   `expertiseSources?: Record<string, string[]>`
+   Indexado por sourceId ('bard-lv2', 'bard-lv10'). El array `skillExpertise`
+   legacy se reconstruye como UNIÓN de todos los sources (sin duplicados).
+
+2. Helper src/utils/expertiseFeatures.ts:
+   - Catálogo EXPERTISE_FEATURES (bard-lv2, bard-lv10 por ahora)
+   - getActiveExpertiseFeatures(char): filtra por clase + nivel mínimo
+   - getSkillsBlockedByOtherExpertise(char, sourceId): para evitar que
+     una skill se elija en dos features (PHB 2024 explícito: "distintas")
+   - setExpertiseChoice(char, sourceId, skills): sanitiza (dedupe,
+     descarta las que ya están en otras fuentes) y reconstruye skillExpertise
+   - rebuildSkillExpertise(char): operación pura
+
+3. Componente src/components/shared/ExpertisePicker.vue:
+   - Detecta features activas y muestra un grupo por cada una
+   - Solo deja elegir entre skills CON PROFICIENCY del PJ (PHB 2024)
+   - Skills ya elegidas en otra Expertise feature aparecen disabled con
+     línea tachada y tooltip "Already chosen in another Expertise feature"
+   - Aviso si el PJ aún no tiene proficiencies (caso degenerado)
+
+4. Integrado en Step9Review tras FightingStylePicker.
+
+PDF: no hace falta cambio. pdfFieldMapping.ts ya leía `char.skillExpertise`
+para añadir PB extra al skill mod. Como setExpertiseChoice() mantiene
+ese array sincronizado con expertiseSources, el PDF refleja la elección
+automáticamente.
+
+14 tests en expertiseFeatures.test.ts:
+  - Catálogo (presencia de bard-lv2 y bard-lv10 con count=2)
+  - getActiveExpertiseFeatures por nivel y clase (Fighter, Wizard, etc.
+    no tienen ninguna)
+  - setExpertiseChoice (dedupe, bloqueo cross-source, sincronización)
+  - getSkillsBlockedByOtherExpertise (las propias no bloquean)
+  - rebuildSkillExpertise (operación pura)
+
+Tests: 659/659 (645 → 659, +14).
+
+Archivos tocados:
+  - src/stores/character.ts (campo + allowlist)
+  - src/utils/expertiseFeatures.ts (nuevo)
+  - src/utils/expertiseFeatures.test.ts (nuevo, 14 tests)
+  - src/components/shared/ExpertisePicker.vue (nuevo)
+  - src/components/steps/Step9Review.vue (import + uso)
+
+────────────────────────────────────────
+2026-05-21 14:25 · H4 — Class proficiencies se copian al personaje
+────────────────────────────────────────
+CAUSA (auditoría externa): selectClass() en Step3Class.vue solo aplicaba
+hitDie y savingThrows al PJ. NO copiaba armorProficiencies,
+weaponProficiencies ni toolProficiencies. El PDF mapping leía esos datos
+directamente desde la clase (`cls.armorProficiencies`), lo que funcionaba
+mientras char.className apuntase a una clase válida, pero impedía:
+  - Añadir proficiencies via feats sin tocar la clase
+  - Tener varias fuentes (clase, background, manual, feat) coherentes
+  - Saber qué viene de la clase en el modelo del PJ
+
+FIX:
+1. CharacterData: 3 campos nuevos opcionales:
+   - classArmorProficiencies?: string[]
+   - classWeaponProficiencies?: string[]
+   - classToolProficiencies?: string[]
+   Añadidos al allowlist de import y a stringArrayFields para deep-
+   validation. Compatible con #82.
+
+2. selectClass() en Step3Class.vue copia los 3 arrays desde la clase
+   al PJ. Cambiar de clase reemplaza limpiamente los 3.
+
+3. pdfFieldMapping.ts ahora lee primero del store (char.class*Proficiencies)
+   con fallback a la clase directa. Esto cubre personajes importados
+   de versiones viejas (sin los campos) sin romper nada, y a la vez
+   permite que futuras features añadan proficiencies sin tocar la
+   definición de la clase.
+
+NOTA SOBRE STARTING EQUIPMENT (H3): el usuario decidió que el inventario
+inicial no le interesa, así que `cls.startingEquipment` NO se copia al
+PJ por ahora. Si en el futuro se quiere, el patrón sería el mismo:
+classEquipmentItems?: string[] + copia en selectClass().
+
+7 tests nuevos en classProficiencies.test.ts:
+  - Fighter: light/medium/heavy/shields + simple+martial
+  - Wizard: solo simple, sin armor
+  - Rogue: simple + martial-finesse (PHB 2024)
+  - Bard: tool proficiencies (musical instruments)
+  - Cleric: sin tool proficiencies (array vacío)
+  - Cambio de clase reemplaza limpiamente
+  - Las copias son independientes de la fuente
+
+Tests: 645/645 (638 → 645, +7).
+
+Archivos tocados:
+  - src/stores/character.ts (3 campos + allowlist + stringArrayFields)
+  - src/components/steps/Step3Class.vue (selectClass copia los 3)
+  - src/utils/pdfFieldMapping.ts (lee del store con fallback)
+  - src/utils/classProficiencies.test.ts (nuevo, 7 tests)
+
+────────────────────────────────────────
+2026-05-21 13:30 · H7 — Cap ability score 20 ahora IMPIDE asignación
+────────────────────────────────────────
+CAUSA (auditoría externa): AsiSelector mostraba aviso "Cap exceeded for:
+STR" cuando un ASI hubiera dejado un score >20, pero el `<select>`
+permitía igualmente la asignación. Para un builder es un error lógico
+permitir terminar con STR 22 vía ASI normal.
+
+FIX en src/components/shared/AsiSelector.vue:
+  - Nueva función `wouldExceedCap(idx, ab, bump)`:
+    · Lee el cap según slot: 20 normal, 30 Epic Boon (lv.19).
+    · Calcula score base SIN el bump que el propio slot ya aplica a esa
+      habilidad, para no descontar dos veces al reasignar.
+  - Template: cada `<option>` en los `<select>` de +2 y +1+1 ahora tiene
+    `:disabled="wouldExceedCap(idx, ab, bump)"` y muestra "(cap)" en el
+    label para que el usuario entienda por qué no aparece como elegible.
+  - `setAsiAbility()` defensivo: descarta la asignación si supera el cap
+    (cubre llamadas programáticas externas, no solo el selector).
+
+El aviso original "Cap exceeded for X" queda como mensaje de auditoría
+de scores ya almacenados (por imports antiguos), pero el flujo nuevo
+no llega a ese estado.
+
+9 tests nuevos en asiCap.test.ts (lógica pura de wouldExceedCap).
+
+Tests: 638/638 (629 → 638, +9).
+
+────────────────────────────────────────
+2026-05-21 13:20 · H2 — Wood Elf speed 35 ft
+────────────────────────────────────────
+CAUSA (auditoría externa): un Wood Elf seleccionado en Step2 se quedaba
+con speed = 30 ft (heredado de Elf base) en lugar del 35 ft que dicta
+el PHB 2024. La trait "Speed increases to 35 ft" estaba como texto
+pero no se aplicaba mecánicamente.
+
+FIX:
+1. Interface Subrace: añadido campo opcional `speed?: number` (H2).
+2. Wood Elf en src/data/dnd5e/races.ts: `speed: 35`.
+3. selectSubrace() en Step2Race.vue ahora aplica:
+   `character.speed = sub?.speed ?? race.speed`
+   Esto permite que cualquier subraza futura pueda sobreescribir speed
+   sin tocar más código.
+
+Nota: solo Wood Elf necesita override en PHB 2024 (Elf base = 30, High
+Elf = 30, Drow = 30). Otras razas con speed especial (Dragonborn 30,
+Goliath 35) ya lo definen a nivel de raza.
+
+4 tests nuevos en subraceSpeed.test.ts.
+
+Tests: 629/629 (625 → 629, +4).
+
+────────────────────────────────────────
+2026-05-21 13:10 · H1 — prepared spells leen la tabla PHB 2024 (no fórmula 2014)
+────────────────────────────────────────
+CAUSA (auditoría externa, CRÍTICO): getSpellsKnownCount() en
+src/data/index.ts usaba la fórmula 5e 2014 `max(1, abilityMod + level)`
+para todos los preparedCasters. Esto IGNORABA las tablas
+`progression.preparedSpells` que ya existían en classes.ts (corregidas
+en #85). Resultado: el número de prepared spells era incorrecto para
+muchas combinaciones clase/nivel.
+
+EJEMPLOS DE ERROR (antes vs PHB 2024):
+  Paladin lv.2 CHA+3:  fórmula 5 → real 2     (sobrava 3 spells)
+  Bard lv.5  CHA+3:    fórmula 8 → real 9     (faltaba 1)
+  Bard lv.15 CHA+5:    fórmula 20 → real 18   (sobraban 2)
+  Cleric lv.10 WIS+5:  fórmula 15 → real 15   (coincidía por azar)
+  Wizard lv.20 INT+5:  fórmula 25 → real 25   (coincidía por azar)
+
+Curiosamente la fórmula coincidía por azar en algunos puntos pero
+divergía hasta 3 spells de diferencia en otros — peor que un sesgo
+constante.
+
+FIX:
+1. src/data/index.ts: getSpellsKnownCount() ahora lee
+   `cls.progression?.preparedSpells[level - 1]` para todos los
+   preparedCasters. El parámetro abilityModifiers se mantiene en la
+   firma (por compatibilidad de llamadores) pero queda sin usar
+   (prefijo `_`).
+
+2. Tablas paladinPrepared y rangerPrepared en classes.ts: corregido
+   el "off-by-one" que tenían — los half-casters no son casters a
+   lv.1, por lo que ahora arrancan con `[0, 2, 3, 4, ...]`. Esto
+   alinea el índice 0 con lv.1 = 0 spells (correcto) en lugar de
+   con lv.2 = 2 spells (que era lo que daba la tabla anterior).
+
+27 tests nuevos en preparedSpells.test.ts cubriendo todas las clases
+caster (Bard, Cleric, Druid, Paladin, Ranger, Sorcerer, Warlock,
+Wizard) con casos críticos (lv.1, lv.5, lv.10, lv.20) y verificación
+explícita de que el modificador de habilidad NO afecta al resultado.
+
+Este fix también desbloquea retroactivamente el trabajo de #85: las
+tablas corregidas en classes.ts ahora SÍ son la fuente de verdad.
+
+Tests: 625/625 (598 → 625, +27).
+
+────────────────────────────────────────
+2026-05-21 12:45 · #94 — Fighter Fighting Style en creación y level-up
+────────────────────────────────────────
+CAUSA: Fighter, Paladin y Ranger tienen la feature "Fighting Style" en
+sus tablas (lv.1 / 2 / 2) pero no había selector — el jugador tenía
+que apuntárselo a mano sin que el código lo guardase ni lo mostrase
+en el PDF.
+
+FIX:
+1. Nuevo campo `fightingStyleFeat?: string` en CharacterData (id del feat).
+   Añadido al allowlist de import. Compatible con #82.
+
+2. src/utils/fightingStyle.ts (nuevo):
+   - getFightingStyleFeats(): filtra feats.ts por category='fighting-style'
+     (ya existían 10 feats con esa categoría — Defense, Dueling, Archery,
+     Great Weapon Fighting, etc.).
+   - hasFightingStyleFeature(char): true si Fighter lv.1+, Paladin lv.2+,
+     Ranger lv.2+; false para el resto.
+   - getFightingStyleSource(char): devuelve { className, level } o null.
+   - getFightingStyleSourceLabel(char): "Fighter lv.1", "Paladin lv.2", etc.
+
+3. src/components/shared/FightingStylePicker.vue (nuevo):
+   - Solo se muestra si hasFightingStyleFeature(char) === true.
+   - Lista todos los fighting-style feats con su descripción inline.
+   - Click selecciona; click sobre el seleccionado deselecciona (permite
+     cambiar al deseleccionar primero, lo cual cubre el caso "replace en
+     cada Fighter level-up").
+   - Persiste en char.fightingStyleFeat.
+
+4. Integración:
+   - Step3Class: visible tras la sección de Skills (al elegir la clase
+     ya queremos ver el style).
+   - Step9Review: visible tras WeaponMasteryPicker (permite revisión
+     y cambio post-creación).
+
+5. PDF render — drawFeats() en pdfAppendix.ts ahora incluye el
+   fightingStyleFeat al final del bloque "FEATS" con el source label
+   "(fighting style)". Verificado visualmente con Cecino lv.10 +
+   Defense → aparece "Defense (fighting style)" + descripción.
+
+NOTA SOBRE Champion lv.7 "Additional Fighting Style": el PHB dice que
+gana un SEGUNDO fighting style. Este modelo aún no lo cubre (solo
+guarda un id). Queda como TODO para una iteración futura.
+
+14 tests nuevos en fightingStyle.test.ts (catálogo, eligibilidad por
+clase y nivel, formato de labels, flujo de selección y replace).
+
+Tests: 598/598 (584 → 598, +14).
+
+Archivos tocados:
+  - src/stores/character.ts (campo + allowlist)
+  - src/utils/fightingStyle.ts (nuevo)
+  - src/utils/fightingStyle.test.ts (nuevo, 14 tests)
+  - src/components/shared/FightingStylePicker.vue (nuevo)
+  - src/components/steps/Step3Class.vue (import + uso)
+  - src/components/steps/Step9Review.vue (import + uso tras Mastery)
+  - src/utils/pdfAppendix.ts (drawFeats incluye fightingStyleFeat)
+
+────────────────────────────────────────
+2026-05-21 12:30 · #93 — Skills creación con sustitución bg+clase
+────────────────────────────────────────
+CAUSA: si el background otorgaba una skill (p.ej. Acolyte → Insight,
+Religion) y la clase ofrecía esa misma skill en su lista de
+skillChoices, el jugador podía marcarla en Step3 y se duplicaba o se
+pisaban según el orden. Además, Step3 sobreescribía
+char.skillProficiencies con sólo las elecciones de la clase, lo que
+podía borrar las del bg en algunos flujos.
+
+FIX:
+1. Nuevo campo `classSkillProficiencies?: string[]` en CharacterData
+   (análogo al backgroundSkillProficiencies que ya existía). Añadido
+   al allowlist y a stringArrayFields para deep-validation.
+
+2. Step3Class refactor:
+   - Eliminado el `selectedSkills` (ref local) — ahora todo lee del
+     store directamente (computed `classSkills` y `bgSkills`).
+   - `toggleSkill` modifica `classSkillProficiencies` (no la unión)
+     y respeta el límite numSkillChoices.
+   - Nuevo helper `rebuildSkillProficiencies()` reconstruye la unión
+     bg + class sin duplicados después de cada cambio.
+   - `selectClass()` resetea classSkillProficiencies pero PRESERVA
+     las del bg (antes el reset las borraba implícitamente).
+
+3. UI Step3:
+   - Las skills que ya vienen del bg aparecen disabled con estilo
+     "line-through", color stone-600, y badge "(bg)" + tooltip
+     "Already from background — pick another".
+   - Solo cuentan para el contador X/Y las elecciones de clase.
+
+4. Step5Background refactor de `selectBackground()`:
+   - Actualiza backgroundSkillProficiencies con las del nuevo bg.
+   - Si el nuevo bg ahora trae una skill que la clase había elegido,
+     esa elección se descarta de classSkillProficiencies (el jugador
+     verá el slot libre en Step3 para escoger otra).
+   - Reconstruye la unión final igual que Step3.
+
+6 tests nuevos en skillsCreation.test.ts cubriendo el flujo completo:
+asignación bg, suma sin pisar, descarte al colisionar, bloqueo de
+selección del bg desde Step3, reinicio class al cambiar de clase
+preservando bg, respeto del límite numSkillChoices.
+
+Tests: 584/584 (578 → 584, +6).
+
+Archivos tocados:
+  - src/stores/character.ts (campo + allowlist + stringArrayFields)
+  - src/components/steps/Step3Class.vue (refactor selectedSkills →
+    classSkillProficiencies + UI con bg disabled)
+  - src/components/steps/Step5Background.vue (selectBackground
+    refactor con cleanup de classSkills colisionadas)
+  - src/utils/skillsCreation.test.ts (nuevo, 6 tests)
+
+────────────────────────────────────────
+2026-05-21 12:00 · #92 — Languages: paso de elección en la creación
+────────────────────────────────────────
+CAUSA: el flujo no incluía un paso explícito de elección de idiomas.
+Cada raza asignaba automáticamente 1-2 idiomas via `race.languages`
+(legacy del 5e 2014), y los backgrounds tenían un campo `languages: 0`
+inerte. PHB 2024 cambia la regla: cada personaje conoce **Common + 2
+idiomas elegidos** a la creación, sin depender de raza ni background.
+
+FIX (opción "limpia"):
+
+1. Nuevo catálogo src/data/dnd5e/languages.ts con los 19 idiomas del
+   PHB 2024 (10 Standard, 9 Rare). Cada uno con id, name, rare, y
+   typicalSpeakers descriptivo.
+
+2. RaceData: `languages` ahora es opcional. Eliminadas las asignaciones
+   raciales hardcoded de las 11 razas (Dragonborn, Dwarf, Elf, Gnome,
+   Goliath, Halfling, Human, Orc, Tiefling, etc.). Los nombres de idioma
+   no se borran del repo (siguen siendo elegibles desde el catálogo).
+
+3. Step2Race ya no escribe `char.languages = [...race.languages]` al
+   elegir raza. Tampoco muestra la sección "Languages" en el resumen
+   de la raza (ya no es info derivada).
+
+4. Step5Background ya no muestra "+ X language choices" (los backgrounds
+   2024 no dan idiomas).
+
+5. Nuevo componente src/components/shared/LanguagePicker.vue:
+   - Cabecera con contador "Common + X / 2"
+   - Common como badge fijo no-deseleccionable
+   - Standard languages en grid (botones ámbar al seleccionar)
+   - Rare languages en grid separado (botones púrpura) con aviso
+     "usually requires narrative justification or class feature"
+   - onMounted ensureCommon() garantiza Common siempre presente
+   - tooltip con typicalSpeakers al hover
+
+6. Integrado en Step5Background al final (queda en el paso "más
+   narrativo" donde encajan también traits/ideales).
+
+7. randomCharacter.ts refactorizado: ahora pickea Common + 2 random
+   del catálogo en lugar de combinar race.languages + bg.languages.
+
+8. milestone9.test.ts actualizado para no depender de race.languages
+   (simula el nuevo flujo con elección explícita).
+
+8 tests nuevos en languages.test.ts: cobertura completa del catálogo
+(10 standard, 9 rare, ids únicos, typical-speakers no vacío, lookups).
+
+Tests: 578/578 (570 → 578, +8).
+
+Archivos tocados:
+  - src/data/dnd5e/languages.ts (nuevo)
+  - src/data/dnd5e/languages.test.ts (nuevo, 8 tests)
+  - src/data/dnd5e/races.ts (11 languages arrays eliminados,
+    campo opcional en interface)
+  - src/components/steps/Step2Race.vue (no asigna languages, no muestra)
+  - src/components/steps/Step5Background.vue (importa picker, lo
+    coloca al final; elimina el display obsoleto de bg.languages > 0)
+  - src/components/shared/LanguagePicker.vue (nuevo)
+  - src/utils/randomCharacter.ts (Common + 2 random)
+  - src/data/dnd5e/milestone9.test.ts (no usa race.languages)
+
+────────────────────────────────────────
+2026-05-21 12:00 · #91 — Selectores de hechizos sin descripción
+────────────────────────────────────────
+CAUSA: al elegir hechizos en cualquier selector (creación Step7, Magic
+Initiate, level-up en Step9Review), solo se veía el nombre. Para leer
+qué hace el hechizo el usuario tenía que ir al PHB. Step7 tenía un
+modal accesible vía click DERECHO sobre los cantrips — atajo no
+descubrible y no funciona en móvil. Step9 y MagicInitiate no tenían
+ningún acceso al detalle.
+
+FIX: nuevo componente reutilizable src/components/shared/SpellRow.vue
+con UI de acordeón al click en una flecha visible (▸/▾). Patrón
+universal:
+  - Tooltip al hover: falla en móvil, se cierra al mover cursor.
+  - Panel lateral: rompe layouts estrechos.
+  - Modal: ya existía y era poco descubrible.
+  - Acordeón inline: funciona en móvil y desktop, no oculta nada,
+    permite comparar varios desplegados a la vez.
+
+SpellRow tiene dos variantes:
+  - `compact` (cantrips): pill horizontal con flecha lateral, el
+    desplegable aparece debajo con datos resumidos.
+  - default (leveled spells): fila ancha con flecha al final, el
+    desplegable aparece con borde lateral ambar bajo la fila.
+
+El desplegable muestra: school, casting time, range, components,
+duration, y descripción completa.
+
+INTEGRACIÓN (3 sitios):
+  - Step7Spells (creación): reemplaza los dos `<button v-for spell>`
+    (cantrips compact + leveled). Elimina el modal antiguo y la
+    función showDetail (dead code tras el cambio).
+  - MagicInitiatePicker: reemplaza el grid de cantrips (botones) y
+    el `<select>` de level-1 spell (un select no permite acordeón).
+  - Step9Review (level-up): reemplaza el selector compact que solo
+    mostraba nombre + nivel.
+
+Sin tests específicos: el componente es UI puramente presentacional,
+sin lógica de negocio (toggle se delega al padre via emit). Tests
+existentes siguen pasando 570/570 — el cambio no afecta el state
+del store.
+
+Archivos tocados:
+  - src/components/shared/SpellRow.vue (nuevo)
+  - src/components/steps/Step7Spells.vue (import + 2 reemplazos +
+    limpieza modal/showDetail/import Spell sobrante)
+  - src/components/shared/MagicInitiatePicker.vue (import + 2
+    reemplazos)
+  - src/components/steps/Step9Review.vue (import + 1 reemplazo)
+
+Tests: 570/570.
+
+────────────────────────────────────────
+2026-05-21 11:30 · #90 — Goliath: Giant Ancestry como elección interactiva
+────────────────────────────────────────
+CAUSA: la raza Goliath listaba las 6 opciones de Giant Ancestry (Cloud,
+Fire, Frost, Hill, Stone, Storm) como bullets dentro del array `traits[]`,
+sin permitir elegir una. El jugador veía las 6 opciones como si las
+tuviera todas, en lugar de tener UNA con su mecánica específica.
+
+FIX: aplicar el mismo patrón que Dragonborn → Draconic Ancestry, que ya
+estaba implementado y consumido genéricamente por toda la app vía
+`race.choices[]` y `char.speciesChoices`.
+
+Cambios en src/data/dnd5e/races.ts (Goliath):
+  - Quitar del array `traits[]` el header "Giant Ancestry: choose one..."
+    y las 6 sub-bullets de los boons.
+  - Mantener los traits comunes (Large Form lv.5+, Powerful Build).
+  - Añadir bloque `choices: [{ id: 'giant-ancestry', label: 'Giant Ancestry',
+    description: '...', options: [...6 opciones...] }]` con id+name+details
+    para cada boon.
+
+Sin cambios en código fuera de races.ts: la UI Step2 (Step2Race.vue),
+el PDF hoja 1 (pdfFieldMapping.ts) y el PDF anexo (pdfAppendix.ts
+drawSpeciesTraits) ya iteran `race.choices?` de forma genérica. Goliath
+funciona automáticamente igual que Dragonborn:
+  - Step2: aparece selector con las 6 opciones (radio group)
+  - PDF hoja 1: "Giant Ancestry: Stone's Endurance (Reaction: roll 1d12...)"
+    en el bloque Species Traits
+  - PDF anexo: subheader "Giant Ancestry" + body con la opción elegida
+
+UX: la elección se puede CAMBIAR en cualquier momento mientras se está
+creando el personaje (no hay lock), exactamente igual que Draconic
+Ancestry. Tras "terminar" no se modela ningún lock especial (el
+personaje se sigue editando libremente).
+
+Verificado visualmente: regenerado PDF con Cecino convertido a Goliath
++ Stone's Endurance — SPECIES TRAITS muestra Large Form, Powerful Build,
+y "Giant Ancestry: Stone's Endurance - Reaction: roll 1d12 + CON...".
+
+Sin tests específicos: el bloque `choices` es puramente data y el código
+que lo consume ya tenía tests para Dragonborn.
+
+Tests: 570/570 (sin cambio).
+
+Archivos tocados:
+  - src/data/dnd5e/races.ts (Goliath entry)
+
+────────────────────────────────────────
+2026-05-21 11:00 · #89 — Weapon Mastery: selección y progresión por nivel
+────────────────────────────────────────
+Implementación completa de la feature Weapon Mastery (PHB 2024) para las
+5 clases que la tienen: Fighter, Barbarian, Paladin, Ranger, Rogue. El
+número de armas dominadas escala con el nivel (tabla por clase, ya en
+`weaponMasteryByLevel` corregida en #85). Cada arma dominada activa su
+propiedad de maestría (Vex, Topple, Sap, etc.).
+
+DATOS:
+  - Nuevo campo opcional `weaponMasteries?: string[]` en CharacterData.
+  - Añadido al allowlist de importJson (#82) y stringArrayFields para
+    que se valide y persista al re-importar.
+
+LÓGICA: src/utils/weaponMastery.ts
+  - getWeaponMasterySlots(char): slots por nivel leyendo
+    class.weaponMasteryByLevel[level - 1]. Devuelve 0 para clases sin
+    Mastery (Cleric, Wizard, etc.).
+  - getEligibleMasteryWeapons(char): cruza class.weaponProficiencies con
+    Simple/Martial. Maneja casos especiales:
+      · Fighter/Barbarian/Paladin/Ranger: Simple + Martial completos.
+      · Rogue: Simple + Martial con Finesse o Light (codificado como
+        'martial-finesse' en classes.ts).
+      · Monk ('martial-light'): rama presente por simetría, aunque Monk
+        no tiene Mastery por clase.
+  - sanitizeMasteries(char): quita duplicados, descarta no elegibles,
+    trunca al número de slots actual. Defensivo para imports antiguos
+    y casos donde el PJ baja de nivel.
+  - getMasteryFor(weaponName): devuelve la propiedad ('Vex', 'Topple'...)
+    o undefined si el arma es desconocida (case-insensitive).
+
+UI: src/components/shared/WeaponMasteryPicker.vue
+  - Cabecera con contador "X / N weapons" y mensaje de slots restantes.
+  - Grid 2-col responsive con todas las armas elegibles ordenadas.
+  - Cada botón muestra nombre, daño, tipo y badge con la propiedad
+    (color ambar si seleccionada).
+  - Tooltip con la descripción de la mastery property al hover (de
+    masteryDescriptions en equipment.ts).
+  - Botones deshabilitados con 40% opacity cuando se alcanza el límite.
+  - Integrado en Step6Equipment y Step9Review (selector accesible en
+    creación y al revisar).
+
+PDF anexo: nueva sección drawWeaponMasteries en src/utils/pdfAppendix.ts
+  - "WEAPON MASTERIES" como SECTION_HEADER (rojo, balanceado por #86).
+  - Una entrada por arma dominada: "Rapier — Vex" como subheader +
+    body con la descripción mecánica de Vex.
+  - Se omite la sección si masteries vacío.
+
+Tests: 19 nuevos en weaponMastery.test.ts cubriendo slots por clase y
+nivel (incluyendo el escalón corregido en #85 de Fighter lv.16 → 6),
+filtrado de armas por proficiencia (Rogue rechaza Greatsword), límites
+de selección, y el caso Cecino lv.10 (5 slots, Hand Crossbow → Vex).
+
+Total: 570/570 tests.
+
+Archivos tocados:
+  - src/stores/character.ts (campo + import allowlist + stringArrayFields)
+  - src/utils/weaponMastery.ts (nuevo)
+  - src/utils/weaponMastery.test.ts (nuevo, 19 tests)
+  - src/components/shared/WeaponMasteryPicker.vue (nuevo)
+  - src/components/steps/Step6Equipment.vue (import + uso)
+  - src/components/steps/Step9Review.vue (import + uso tras AsiSelector)
+  - src/utils/pdfAppendix.ts (import + drawWeaponMasteries + wire)
+
+────────────────────────────────────────
+2026-05-21 10:30 · #88 — Magic Items sin descripción real
+────────────────────────────────────────
+CAUSA: el catálogo src/data/dnd5e/magic-items.ts (260 items) tenía como
+"description" un duplicado redundante del tipo y rareza:
+  description: "Wondrous Item, Uncommon (Requires Attunement)"
+en lugar de la mecánica real del objeto. Confirmado por el usuario con
+Winged Boots: el PDF mostraba "Wondrous Item, Uncommon" sin mencionar el
+Fly Speed de 30 ft, las 4 cargas, la recarga al amanecer, etc.
+
+El PDF anexo (drawMagicItems en pdfAppendix.ts) ya consumía description
+correctamente con drawBody — el bug estaba en el catálogo, no en el render.
+
+FIX: script de un solo uso que parsea /mnt/project/magic-items.md (versión
+SRD 2024 oficial, 264 entradas con descripciones completas) y sustituye
+las descripciones del catálogo por las del SRD:
+  - 231 items actualizados con descripción real
+  - 8 ya tenían descripción buena (>80 chars), se respetan
+  - 0 items sin match (cobertura completa)
+
+Limpieza: se quita la primera línea del .md (header en italics tipo
+"_Wondrous Item, Uncommon (Requires Attunement)_") porque esa info ya
+está implícita en los campos category/rarity/attunement. Los strings
+multilinea se escapan correctamente con \\n para que esbuild los acepte.
+
+Verificado: Winged Boots ahora muestra "These boots have 4 charges and
+regain 1d4 expended charges daily at dawn. While wearing the boots, you
+can take a Magic action to expend 1 charge, gaining a Fly Speed of 30
+feet for 1 hour. If you are flying when the duration expires, you
+descend at a rate of 30 feet per round until you land."
+
+Sin tests específicos: el fix es puramente de contenido del catálogo, no
+de lógica.
+
+Tests: 551/551 (sin cambio).
+
+Archivos tocados:
+  - src/data/dnd5e/magic-items.ts (231 descripciones sustituidas)
+
+────────────────────────────────────────
+2026-05-21 10:10 · #87 — PDF Anexo: tabla LIMITED-USE RESOURCES sin ordenar
+────────────────────────────────────────
+La tabla del final del anexo listaba los recursos en orden de aparición en
+el código (Barbarian → Fighter → Cleric → Druid → Echo Knight → race), no
+alfabético. Resultado: para un Fighter Echo Knight Dragonborn (Cecino) la
+lista era Second Wind, Action Surge, Indomitable, Unleash Incarnation,
+Shadow Martyr, Breath Weapon, Draconic Flight — incómodo de escanear.
+
+FIX en src/utils/resourceUsage.ts:
+  - getLimitedResources() ahora ordena con localeCompare antes de devolver.
+
+Cecino lv.10 ahora muestra: Action Surge, Breath Weapon, Draconic Flight,
+Indomitable, Second Wind, Shadow Martyr, Unleash Incarnation.
+
+2 tests nuevos en resourceUsage.test.ts:
+  - el caso real Cecino verifica el orden exacto esperado
+  - test genérico con Cleric lv.6 + Dragonborn que valida orden estable
+
+Total: 551/551 tests.
+
+Archivos tocados:
+  - src/utils/resourceUsage.ts (sort al final)
+  - src/utils/resourceUsage.test.ts (+2 tests)
+
+────────────────────────────────────────
+2026-05-21 09:45 · #85 — Auditoría tablas de progresión PHB 2024
+────────────────────────────────────────
+Auditoría completa de las 25+ tablas de class.progression contra el PHB
+2024 oficial (Capítulo 3). Detectados 11 errores. Todos corregidos con
+comentario inline señalando la página del PHB. Sin tests añadidos (por
+decisión del usuario — el comentario en cada array es suficiente para
+code review futuro).
+
+ERRORES CORREGIDOS:
+
+1. Fighter weaponMastery — el +1 final estaba a lv.19 en vez de lv.16.
+     antes:    [..., 5(lv.15), 5(16), 5(17), 5(18), 6(19), 6(20)]
+     correcta: [..., 5(15), 6(16), 6(17), 6(18), 6(19), 6(20)]
+
+2. Bard / Cleric / Druid / Sorcerer preparedSpells — bug copy-paste
+   compartido entre las 4 clases full-caster en niveles 13-17:
+     antes:    [..., 16(12), 18(13), 19(14), 19(15), 19(16), 20(17), 20(18), 21(19), 22(20)]
+     correcta: [..., 16(12), 17(13), 17(14), 18(15), 18(16), 19(17), 20(18), 21(19), 22(20)]
+
+3. Wizard preparedSpells — el Wizard tiene tabla PROPIA (no comparte con
+   los demás full-casters). Tenía la tabla equivocada con divergencias
+   graves a partir de lv.13:
+     antes:    [..., 16(12), 18(13), 19(14), 19(15), 19(16), 20(17), 20(18), 21(19), 22(20)]
+     correcta: [..., 16(12), 17(13), 18(14), 19(15), 21(16), 22(17), 23(18), 24(19), 25(20)]
+   El bug pierde 3 prepared spells a lv.20 (22 en lugar de 25).
+
+4. Cleric channelDivinity — no escalaba (siempre 2). PHB sube a 3 a lv.6
+   y a 4 a lv.18:
+     antes:    [0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
+     correcta: [0, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4]
+
+5. Druid wildShape — no escalaba (siempre 2). PHB sube a 3 a lv.6
+   y a 4 a lv.17:
+     antes:    [0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
+     correcta: [0, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4]
+
+6. Ranger favoredEnemy — los escalones estaban corridos 2 niveles. La regla
+   es +1 cada 4 niveles desde lv.5 (3 lv.5-8, 4 lv.9-12, 5 lv.13-16,
+   6 lv.17-20):
+     antes:    [2,2,2,2,3,3,3,3,3,3,4,4,4,4,4,4,5,5,5,5]
+     correcta: [2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,6,6,6,6]
+
+7. Sorcerer innateSorcery — el código intentaba escalarlo a 2 en lv.10
+   pero el PHB dice claramente "You can use this feature twice" desde
+   lv.1 (sin escalado). La feature también permite 2 usos extra vía
+   "Sorcery Incarnate" a lv.7 (gastando 2 Sorcery Points), pero eso no
+   se modela aquí:
+     antes:    [1,1,1,1,1,1,1,1,1,2,2,2,2,2,2,2,2,2,2,2]
+     correcta: [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2]
+
+8. Warlock invocations — tabla casi por completo equivocada. PHB:
+     antes:    [1,3,3,4,5,6,6,7,8,9,10,11,11,12,13,14,14,15,15,15]
+     correcta: [1,3,3,3,5,5,6,6,7,7,7,8,8,8,9,9,9,10,10,10]
+   Diferencia máxima: lv.20 el código daba 15 invocaciones, PHB da 10.
+
+OMISIONES NO CORREGIDAS (no son errores, son columnas que faltan):
+  Bard, Cleric, Druid, Sorcerer, Warlock, Wizard tienen una columna
+  "Cantrips" en la tabla PHB ([2,2,2,3,3,3,3,3,3,4,...] o similar)
+  que el código actualmente modela via `cantripsKnown` por clase de
+  otra forma, fuera de `progression`. Decisión: no migrar a progression
+  por ahora, esa info ya está disponible en otro sitio.
+
+NOTA SOBRE TESTS:
+  Por decisión del usuario, no se añaden tests específicos por tabla.
+  El comentario "PHB 2024 ch.3 p.XX" en cada array funciona como
+  referencia para code review.
+
+NOTA SOBRE EFECTOS COLATERALES:
+  El módulo resourceUsage.ts ya consume channelDivinity (Cleric) via
+  `progressionAt(char, 'channelDivinity')`. Con esta corrección, un
+  Cleric lv.6+ pasará a mostrar 3 usos de Channel Divinity (antes 2),
+  y lv.18+ pasará a mostrar 4 (antes 2). Es el comportamiento correcto.
+
+  El módulo featureScaling.ts (#84) detectará automáticamente los nuevos
+  escalones en headers de Class Features del PDF: Channel Divinity ahora
+  mostrará "(lv.2, scales at lv.6 and lv.18)" en lugar de "(lv.2)".
+
+Archivos tocados:
+  - src/data/dnd5e/classes.ts (8 tablas corregidas + 1 weaponMastery)
+
+Tests: 549/549 (sin cambio numérico, sin tests añadidos).
+
+────────────────────────────────────────
+2026-05-21 09:10 · #86 — PDF Anexo: línea roja con márgenes desbalanceados
+────────────────────────────────────────
+La línea horizontal roja bajo cada SECTION_HEADER (CLASS FEATURES, FEATS,
+etc.) quedaba pegada al título por arriba (~6px) y muy lejos del primer
+subheader por abajo (~30px), creando un desbalance visual obvio.
+
+CAUSA: en drawSectionHeader() el cálculo de la posición Y de la línea
+ignoraba que pdf-lib usa baseline (no top) para drawText, y aplicaba
+`state.y + 2` después de restar todo el SECTION_HEADER_SIZE. Resultado:
+la línea quedaba 2pt bajo el baseline del título y el SECTION_GAP_BOTTOM
+completo se sumaba como espacio inferior.
+
+FIX en src/utils/pdfAppendix.ts:
+  - Guardar titleBaseline = state.y tras restar SECTION_GAP_TOP.
+  - Calcular lineY explícito: titleBaseline - (SECTION_HEADER_SIZE/2 + 1),
+    centrando visualmente entre descender del título y baseline del
+    siguiente subheader.
+  - Setear state.y final también explícito: titleBaseline -
+    SECTION_HEADER_SIZE - SECTION_GAP_BOTTOM (sin tocar la línea).
+
+Verificado en PDF de Cecino: línea centrada con ~12px arriba y ~14px
+abajo, antes era 6/30.
+
+Primer intento sobrepasó (línea cruzaba el primer subheader). Segundo
+intento corrigió manteniendo state.y intacto al dibujar la línea.
+
+Sin tests específicos (verificación visual). Tests existentes pdfAppendix
+siguen pasando.
+
+Archivos tocados:
+  - src/utils/pdfAppendix.ts (drawSectionHeader)
+
+────────────────────────────────────────
+2026-05-21 08:40 · #38 — UX FeatPicker: arranca cerrado si ya hay feat
+────────────────────────────────────────
+La lista de feats arrancaba con open=true incluso cuando ya había un feat
+seleccionado (caso típico: tras importar un personaje desde JSON o cargar
+uno guardado). Se mostraba toda la lista debajo del feat seleccionado,
+forzando al usuario a cerrarla manualmente cada vez.
+
+Fix en FeatPicker.vue:
+  - open = ref(!props.modelValue) en montaje: cerrado si ya hay feat,
+    abierto si no hay nada seleccionado.
+  - Nuevo watch sobre props.modelValue: si el modelValue cambia desde
+    fuera (reset, otro slot, asignación externa) reacciona — abrir si
+    pasa a vacío, cerrar si pasa de vacío a seleccionado.
+  - El botón "✎ Cambiar" sigue permitiendo reabrir manualmente.
+
+Sin tests específicos (es UI). El componente sigue cumpliendo los tests
+existentes de FeatPicker que usan AsiSelector.
+
+Archivos tocados:
+  - src/components/shared/FeatPicker.vue
+
+────────────────────────────────────────
+2026-05-21 08:30 · #84 — Headers de Class Features con escalado
+────────────────────────────────────────
+En el PDF anexo, features que escalan numéricamente con el nivel (Second
+Wind, Rage, Channel Divinity, etc.) mostraban solo el nivel de desbloqueo:
+"Second Wind (lv.1)". El jugador no sabía a qué niveles había mejorado.
+
+Diseño:
+  - Nuevo campo opcional `scalesWith?: string` en ClassFeature: apunta
+    al nombre de la columna en class.progression que controla el escalado
+    (ej. 'secondWind', 'rages', 'channelDivinity').
+  - Nuevo módulo src/utils/featureScaling.ts con:
+      getScalingLevels(column, currentLevel) → number[]
+        Detecta niveles 1..currentLevel donde el valor de la columna
+        cambia respecto al nivel anterior. Considera 0 como "no
+        desbloqueado". Solo devuelve niveles ≤ currentLevel.
+      formatScalingLabel(levels) → string
+        - 1 nivel:  "lv.N"
+        - 2 niveles: "lv.N, scales at lv.M"
+        - 3+ niveles: "lv.N, scales at lv.M and lv.O"
+        - 4+ niveles: "lv.N, scales at lv.A, lv.B and lv.C"
+
+Features marcadas con scalesWith:
+  - rage → rages (Barbarian)
+  - bardic-inspiration → bardicDie (Bard, escala el dado)
+  - channel-divinity → channelDivinity (Cleric)
+  - channel-divinity-paladin → channelDivinity (Paladin)
+  - second-wind → secondWind (Fighter)
+  - martial-arts → martialArtsDie (Monk, escala el dado)
+  - sneak-attack → sneakAttackDice (Rogue)
+
+drawClassFeatures (pdfAppendix.ts) consulta scalesWith y, si existe y
+tiene columna, sustituye "lv.N" por el label calculado.
+
+Para Cecino lv.10:
+  - "Second Wind (lv.1, scales at lv.4 and lv.10)"
+  - resto sin cambios
+
+18 tests en src/utils/featureScaling.test.ts.
+
+Archivos tocados:
+  - src/data/dnd5e/classes.ts (campo scalesWith + 7 marcados)
+  - src/utils/featureScaling.ts (nuevo)
+  - src/utils/featureScaling.test.ts (nuevo, 18 tests)
+  - src/utils/pdfAppendix.ts (integración en drawClassFeatures)
+
+────────────────────────────────────────
+2026-05-21 08:20 · #83 — Tabla Second Wind incorrecta
+────────────────────────────────────────
+CAUSA: la tabla secondWind en classes.ts era:
+  [2,2,2,3,3,3,3,3,3,3,3,3,3,3,3,3,4,4,4,4]
+  (escala +1 a lv.4, +1 a lv.17)
+
+PHB 2024 oficial (Fighter Features table, p.91):
+  [2,2,2,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4]
+  (escala +1 a lv.4, +1 a lv.10, NO lv.17)
+
+Resultado: Cecino lv.10 mostraba 3 usos en la tabla LIMITED-USE RESOURCES
+del PDF cuando debería mostrar 4.
+
+Fix: corregir la tabla. Confirmado contra Dungeons_and_Dragons_Players_Handbook_2024
+(Capítulo 3, Fighter Features).
+
+4 tests nuevos en resourceUsage.test.ts:
+  - lv.4 → 3, lv.9 → 3 (no sube hasta lv.10), lv.10 → 4, lv.17 → 4
+
+Archivos tocados:
+  - src/data/dnd5e/classes.ts
+  - src/utils/resourceUsage.test.ts
+
+────────────────────────────────────────
+2026-05-21 08:05 · #82 — Import JSON pierde inventory y campos opcionales
+────────────────────────────────────────
+CAUSA: el allowlist de claves permitidas en importJson() se generaba con
+Object.keys(createEmptyCharacter()), que solo incluye los campos
+REQUERIDOS de CharacterData. Los opcionales como inventory[],
+originFeatId, featAddedSavingThrows, magicInitiateChoices, toughHpBonus,
+etc. no aparecían en ese set y el filtro los descartaba en silencio.
+
+Resultado en el caso real Cecino_lv10.json:
+  - inventory de 5 items (Hand Crossbow +1, Breastplate, Winged Boots,
+    Dagger, Rapier) → perdido.
+  - featAddedSavingThrows ['wis'] (de Resilient) → perdido, lo que rompe
+    el cálculo de saves del personaje al re-importar.
+  - Cualquier elección de Magic Initiate (#74) → perdida.
+
+FIX:
+1. Allowlist explícito en importJson(): además de las claves del objeto
+   vacío, añadir todos los opcionales conocidos. Lista comentada para
+   recordar que debe mantenerse sincronizada con la interface.
+2. Validación shape: inventory añadido a arrayFields (debe ser array).
+3. Deep-validation de items: cada item debe tener name (string) y kind
+   válido ('weapon'|'armor'|'magic'|'custom'). Los items inválidos se
+   descartan. slotId se regenera con crypto.randomUUID() si falta.
+   Defensiva: notes truncadas a 500 chars, name a 200, qty a [1..999].
+
+Tests (9 nuevos en src/stores/character.test.ts):
+  - importa inventory[] de 3 items (magic, weapon, custom)
+  - regenera slotId si falta
+  - descarta items con shape inválido
+  - preserva originFeatId, featAddedSavingThrows, magicInitiateChoices
+  - preserva todos los flags de feats acumulados (Cecino-like)
+  - inventory ausente / vacío no causa error
+
+Verificación adicional fuera del repo: importJson(Cecino_lv10.json) ahora
+restaura los 5 items, los 3 asiChoices y featAddedSavingThrows ['wis'].
+
+Total: 527/527 tests.
+
+Archivos tocados:
+  - src/stores/character.ts (allowlist explícito + validación inventory)
+  - src/stores/character.test.ts (9 tests nuevos)
+
+────────────────────────────────────────
+2026-05-21 08:00 · #72 — UX ASI: bloquear slots tras subir de nivel
+────────────────────────────────────────
+Un slot ASI/feat asignado a un nivel concreto podía cambiarse en cualquier
+momento, incluso varios niveles después. Esto permitía que un jugador
+tomase un feat como prerequisito de algo en niveles superiores y luego
+lo cambiase, dejando el árbol del personaje en estado inválido.
+
+Regla nueva: locked iff characterLevel > slotLevel.
+  - characterLevel == slotLevel → editable (acabas de llegar al nivel)
+  - characterLevel <  slotLevel → editable (data inconsistente, fail-open)
+  - characterLevel >  slotLevel → locked (ya pasaste el checkpoint)
+
+Implementación:
+  - Nuevo helper src/utils/asiLock.ts con isAsiSlotLocked(slot, char).
+  - AsiSelector.vue: en cada slot, si está locked muestra un badge "🔒 Locked"
+    en la esquina superior derecha + overlay invisible que captura clics
+    sobre todos los controles (los valores siguen visibles, los tooltips
+    funcionan, pero no se pueden modificar).
+  - Opacidad 60% del bloque para señalar visualmente el estado.
+
+5 tests en src/utils/asiLock.test.ts (todos los casos límite).
+
+Archivos tocados:
+  - src/utils/asiLock.ts (nuevo)
+  - src/utils/asiLock.test.ts (nuevo, 5 tests)
+  - src/components/shared/AsiSelector.vue
+
+────────────────────────────────────────
+2026-05-21 07:50 · #67 — Catálogo de adventuring gear (PHB 2024)
+────────────────────────────────────────
+La pestaña Inventory solo dejaba añadir armas, armaduras, magic items o
+"custom item". Faltaba el catálogo de equipo general (cuerdas, raciones,
+antorchas, tinderbox, healer's kit, bedroll, tent…) — el día a día de un
+PJ en mesa.
+
+Nuevo modelo en src/data/dnd5e/equipment.ts:
+  interface GearItem { name, category, weight, costCp, costLabel, description? }
+  category: 'container' | 'light' | 'tool' | 'consumable' | 'utility' |
+            'survival' | 'clothing'
+
+Catálogo adventuringGear con 50+ items del PHB 2024:
+  - Containers: Backpack, Pouch, Sack, Chest, Vial, Flask, Waterskin
+  - Light: Torch, Candle, Hooded/Bullseye Lantern, Oil Flask, Tinderbox
+  - Tools: Crowbar, Hammer (regular/Sledge), Piton, Shovel, Manacles,
+    Spyglass, Magnifying Glass, Hourglass
+  - Consumables: Rations, Potion of Healing, Acid, Alchemist's Fire,
+    Antitoxin, Holy Water, Caltrops, Ball Bearings
+  - Utility: Rope (Hempen/Silk), Chain, Grappling Hook, Ladder, Bell,
+    Signal Whistle, Steel Mirror, Lock, Ink, Ink Pen, Parchment/Paper,
+    Sealing Wax, Soap, Perfume, Signet Ring, Component Pouch
+  - Survival: Bedroll, Blanket, Mess Kit, Tent (2-person),
+    Climber's Kit, Healer's Kit, Hunting Trap, Fishing Tackle,
+    Hunting Bow String
+  - Clothing: Common, Fine, Traveler's, Costume, Robes
+
+Helper getGearByName(name) (case-insensitive).
+
+UI EquipmentManager.vue:
+  - Nueva tab "Gear" entre "Armor" y "Magic" (orden: Inventory, Weapons,
+    Armor, Gear, Magic).
+  - Filtros: search por nombre/descripción, filtro por categoría
+    (8 categorías incluyendo "all"), sort por name/category/weight/cost.
+  - Cada item se añade al inventory como custom item (preserva la
+    descripción como notes).
+  - Card muestra coste + peso a la derecha.
+
+6 tests en src/data/dnd5e/adventuring_gear.test.ts.
+
+Archivos tocados:
+  - src/data/dnd5e/equipment.ts (interface GearItem, catálogo, helper)
+  - src/data/dnd5e/adventuring_gear.test.ts (nuevo)
+  - src/components/shared/EquipmentManager.vue
+
+────────────────────────────────────────
+2026-05-21 07:30 · #78 — PDF anexo: tabla de recursos limitados
+────────────────────────────────────────
+Tabla al final del anexo con los recursos consumibles del PJ (Action Surge,
+Channel Divinity, Rage, Second Wind, Breath Weapon, etc.). Cada fila tiene
+nombre / usos máximos / recarga / casillas en blanco para ir tachando los
+gastados a mano en la mesa.
+
+Nuevo módulo src/utils/resourceUsage.ts:
+  interface ResourceUsage { name, uses, recharge, source? }
+  getLimitedResources(char) → array deterministic.
+
+Catálogo declarativo cubre:
+  - Barbarian: Rage (tabla progression)
+  - Fighter: Second Wind (tabla), Action Surge (1 o 2 a lv17),
+    Indomitable (1/2/3 a lv9/13/17)
+  - Cleric: Channel Divinity (tabla, short/long rest)
+  - Druid: Wild Shape (2 ó unlimited a lv20)
+  - Echo Knight: Unleash Incarnation (CON+ mod, mín 1),
+    Shadow Martyr (1, lv10)
+  - Dragonborn: Breath Weapon (PB/long rest), Draconic Flight (1, lv5+)
+
+PDF (drawResourceTable en pdfAppendix):
+  - 4 columnas: Resource | Max | Recharge | Remaining (con checkboxes
+    de 7×7 pt, hasta 8 por fila).
+  - Separadores finos entre filas.
+  - Solo se dibuja si hay al menos un recurso.
+
+12 tests en src/utils/resourceUsage.test.ts.
+
+Archivos tocados:
+  - src/utils/resourceUsage.ts (nuevo)
+  - src/utils/resourceUsage.test.ts (nuevo, 12 tests)
+  - src/utils/pdfAppendix.ts (import + drawResourceTable + wire)
+
+────────────────────────────────────────
+2026-05-21 07:10 · #77 — PDF anexo: rediseño visual
+────────────────────────────────────────
+El anexo era plano: secciones pegadas, subheaders mezclados con el body,
+underline fina, sin jerarquía visual.
+
+Cambios en src/utils/pdfAppendix.ts:
+  - LINE_HEIGHT 11 → 12 (más aire entre líneas).
+  - Constantes nuevas: SECTION_GAP_TOP (12), SECTION_GAP_BOTTOM (8),
+    ITEM_GAP (6), PARAGRAPH_GAP (3) para controlar espaciado.
+  - drawSectionHeader: underline a thickness 1 (antes 0.5).
+  - Nuevo color COLOR_DIVIDER (gris claro) para separadores entre items.
+  - Nuevos helpers drawItemGap() y drawItemDivider() (este último no usado
+    aún, disponible para grupos largos).
+  - Cada section builder (drawClassFeatures, drawSpeciesTraits, drawFeats,
+    drawMagicItems, drawMagicInitiate, drawWeaponAttacks) ahora separa
+    items con drawItemGap entre ellos.
+
+Tamaños de fuente y colores sin cambios para preservar legibilidad y
+compatibilidad con el sheet oficial (red oscuro = COLOR_HEADER).
+
+Sin tests nuevos: la verificación es visual (regresión cubierta por los
+9 tests existentes en pdfAppendix.test.ts que siguen pasando).
+
+Archivos tocados:
+  - src/utils/pdfAppendix.ts
+
+────────────────────────────────────────
+2026-05-21 00:30 · #53 + #76 — PDF Weapons: cálculo correcto + desglose
+────────────────────────────────────────
+CAUSA del bug #53 (visto en Cecino-sheet-13.pdf, Fighter lv10 DEX 17):
+  Rapier +3, Dagger +3, Hand Crossbow +1 → +4. Esperado: +7 / +7 / +8.
+
+isProficientWithWeapon(char, weapon) solo consultaba char.proficienciesOther.
+Como las weaponProficiencies de la clase NO se replican ahí (viven en la
+clase), si proficienciesOther estaba vacío (lo más habitual en un fighter
+recién creado), el helper devolvía false → faltaba el PB en el ataque.
+
+Fix #53:
+  isProficientWithWeapon ahora consulta también class.weaponProficiencies,
+  con códigos:
+    - 'simple'          → cualquier simple weapon
+    - 'martial'         → cualquier martial weapon
+    - 'martial-light'   → martial con propiedad 'light' (Monk)
+    - 'martial-finesse' → martial con propiedad 'finesse' (Rogue)
+  Considera tanto char.className como char.classes[] (multiclase).
+  proficienciesOther sigue teniendo prioridad para overrides explícitos
+  (ej. proficiencias raciales).
+
+Mejora #76 — desglose de la fórmula en el PDF anexo:
+  WeaponAttackInfo ahora expone abilityMod, pbBonus, magicBonus,
+  archeryBonus, duelingBonus, damageDie, damageType, damageMod.
+
+  Sección WEAPON ATTACKS del anexo (hoja 3) cambia de:
+    Attack: d20 +4 (DEX, magic +1)
+    Damage: 1d6 +4 piercing
+  a:
+    Attack: d20 +8 (DEX +3, PB +4, magic +1)
+    Damage: 1d6 +4 piercing (DEX +3, magic +1)
+
+  Si el feat Archery aplica: "..., Archery +2" en attack.
+  Si Dueling aplica: "..., Dueling +2" en damage.
+  Si no es proficient: "not proficient: no PB" en lugar del PB.
+
+Cobertura nueva (9 tests en weaponCalc.test.ts):
+  - Reproducción del caso Cecino sin proficienciesOther
+  - Códigos de proficiencia por clase (Wizard, Rogue, Fighter)
+  - Verificación de cada campo del desglose
+
+Archivos tocados:
+  - src/utils/weaponCalc.ts (isProficientWithWeapon + WeaponAttackInfo enriched)
+  - src/utils/pdfAppendix.ts (drawWeaponAttacks con desglose)
+
+Total: 495/495 tests.
+
+────────────────────────────────────────
+2026-05-21 00:20 · #79 — Clérigo lv2 atrapado: "Choose 3 more prepared spells"
+────────────────────────────────────────
+levelUpGating leía de char.spellsPrepared para preparedCaster=true; toda
+la UI (Step7Spells.vue, Step9Review.vue) ESCRIBE en char.spellsKnown
+incluso para preparadores. Resultado: el gating bloqueaba SIEMPRE porque
+spellsPrepared estaba vacío, y el contador de Step7 mostraba que el
+usuario sí había escogido los hechizos.
+
+Por qué afecta al Clérigo en particular: es el primer caster que el
+jugador prueba normalmente, y la incoherencia salta al subir a lv2 cuando
+maxSpells aumenta de 4 a 5 (con WIS +3) o más.
+
+Fix mínimo: pendingLevelDecisions usa siempre char.spellsKnown como
+"hechizos elegidos por el usuario", manteniendo el label "prepared spell"
+para preparedCaster (es lo que muestra al usuario). spellsPrepared queda
+como campo legacy (no leído por ningún code path activo).
+
+Comentario en el código documenta la decisión y el bug original para no
+volver a tocarlo sin saber.
+
+Test antiguo (Wizard preparedCaster) actualizado para reflejar el flujo
+real. Nuevo describe "#79" con 4 tests:
+  - Cleric lv1 WIS 16 con 4 hechizos en spellsKnown → no bloquea
+  - Cleric lv1 WIS 16 con spellsKnown vacío → bloquea con "Choose 4"
+  - Cleric lv2 WIS 16 con 4 hechizos → bloquea con "Choose 1 more"
+  - spellsPrepared poblado se ignora; gating mira spellsKnown
+
+Archivos tocados:
+  - src/utils/levelUpGating.ts
+  - src/utils/levelUpGating.test.ts (1 actualizado, 4 nuevos)
+
+────────────────────────────────────────
+2026-05-21 00:08 · #71 — Validar prerequisitos de feats
+────────────────────────────────────────
+Antes el FeatPicker mostraba todos los feats sin distinguir cuáles podía
+tomar realmente el personaje. Ej.: un PJ nivel 3 podía elegir Actor
+(requiere lv.4 + CHA 13+), un fighter sin armadura pesada podía elegir
+Heavily Armored, etc.
+
+Nuevo módulo src/utils/featPrerequisites.ts:
+  - parsePrerequisite(text): string libre → array de cláusulas estructuradas
+    (level, ability, proficiency, spellcasting, fighting-style).
+  - Patrones soportados: "Level N+", "Ability N+", "A or B N+",
+    "A/B/C N+", "Spellcasting [or Pact Magic]", "Fighting Style Feature",
+    "X Training" (proficiency).
+  - Cláusulas no parseables se descartan en silencio (default seguro).
+  - checkPrerequisites(char, prereqs) y checkFeatPrerequisites(char, feat)
+    devuelven { satisfied, failingClauses[] }.
+  - Suma speciesBonuses + backgroundBonuses + asiBonuses al evaluar
+    ability scores.
+
+FeatPicker.vue ahora acepta:
+  - character?: CharacterData (opcional para no romper otros usos).
+  - ineligibleMode: 'hide' | 'mark' (default 'mark').
+Feats no elegibles aparecen con opacity 40%, cursor not-allowed, badge rojo
+"✕ requirements" y el texto del prereq en rojo. selectFeat() bloquea el
+click. El feat actualmente seleccionado SIEMPRE se ve (para no atrapar al
+jugador en un estado inválido si el contexto cambia).
+
+AsiSelector pasa el character al FeatPicker en modo 'mark'.
+
+32 tests en src/utils/featPrerequisites.test.ts.
+
+Archivos tocados:
+  - src/utils/featPrerequisites.ts (nuevo)
+  - src/utils/featPrerequisites.test.ts (nuevo, 32 tests)
+  - src/components/shared/FeatPicker.vue
+  - src/components/shared/AsiSelector.vue
+
+Total: 482/482 tests.
+
+────────────────────────────────────────
+2026-05-21 00:05 · #70 — Cambiar subclase ya escogida
+────────────────────────────────────────
+showSubclassSelectorReview en Step9Review tenía un && !char.value.subclass
+que ocultaba los radios una vez escogida la subclase. Esto impedía
+cambiarla salvo volviendo manualmente a Step3.
+
+Fix: el selector ahora se muestra siempre que el nivel desbloquee la
+subclase. Nuevo computed subclassMissingReview para distinguir el caso
+"falta elegir" (que sigue mostrando el ⚠ ámbar) del caso "ya elegida"
+(label neutral, botón actual resaltado en ámbar).
+
+Sigue siendo válido hacer la elección desde Step3Class.vue, que ya
+permitía cambiar libremente.
+
+Archivos tocados:
+  - src/components/steps/Step9Review.vue
+
+────────────────────────────────────────
+2026-05-21 00:00 · #74 — Magic Initiate desde background
+────────────────────────────────────────
+Si el background daba como origin feat Magic Initiate (ej. Acolyte con
+config alternativa, o personalizado) y la clase no tenía spellcasting
+(ej. Fighter), Step7 mostraba "Your class does not have spellcasting
+abilities" y no había manera de escoger los 2 cantrips + 1 spell nivel 1
+que otorga el feat.
+
+Magic Initiate es además repeatable: puede aparecer como origin feat
+Y/O como ASI feat (lv.4/8/12/16/19), generando varias instancias
+independientes (lista distinta, cantrips distintos, etc.).
+
+Modelo:
+  - Nuevo flag grantsMagicInitiate en el tipo Feat (poblado en el feat
+    magic-initiate).
+  - Nuevo campo char.magicInitiateChoices?: Array<{
+      source: string         // 'origin' | 'asi-<level>'
+      spellList: 'cleric' | 'druid' | 'wizard'
+      cantrips: string[]     // 2 IDs de cantrips
+      levelOneSpell: string  // 1 ID de hechizo nivel 1
+    }>
+  - source = clave estable que identifica cada instancia.
+
+Nuevo módulo src/utils/magicInitiate.ts:
+  - getMagicInitiateInstances(char): array deterministic (origin primero,
+    luego ASIs ordenados por nivel ascendente).
+  - get/set/removeMagicInitiateChoice(char, source, ...).
+  - syncMagicInitiateChoices(char): borra entradas huérfanas cuyo source
+    ya no existe (background cambiado, ASI feat reemplazado).
+  - isMagicInitiateInstanceComplete + hasPendingMagicInitiate (gating).
+  - getMagicInitiateCantripIds + getMagicInitiateLevelOneSpellIds para
+    agregar todos los hechizos de todas las instancias (deduplicados).
+
+Nuevo componente src/components/shared/MagicInitiatePicker.vue:
+  - Una sección por instancia, en panel violeta.
+  - Paso 1: elegir lista (Cleric/Druid/Wizard) — botón highlight.
+  - Paso 2: 2 cantrips de la lista (contador 0/2, deshabilita extras).
+  - Paso 3: 1 hechizo nivel 1 (select).
+  - Al cambiar la lista, resetea las elecciones (no tendría sentido
+    mantener cantrips de cleric si pasas a druid).
+
+Integración Step7Spells.vue:
+  - Importa el picker y getMagicInitiateInstances.
+  - El picker se renderiza SIEMPRE que hay instancias activas, incluso
+    si la clase no es caster.
+  - Si !isCaster && !hasMagicInitiate → mensaje "Not a caster" como antes.
+  - Si !isCaster && hasMagicInitiate → solo se muestra el picker + mensaje
+    breve "Press Next".
+
+Sync en mutaciones que pueden dejar elecciones huérfanas:
+  - setOriginFeat (originFeat.ts) llama syncMagicInitiateChoices al final.
+  - persistChoices (AsiSelector.vue) llama syncMagicInitiateChoices.
+
+Gating (levelUpGating.ts):
+  - Cláusula 4 en pendingLevelDecisions: por cada instancia incompleta,
+    "Magic Initiate (<source>): pick spell list, 2 cantrips and 1
+    level-1 spell."
+
+PDF principal (pdfFieldMapping.ts):
+  - Spell table del PDF recibe también los cantrips + level-1 spell de
+    cada instancia de Magic Initiate, con sufijo " (MI)" para que el
+    jugador los distinga de los hechizos de clase.
+
+PDF anexo (pdfAppendix.ts):
+  - Nueva sección "MAGIC INITIATE" antes de "MAGIC ITEMS", con header,
+    subheader por instancia (lista + fuente), lista de cantrips y
+    descripción completa del hechizo nivel 1.
+
+26 tests en src/utils/magicInitiate.test.ts (detección, storage, sync,
+completion, aggregation).
+
+Archivos tocados:
+  - src/data/dnd5e/feats.ts (flag grantsMagicInitiate)
+  - src/stores/character.ts (campo magicInitiateChoices)
+  - src/utils/magicInitiate.ts (nuevo)
+  - src/utils/magicInitiate.test.ts (nuevo, 26 tests)
+  - src/components/shared/MagicInitiatePicker.vue (nuevo)
+  - src/components/steps/Step7Spells.vue
+  - src/utils/levelUpGating.ts
+  - src/utils/originFeat.ts
+  - src/components/shared/AsiSelector.vue
+  - src/utils/pdfAppendix.ts
+  - src/utils/pdfFieldMapping.ts
+
+────────────────────────────────────────
+2026-05-20 23:55 · #65/#66 — Textos D&D 5e → D&D 5.5
+────────────────────────────────────────
+Sustitución global en strings visibles al usuario:
+  - home.description: ahora "Create and manage your characters for D&D 5.5"
+    (frase única, sin enumerar Brancalonia/Apocalisse).
+  - home.randomDnd5e: "Random D&D 5.5".
+  - variant.dnd5e: "D&D 5.5th Edition".
+  - variant.apocalisseDesc: "...D&D 5.5 base classes..."
+  - blog.filters.dnd5e: "D&D 5.5".
+  - blog.meta.listDescription: actualizado a 5.5.
+  - public/manifest.json description: "Create and manage your characters
+    for D&D 5.5" (alineado con home.description).
+
+index.html y public/og-image.svg ya estaban correctos (decían
+"D&D 2024 (5.5)" / texto neutral). No tocados.
+
+Comentarios técnicos en src/i18n/gameTerms.ts y otros .ts/.json
+internos no se han cambiado (no son visibles al usuario).
+
+Archivos tocados:
+  - src/i18n/locales/en.json
+  - public/manifest.json
+
+────────────────────────────────────────
+2026-05-20 23:50 · #73 — Sailor duplicado
+────────────────────────────────────────
+phbBackgrounds en backgrounds.ts filtraba por id 'sailor' y devolvía DOS
+elementos porque tanto baseBackgrounds (PHB 2024, con originFeat) como
+missingBackgrounds (legacy 2014, sin originFeat) definían ese mismo id.
+El selector de la UI mostraba dos Sailor.
+
+Fix: dedupe en la fuente. El array `backgrounds` exportado ya no es un
+concat plano; primero se computa un Set de ids de baseBackgrounds y se
+filtra missingBackgrounds para excluir cualquier id duplicado. Resultado:
+PHB 2024 siempre gana sobre legacy, sin tocar getBackgrounds() ni
+getBackgroundById() (que ya hacían .find/.filter, ahora consistentes).
+
+3 tests en src/data/dnd5e/sailor_dedupe.test.ts:
+  - exactamente un Sailor en backgrounds[]
+  - el Sailor superviviente tiene originFeat (versión PHB 2024)
+  - todos los ids son únicos en el array merged
+
+Archivos tocados:
+  - src/data/dnd5e/backgrounds.ts
+  - src/data/dnd5e/sailor_dedupe.test.ts (nuevo)
+
+────────────────────────────────────────
+2026-05-20 23:07 · Eliminar racialBonuses y migración legacy
+────────────────────────────────────────
+Política confirmada por el usuario: no hay personajes guardados con el
+formato viejo, no habrá compatibilidad retroactiva, fuera código defensivo.
+
+Cambios:
+  - Tipo CharacterData: eliminada propiedad `racialBonuses?` (campo legacy
+    @deprecated que sólo existía para migración).
+  - Store (src/stores/character.ts):
+    · Eliminada función migrateCharacters() entera (incluye no sólo la
+      migración racial→species sino también inicializaciones de campos
+      nuevos como sessionNotes/classes/toughHpBonus/*Bonuses; el usuario
+      no tiene personajes guardados con esos campos pendientes).
+    · Eliminado el bloque de migración en importCharacter().
+    · totalBonus() simplificado: sin `legacyBonus`, sin chequeo `hasNewFormat`.
+    · Quitado `watch` del import (ya no se usaba).
+  - Fallbacks `??` de racialBonuses eliminados en:
+    · src/utils/pdfFieldMapping.ts (2 sitios: pdfArmorClass y totalBonus)
+    · src/utils/weaponCalc.ts (abilityBonusSum)
+    · src/utils/levelUpGating.ts (sección spellcasting)
+    · src/views/BlogCharacterView.vue (totalScore)
+    · src/components/steps/Step5Background.vue (limpieza tras applyAsis)
+  - randomCharacter.ts: variable local `racialBonuses` renombrada a
+    `speciesBonuses` (es nombre interno, no afectaba al modelo; el campo
+    que escribe en el char ya era speciesBonuses).
+  - Tests migrados o eliminados:
+    · milestone12_bugfix.test.ts: borrados los 2 tests "no lanza con
+      racialBonuses undefined/{}" (campo ya no existe); el 3º migrado a
+      speciesBonuses.
+    · milestone9.test.ts: 3 bloques que escribían racialBonuses para
+      simular bonuses de background — migrados a backgroundBonuses
+      (semánticamente correcto). Tag de feat actualizado de "Feat:" a
+      "Origin Feat:" (compatible con el cambio del #63).
+    · character.test.ts: test "includes racial bonuses in ability
+      modifiers" → "includes species bonuses…" con speciesBonuses.
+    · scripts/smoke-test-pdf-mapping.test.ts: quitado `racialBonuses: {}`
+      del sample (no afectaba).
+    · scripts/sci-benchmark.ts: renombrado por consistencia.
+
+Resultado: cero ocurrencias de "racialBonuses" en src/ y scripts/.
+Reducción visible en pdfArmorClass y totalBonus (5 líneas → 3 líneas cada
+uno, sin ramas legacy).
+
+Archivos tocados: 11 (3 utils, 2 stores, 2 views/steps, 4 tests).
+
+Total: 421/421 (-1 test obsoleto borrado, +1 sustituto añadido).
+
+────────────────────────────────────────
+2026-05-20 22:33 · #60 (extensión) — Auditoría amplia de contraste en modo claro
+────────────────────────────────────────
+Tras el fix puntual de los dos casos reportados, auditoría sistemática para
+detectar el MISMO patrón en otros sitios: clases `bg-{color}-{N}/{op}` con
+opacidad que en dark theme funcionan pero en light theme se quedan como
+overlay oscuro sobre fondo blanco, matando el contraste de los textos que
+van encima.
+
+Inventario de fondos con opacidad usados en el repo (grep en components/
+y views/): 30 combinaciones. De esas, 14 estaban ya cubiertas en style.css;
+las otras 16 se añaden ahora.
+
+Sitios afectados:
+  - FeatChoicesPicker.vue (creado en #52 fase 2 — mismo bug)
+  - EquipmentManager.vue: badges de rarity (Uncommon/Rare/Very Rare/Legendary)
+    y pill de categoría de item.
+  - FeatPicker.vue: badges de categoría del feat (origin/fighting-style/epic-boon).
+  - HelpPanel.vue: pills "Paso N" (8 ocurrencias de bg-amber-700/40).
+  - AsiSelector.vue, Step4Abilities.vue: banner "Cap exceeded" (bg-red-900/20).
+  - Step9Review.vue: pills de spells, warning del Long Rest.
+  - BlogListView.vue, BlogCharacterView.vue: badges de variant, toast de save.
+
+Reglas nuevas (src/style.css):
+  Stone:    bg-stone-900/30, bg-stone-800/80, bg-stone-700/60
+  Amber:    bg-amber-900/20, /40, /60, bg-amber-700/40
+  Red:      bg-red-900/20
+  Blue:     bg-blue-900/20, /40, /50, /60
+  Green:    bg-green-900/20, /50, /60
+  Emerald:  bg-emerald-900/40
+  Purple:   bg-purple-900/50, /60
+
+Estrategia de mapeo:
+  - Stone-900/* → blanco/gris muy claro (#f5f5f4 ~ #ebe9e7).
+  - Stone-800/80 y stone-700/60 → gris claro (#e7e5e4).
+  - Cards de color → rgba(<hue oscuro>, 0.07-0.18) según opacidad original.
+    Verde, azul, ámbar, rojo, morado y esmeralda, todos con el mismo patrón
+    de "tinta clara del mismo tono" que ya usaba el override existente
+    para bg-amber-900/30 etc.
+
+Textos sobre las tintas: añadidos overrides para text-amber-200 y
+text-blue-400 (los demás — text-green-400, text-purple-400, text-blue-300,
+text-amber-300/400/500, text-red-300/400, text-purple-300 — ya existían).
+
+Archivos tocados:
+  - src/style.css (16 reglas nuevas de bg, 2 de text)
+
+Total: 422/422 (sin cambio).
+
+────────────────────────────────────────
+2026-05-20 22:30 · #60 — Contraste modo claro en cards con opacidad
+────────────────────────────────────────
+Causa: en src/style.css ya existían overrides para `bg-stone-900` → blanco,
+`bg-stone-800` → gris-claro, etc., pero NO para las variantes con opacidad
+(`bg-stone-900/40`, `bg-stone-800/50`, …). Esas clases se usan como
+"superficie de card anidada" dentro de varios bloques. En modo claro
+seguían siendo overlay oscuro sobre fondo blanco → la card quedaba
+oscurecida y los textos `text-stone-400/500` encima resultaban ilegibles.
+
+Casos concretos reportados (memoria #60):
+  - Step3Class.vue · "Class Progression": cards con `bg-stone-900/40`
+    contenían pares "<label gris>: <valor ámbar>" tipo "secondWind: 2"
+    que aparecían como gris-sobre-gris en modo claro.
+  - AsiSelector.vue · "Level-up choices": contenedor `bg-stone-800/50`
+    con slots `bg-stone-900/40` dentro, mismo síntoma.
+
+Fix (src/style.css, una sola sección añadida):
+  - bg-stone-900/40, /50, /60 → fondos blancos/claros
+  - bg-stone-800/40, /50, /60 → blanco
+Con esto los textos `text-stone-400`/`text-stone-500` (que ya tenían
+override a #57534e / #78716c) recuperan contraste suficiente sobre el
+fondo claro de la card.
+
+Archivos tocados:
+  - src/style.css (6 reglas nuevas)
+
+Total: 422/422 (sin cambio).
+
+────────────────────────────────────────
+2026-05-20 22:20 · #52 (fase 2) — Feats con UI de selección activa
+────────────────────────────────────────
+Cierre del audit de feats. Implementados los 6 feats que piden al usuario
+elegir skills/tools/instrumentos al tomarlos:
+  - Skilled       → 3 skills/tools/instrumentos (cualquier mezcla)
+  - Crafter       → 3 Artisan's Tools
+  - Musician      → 3 Musical Instruments
+  - Observant     → 1 skill ∈ {Insight, Investigation, Perception}
+  - Keen Mind     → 1 skill ∈ {Arcana, History, Investigation, Nature, Religion}
+  - Skill Expert  → 1 skill proficiency + 1 skill expertise
+
+Nuevos tipos:
+  - FeatChoice { id, label, count, kind, restrictTo? }
+  - Feat.requiresChoices?: FeatChoice[]
+  - ASIChoice.featChoices?: Record<choiceId, optionId[]>
+
+Nuevos campos en CharacterData (tracking idempotente, mismo patrón que
+featAddedProficiencies):
+  - featAddedSkillProficiencies?: string[]
+  - featAddedExpertise?: string[]
+
+Catálogos nuevos en src/data/dnd5e/proficiencyCatalogues.ts:
+  - ARTISANS_TOOLS (17 entradas: Alchemist's, Brewer's, Smith's, …)
+  - MUSICAL_INSTRUMENTS (10 entradas: Bagpipes, Drum, Lute, …)
+
+Componente nuevo src/components/shared/FeatChoicesPicker.vue:
+  - Renderiza checkboxes en grid, con contador "picked/count" en cabecera
+    (verde si completo, ámbar si pendiente).
+  - Bloquea seleccionar más cuando se llega al count del feat.
+  - Para `skill-expertise`: solo muestra skills en las que el char YA es
+    proficient (excluyendo las que añade el propio feat).
+
+Integración en AsiSelector.vue:
+  - Aparece inline tras elegir un feat con requiresChoices.
+  - setFeatId limpia featChoices al cambiar de feat.
+
+Gating del level-up (#50) extendido: pendingLevelDecisions detecta cada
+choice incompleta y bloquea la subida hasta resolverla. Mensaje incluye
+"picked X/Y" para que el usuario sepa cuánto falta.
+
+applyFeatEffects procesa featChoices:
+  - skill-proficiency → char.skillProficiencies
+  - skill-expertise → char.skillExpertise
+  - artisans-tool / musical-instrument → char.proficienciesOther
+  - skill-or-tool (Skilled): el id viene prefijado ("skill:perception" o
+    "tool:Lute") y se enruta al destino correcto.
+
+Limitación conocida: Skill Expert exige que el char ya sea proficient para
+elegir expertise. Si añades la prof en este mismo feat, el picker no la
+muestra hasta que persiste la selección. En la práctica el usuario abre
+el feat, elige skill prof, y la expertise aparece disponible.
+
+Archivos tocados:
+  - src/data/dnd5e/feats.ts (tipo FeatChoice + 6 feats poblados)
+  - src/data/dnd5e/proficiencyCatalogues.ts (nuevo, catálogos)
+  - src/stores/character.ts (featChoices, featAddedSkillProficiencies, featAddedExpertise)
+  - src/utils/featEffects.ts (procesado de featChoices, sincronización idempotente)
+  - src/utils/levelUpGating.ts (validación de choices incompletas)
+  - src/components/shared/FeatChoicesPicker.vue (nuevo)
+  - src/components/shared/AsiSelector.vue (integración inline)
+  - src/utils/featChoices.test.ts (19 tests)
+
+Total: 422/422.
+
+────────────────────────────────────────
+2026-05-20 21:56 · #52 (fase 1) — Feats con proficiencies fijas
+────────────────────────────────────────
+Continuación del audit de feats. Esta fase cubre los feats que añaden una
+o varias proficiencies SIN requerir UI de selección activa (la proficiency
+es fija: Chef → Cook's Utensils, Heavily Armored → heavy armor, etc.).
+
+Cambios:
+  - Nuevo campo en tipo Feat: `grantsProficiencies?: string[]`
+  - Poblado en 7 feats:
+      Chef                    → ["Cook's Utensils"]
+      Heavily Armored         → ["heavy armor"]
+      Lightly Armored         → ["light armor", "shields"]
+      Moderately Armored      → ["medium armor"]
+      Martial Weapon Training → ["martial weapons"]
+      Poisoner                → ["Poisoner's Kit"]
+      Tavern Brawler          → ["improvised weapons"]
+  - Nuevo campo en CharacterData: `featAddedProficiencies?: string[]` para
+    tracking idempotente (mismo patrón que featAddedSavingThrows).
+  - `applyFeatEffects` sincroniza: añade las nuevas, quita las que ya no
+    están, no toca las que vienen de la clase/raza, no duplica si ya existen.
+
+Convención de nombres usada en proficienciesOther: lowercase para armaduras
+y armas ("heavy armor", "martial weapons", "shields", "improvised weapons"),
+Capitalizado para tools/kits ("Cook's Utensils", "Poisoner's Kit") — sigue
+el patrón ya usado en los chars del blog y compatible con el check
+case-insensitive de weaponCalc.
+
+Archivos tocados:
+  - src/data/dnd5e/feats.ts (campo + 7 feats poblados)
+  - src/stores/character.ts (campo featAddedProficiencies)
+  - src/utils/featEffects.ts (sincronización en applyFeatEffects)
+  - src/utils/featProficiencies.test.ts (15 tests)
+
+PENDIENTE #52 (fase 2): feats con UI de selección (Skilled, Crafter,
+Musician, Observant, Keen Mind, Skill Expert).
+
+Total: 403/403.
+
+────────────────────────────────────────
+2026-05-20 21:47 · #63 — Origin feat tracking robusto
+────────────────────────────────────────
+Causa: en Step5Background.vue la lógica de gestión del feat de origen del
+background usaba `featuresTraits.startsWith('Feat: ')` como criterio para
+identificar el tag. Eso puede dar falsos positivos con cualquier tag futuro
+que empiece con "Feat: " (por ejemplo, traits de raza o features de clase
+con ese nombre), y borrarlos involuntariamente.
+
+Fix:
+  - Nuevo campo `originFeatId?: string` en CharacterData (src/stores/character.ts)
+    como fuente única de verdad sobre el feat de origen actual.
+  - Nuevo helper `setOriginFeat(char, featId)` en src/utils/originFeat.ts que:
+      * quita SOLO el tag del feat anterior (por id, no por prefijo)
+      * añade el tag nuevo con prefijo inequívoco "Origin Feat: <name>"
+      * mantiene char.originFeatId sincronizado
+      * es idempotente (no duplica tags al llamarlo dos veces con el mismo id)
+  - Step5Background.vue delega al helper.
+  - Cambiado el prefijo del tag de "Feat: " a "Origin Feat: " — los ASI feats
+    ya usaban "ASI Feat: ", ahora ambos son inequívocos. pdfAppendix.ts y
+    Step9Review.vue ya toleraban ambos prefijos.
+
+Archivos tocados:
+  - src/stores/character.ts (campo originFeatId)
+  - src/utils/originFeat.ts (nuevo helper)
+  - src/utils/originFeat.test.ts (8 tests)
+  - src/components/steps/Step5Background.vue (delega al helper)
+
+Total: 388/388.
+
+────────────────────────────────────────
+2026-05-20 21:10 · #58 — Tercera hoja PDF con descripciones completas
+────────────────────────────────────────
+Nuevo módulo src/utils/pdfAppendix.ts con appendCharacterAppendix(pdfDoc, char)
+que añade páginas al PDF antes del save(). Mismo archivo descargable.
+
+Secciones:
+  - CLASS FEATURES (features cls + subclass filtradas por nivel)
+  - SPECIES TRAITS (race.traits + subrace.traits + speciesChoices)
+  - FEATS (ASI + origin con descripción completa)
+  - MAGIC ITEMS (inventory kind='magic' con descripción del catálogo + [attuned])
+  - WEAPON ATTACKS (Attack: d20 +N (ABILITY + proficient, magic +N) / Damage: 1dN +N tipo)
+
+Layout: US Letter 612x792, header rojo subrayado, subheaders bold, body 9pt.
+Word-wrap automático y paginación.
+
+Sanitización de chars no-WinAnsi: ≤→<=, ≥→>=, —/–→-, …→..., •→*, ×→x.
+StandardFonts.Helvetica solo soporta Latin-1; alternativa de embeber fuente
+Unicode descartada por simplicidad.
+
+Integrado en src/composables/usePdfExport.ts justo antes de pdfDoc.save().
+9 tests en src/utils/pdfAppendix.test.ts. Total: 380/380.
+
+────────────────────────────────────────
+2026-05-20 19:56 · #61 — Borrar personajes con confirmación inline
+────────────────────────────────────────
+Two-step click sin modal:
+  - 1er clic: el botón se "arma" con texto "Click again to confirm" (timeout 5s).
+  - 2º clic: borra definitivamente.
+  - Si no hay 2º clic en 5s, vuelve al estado normal.
+
+Cambios en src/views/CharacterListView.vue: ref pendingDeleteId + setTimeout.
+Clave i18n nueva: characters.deleteConfirm.
+
+────────────────────────────────────────
+2026-05-20 19:56 · #62 — Especies ordenadas alfabéticamente
+────────────────────────────────────────
+En Step2Race.vue, races computed ordena con localeCompare sobre el nombre
+ya traducido (gt.raceName) para respetar el orden del idioma activo.
+
+────────────────────────────────────────
+2026-05-20 19:38 · #52 (parcial) — Auditoría feats con efectos mecánicos
+────────────────────────────────────────
+5 feats con efectos auto-aplicados:
+  - Alert: PB añadido al Initiative
+  - Speedy: +10 ft speed
+  - Defense (fighting style): +1 AC mientras lleves armadura
+  - Archery (fighting style): +2 attack con armas ranged
+  - Dueling (fighting style): +2 damage con melee 1-handed (no versatile/two-handed)
+
+Flags nuevos en tipo Feat (src/data/dnd5e/feats.ts):
+  - speedBonus, grantsInitiativeProf, defenseACBonus
+  - rangedAttackBonus, duelingDamageBonus
+
+Campos nuevos en CharacterData (src/stores/character.ts):
+  - featSpeedBonus, featInitiativeProf, featDefenseACBonus
+
+applyFeatEffects (src/utils/featEffects.ts) los lee y escribe.
+weaponCalc.ts aplica Archery/Dueling según propiedades del arma.
+
+16 tests en src/utils/featAudit.test.ts. Total: 371/371.
+
+PENDIENTE: feats que requieren UI de selección (Crafter, Skilled, Chef,
+*-armored, Martial-Weapon-Training, Observant, Keen-mind, Skill-expert,
+Musician, Tavern-brawler, Poisoner).
+
+────────────────────────────────────────
+2026-05-20 19:02 · #53 — Weapon attack bonus correcto
+────────────────────────────────────────
+Tres bugs en el PDF mapping:
+  1. Siempre usaba STR como ability.
+  2. No detectaba bonus mágico del nombre.
+  3. No comprobaba proficiency.
+
+Nuevo módulo src/utils/weaponCalc.ts:
+  - extractMagicBonus(name): regex \+(\d+)
+  - stripMagicBonus(name)
+  - findWeaponData(name): catálogo simple + martial
+  - weaponAttackAbility(weapon, mods): ammunition→DEX, finesse→max(STR,DEX), else→STR
+  - isProficientWithWeapon(char, weapon): mira proficienciesOther
+  - computeWeaponAttack(name, char): WeaponAttackInfo con attackBonus + damage
+
+Damage formateado: "1d6 +4 piercing" (dado + mod + magic + tipo).
+Caso del bug (Cecino lv10, DEX +3): Hand Crossbow → +7, Hand Crossbow +1 → +8.
+
+25 tests en src/utils/weaponCalc.test.ts. Total: 355/355.
+
+────────────────────────────────────────
+2026-05-20 18:46 · #55 — Armor Class según armadura
+────────────────────────────────────────
+Antes el AC era siempre 10 + DEX_mod, sin mirar la armadura. Cecino con
+Breastplate (medium, baseAC 14) y DEX +3 daba 13 en lugar de 16.
+
+Nuevo helper computeArmorClass(dexMod, armorName, hasShield, catalogue) en
+src/utils/calculations.ts. Reglas PHB 2024:
+  - light:  base + DEX
+  - medium: base + min(DEX, maxDexBonus)
+  - heavy:  base
+  - shield: +2
+
+Store armorClass y PDF mapping (pdfArmorClass helper local) usan el helper.
+Detecta armor en char.armor (texto) o en el primer inventory[] kind='armor'.
+Defense fighting style suma +1 AC adicional con armor.
+
+16 tests en src/utils/armorClass.test.ts. Total: 330/330.
+
+────────────────────────────────────────
+2026-05-20 (anterior) · #44/#45/#46/#47 — Migraciones y backgrounds
+────────────────────────────────────────
+#44: Migración reordenada — racialBonuses se comprueba antes de inicializar
+     speciesBonuses.
+#45: backgroundSkillProficiencies separado para no borrar skills de clase.
+#46: Feat anterior se limpia si nuevo background no tiene originFeat.
+#47: applyRaceBonuses() separado de selectRace; selectRace ya no resetea
+     subrace si es la misma raza.
+
+────────────────────────────────────────
+2026-05-20 (anterior) · #48 — Feats ASI aplican bonus al stat
+────────────────────────────────────────
+Añadido asiBonus: { abilities, amount } al tipo Feat (poblado en 49 feats).
+Añadido featAbility a ASIChoice. aggregateAsiBumps suma feat bonuses
+(auto si 1 opción, requiere featAbility si varias). Helper resolveFeatAbility.
+AsiSelector muestra selector "Bonus +1 to:" si el feat tiene >1 opción.
+28 tests en src/data/dnd5e/milestone13_feat_asi.test.ts. Total: 257/257.
+
+────────────────────────────────────────
+2026-05-20 (anterior) · #50 — Gating del level-up
+────────────────────────────────────────
+Helper pendingLevelDecisions(char) en src/utils/levelUpGating.ts detecta
+subclase/ASI/feats/hechizos pendientes. Slots ASI nuevos arrancan con
+asiAbilities:[] (antes ['str'] permitía subir sin tocar nada).
+UI muestra "— Choose —" placeholder. Botón Level Up disabled en Step9Review
+y CharacterListView mientras haya decisiones pendientes.
+21 tests en src/utils/levelUpGating.test.ts. Total: 278/278.
+
+────────────────────────────────────────
+2026-05-20 (anterior) · #51 — Resilient añade saving throw proficiency
+────────────────────────────────────────
+Flag grantsSavingThrowProficiency en Feat. applyFeatEffects extraído a
+src/utils/featEffects.ts (compartido AsiSelector + Step4Abilities;
+antes solo AsiSelector lo tenía, Step4 era bug latente).
+Tracking en char.featAddedSavingThrows para limpieza idempotente.
+12 tests en src/utils/featEffects.test.ts. Total: 290/290.
+
+────────────────────────────────────────
+2026-05-20 (anterior) · #56 — PDF Species Traits se rellena
+────────────────────────────────────────
+El mapping filtraba featuresTraits con /^(species|race)\b/ pero ese array
+nunca contenía traits de raza. Fix: derivar Species_Traits desde Race
+directamente (race.traits + subrace.traits + speciesChoices). Para Dragonborn
+añade línea explícita "Draconic Ancestry: Red (Fire)".
+9 tests añadidos a pdfFieldMapping.test.ts. Total: 306/306.
+
+────────────────────────────────────────
+2026-05-20 (anterior) · #57 — Species choices + cache stale
+────────────────────────────────────────
+Añadido Race.choices (tipos RaceChoice/RaceChoiceOption) y char.speciesChoices.
+Dragonborn pregunta Draconic Ancestry (10 opciones con tipo de daño).
+Gating bloquea level-up si falta species choice. Step2Race.vue: helpers
+selectSpeciesChoice/getSpeciesChoice, bloque UI tras subraces.
+
+Segunda iteración: el selector no aparecía por cache stale en localStorage.
+BUILD_HASH en dev es siempre 'dev', así que añadir campos nuevos a
+races/classes/feats no invalidaba el cache. Fix en src/data/index.ts:
+en dev, lsGet/lsSet/sweepStaleCache saltan/borran el cache.
+Total: 314/314.
+
+────────────────────────────────────────
+2026-05-20 (anterior) · #59 — PDF Inventory incluye magic items
+────────────────────────────────────────
+Antes Inventory solo metía char.equipment.join(', ') y ignoraba char.inventory[].
+Fix: recorre ambos. Formato línea: nombre, (×N) si qty>1, [attuned] si
+magic atunado, "— notas" si tiene. Treasure se sigue incluyendo.
+8 tests añadidos. Total: 314/314.
+
+────────────────────────────────────────
+NOTAS OPERATIVAS
+────────────────────────────────────────
+PAUTA #13: devLog() en src/utils/devLog.ts escribe en localStorage['__devlog'].
+Leer: JSON.parse(localStorage.getItem('__devlog')).forEach(l=>console.log(l)).
+Solo activo en DEV (import.meta.env.DEV). Monitor global en main.ts loguea
+level, class, subclass, step.
+
+PAUTA #18: Empaquetado ZIP formato: generador-dungeon-55-AAAA-MM-DD-HHMI.zip
+(timestamp UTC+2). Excluye node_modules/, .git/, docs/.

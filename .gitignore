@@ -19,9 +19,6 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
-changelog.txt
-CLAUDE.md
-dev.log.txt
 
 # Logs
 *.log
@@ -35,7 +32,3 @@ dev-dist/
 
 # Claude Code
 .claude/
-
-
-docs/
-
