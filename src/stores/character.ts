@@ -4,6 +4,7 @@ import type { GameVariant } from './app'
 import { modifier, proficiencyBonus, hpPerLevel, computeArmorClass } from '@/utils/calculations'
 import { recomputeMaxHp } from '@/utils/recomputeHp'
 import { recomputeSpeciesGrants } from '@/utils/speciesSpells'
+import { commitLevelSnapshot } from '@/utils/levelHistory'
 import { getMaxLevel, getClasses, getEquipment } from '@/data'
 
 export interface AbilityScores {
@@ -223,6 +224,28 @@ export interface CharacterData {
    *  Number of slots is class-dependent: see weaponMasteryByLevel in classes.ts.
    *  Fighter at lv.1 has 3 slots; Barbarian/Paladin/Ranger/Rogue start with 2. */
   weaponMasteries?: string[]
+  /** #117 — Historial de niveles. Cada entrada es un snapshot completo del
+   *  personaje en el momento de ALCANZAR ese nivel. Modo híbrido:
+   *  - Consulta: el jugador puede ver cómo era el PJ en cualquier nivel previo.
+   *  - Reset: "Restaurar a este nivel" reescribe el PJ activo con el snapshot
+   *    y elimina los snapshots posteriores.
+   *
+   *  Snapshots NO contienen levelHistory dentro de sí (sería recursivo).
+   *  Campo OPCIONAL para personajes guardados antes de esta feature; en ellos
+   *  empieza vacío y los snapshots se acumulan a partir del próximo level-up. */
+  levelHistory?: LevelSnapshot[]
+}
+
+/** #117 — Snapshot de un personaje en un momento concreto.
+ *  El campo `snapshot` es una copia COMPLETA de CharacterData salvo por
+ *  `levelHistory` (que se omite para no anidar historial). */
+export interface LevelSnapshot {
+  /** Nivel al que se llegó (1, 2, 3, ...). */
+  level: number
+  /** Timestamp ISO del momento en que se creó el snapshot. */
+  snapshotAt: string
+  /** Copia del personaje completo en ese momento, sin levelHistory. */
+  snapshot: Omit<CharacterData, 'levelHistory'>
 }
 
 function createEmptyCharacter(): CharacterData {
@@ -362,6 +385,11 @@ export const useCharacterStore = defineStore('character', () => {
   const MAX_STORAGE_BYTES = 5 * 1024 * 1024
 
   function saveCharacter() {
+    // #117: registrar snapshot del nivel actual si el PJ está limpio.
+    // No-op si quedan decisiones pendientes; se snapshoteará al volver a
+    // guardar tras resolverlas.
+    commitLevelSnapshot(character.value)
+
     const idx = savedCharacters.value.findIndex(c => c.id === character.value.id)
     const copy = JSON.parse(JSON.stringify(character.value))
 
@@ -544,6 +572,8 @@ export const useCharacterStore = defineStore('character', () => {
     // Auto-save if the character exists in saved list
     const idx = savedCharacters.value.findIndex(c => c.id === char.id)
     if (idx >= 0) {
+      // #117: intentar commit antes de copiar. Si quedan pendientes, no-op.
+      commitLevelSnapshot(char)
       savedCharacters.value[idx] = JSON.parse(JSON.stringify(char))
     }
 
@@ -659,6 +689,7 @@ export const useCharacterStore = defineStore('character', () => {
       'weaponMasteries',
       'speciesGrantedCantrips',
       'speciesGrantedSpells',
+      'levelHistory',
     ])
     const safeRaw: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(raw)) {
@@ -688,6 +719,21 @@ export const useCharacterStore = defineStore('character', () => {
         typeof w === 'object' && w !== null &&
         typeof (w as Record<string, unknown>).name === 'string' &&
         typeof (w as Record<string, unknown>).damage === 'string'
+      )
+    }
+
+    // #117: validar levelHistory. Cada entrada debe ser { level, snapshotAt, snapshot }
+    // con types correctos. snapshot es un objeto cualquiera (lo confiamos como
+    // CharacterData; si está corrupto, el render lo mostrará vacío pero no
+    // rompe la app). Entradas inválidas se descartan silenciosamente.
+    if (Array.isArray(safeRaw.levelHistory)) {
+      safeRaw.levelHistory = (safeRaw.levelHistory as unknown[]).filter(
+        (s): s is LevelSnapshot =>
+          typeof s === 'object' && s !== null &&
+          typeof (s as Record<string, unknown>).level === 'number' &&
+          typeof (s as Record<string, unknown>).snapshotAt === 'string' &&
+          typeof (s as Record<string, unknown>).snapshot === 'object' &&
+          (s as Record<string, unknown>).snapshot !== null
       )
     }
 

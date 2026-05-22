@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { defineAsyncComponent, computed, ref, onMounted } from 'vue'
+import { defineAsyncComponent, computed, ref, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { useCharacterStore } from '@/stores/character'
@@ -14,6 +14,24 @@ import { devLog } from '@/utils/devLog'
 const { t } = useI18n()
 const appStore = useAppStore()
 const characterStore = useCharacterStore()
+
+// #116 — A partir de nivel 2, los Steps 1-8 desaparecen y solo se muestra
+// el Step 9 (Review). El wizard de creación es exclusivo para nivel 1; una
+// vez el PJ sube de nivel, todas las decisiones se gestionan desde Review.
+const REVIEW_STEP = 8
+const isLockedToReview = computed(() => characterStore.character.level >= 2)
+
+// Si por cualquier vía (URL directa, navegación lateral, datos cargados) el
+// PJ está a lv.2+ y el currentStep no es Review, forzamos Review.
+watch(
+  () => [isLockedToReview.value, appStore.currentStep] as const,
+  ([locked, step]) => {
+    if (locked && step !== REVIEW_STEP) {
+      appStore.setStep(REVIEW_STEP)
+    }
+  },
+  { immediate: true },
+)
 
 // WSG 3.8: Preload data for current step when builder opens (for returning users past Step 1)
 onMounted(async () => {
@@ -146,7 +164,8 @@ async function goPrevStep() {
 
 <template>
   <div class="w-full">
-    <StepNavigation />
+    <!-- #116: barra de pasos solo en lv.1 (creación). En lv.2+ todo es Review. -->
+    <StepNavigation v-if="!isLockedToReview" />
 
     <!-- Live region for screen readers announcing step changes -->
     <div class="sr-only" aria-live="polite" aria-atomic="true">
@@ -168,7 +187,8 @@ async function goPrevStep() {
       {{ validationMessage }}
     </div>
 
-    <nav class="flex justify-between mt-8" :aria-label="t('common.stepProgress', { current: appStore.currentStep + 1, total: appStore.totalSteps })">
+    <!-- #116: navegación Back/Next solo en wizard (lv.1). Lv.2+ no la necesita. -->
+    <nav v-if="!isLockedToReview" class="flex justify-between mt-8" :aria-label="t('common.stepProgress', { current: appStore.currentStep + 1, total: appStore.totalSteps })">
       <button
         v-if="appStore.currentStep > 0"
         @click="goPrevStep"

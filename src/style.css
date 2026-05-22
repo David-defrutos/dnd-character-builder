@@ -141,7 +141,7 @@ html[data-theme="light"] .text-stone-100 { color: #1c1917; }
 html[data-theme="light"] .text-stone-200 { color: #292524; }
 html[data-theme="light"] .text-stone-300 { color: #44403c; }
 html[data-theme="light"] .text-stone-400 { color: #57534e; }
-html[data-theme="light"] .text-stone-500 { color: #78716c; }
+html[data-theme="light"] .text-stone-500 { color: #57534e; }
 html[data-theme="light"] .text-stone-600 { color: #57534e; }
 html[data-theme="light"] .text-stone-900 { color: #1c1917; }
 
@@ -245,3 +245,13 @@ html[data-theme="light"] .hover\:bg-purple-600:hover { background-color: #9333ea
 html[data-theme="light"] .hover\:shadow-lg:hover {
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
 }
+
+/* ─── Contraste de texto secundario ────────────────────────────────────────
+ * text-stone-500 se usa como "texto secundario suave" en ~20 componentes
+ * (FeatPicker, WeaponMasteryPicker, AsiSelector, etc.). El valor por defecto
+ * de Tailwind (#78716c) tiene poco contraste sobre fondos oscuros, y
+ * especialmente sobre tarjetas con tinte ámbar (bg-amber-900/20). Lo subimos
+ * a #a8a29e para garantizar legibilidad. El modo claro tiene su propio
+ * override más arriba en este archivo (#57534e).
+ */
+html:not([data-theme="light"]) .text-stone-500 { color: #a8a29e; }

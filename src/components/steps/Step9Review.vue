@@ -14,6 +14,7 @@ import WeaponMasteryPicker from '@/components/shared/WeaponMasteryPicker.vue'
 import FightingStylePicker from '@/components/shared/FightingStylePicker.vue'
 import ExpertisePicker from '@/components/shared/ExpertisePicker.vue'
 import SpellRow from '@/components/shared/SpellRow.vue'
+import LevelHistoryPanel from '@/components/shared/LevelHistoryPanel.vue'
 import { feats } from '@/data/dnd5e/feats'
 import { pendingLevelDecisions } from '@/utils/levelUpGating'
 import { buildExportFilename } from '@/utils/exportFilename'
@@ -500,8 +501,8 @@ function handleImport(event: Event) {
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
       <div class="bg-stone-800 border border-stone-700 rounded-lg p-4">
         <h3 class="font-semibold text-stone-300 mb-2">{{ t('review.savingThrows') }}</h3>
-        <!-- #99: 2 columnas internas para reducir espacio en blanco entre nombre y número. -->
-        <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+        <!-- UX: una sola columna; las 6 saving throws caben perfectamente. -->
+        <div class="flex flex-col gap-y-1 text-sm">
           <div v-for="st in savingThrows" :key="st.ability" class="flex items-center gap-2">
             <span class="w-3 h-3 rounded-full" :class="st.proficient ? 'bg-amber-500' : 'bg-stone-600'" :aria-label="st.proficient ? 'Proficient' : 'Not proficient'" role="img"></span>
             <span class="text-stone-400 uppercase w-8">{{ st.ability }}</span>
@@ -512,9 +513,11 @@ function handleImport(event: Event) {
 
       <div class="bg-stone-800 border border-stone-700 rounded-lg p-4">
         <h3 class="font-semibold text-stone-300 mb-2">{{ t('review.skills') }}</h3>
-        <!-- #99: 2 columnas internas. max-h y overflow-y se quitan: con 2 columnas las 18 skills caben. -->
-        <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-          <div v-for="skill in skills" :key="skill.id" class="flex items-center gap-2">
+        <!-- UX: CSS multi-column rellena por columna (Acrobatics, Animal Handling,
+             Arcana... bajan por la primera columna y luego saltan a la segunda).
+             break-inside-avoid evita que un item se parta entre columnas. -->
+        <div class="columns-2 gap-x-4 text-xs">
+          <div v-for="skill in skills" :key="skill.id" class="flex items-center gap-2 break-inside-avoid mb-1">
             <span class="w-2.5 h-2.5 rounded-full" :class="skill.proficient ? 'bg-amber-500' : 'bg-stone-600'" :aria-label="skill.proficient ? 'Proficient' : 'Not proficient'" role="img"></span>
             <span class="text-stone-400 flex-1">{{ gt.skill(skill.name) }}</span>
             <span class="text-stone-200 font-medium">{{ formatModifier(skill.bonus) }}</span>
@@ -701,6 +704,9 @@ function handleImport(event: Event) {
         </div>
       </div>
     </Transition>
+
+    <!-- #117: Historial de niveles -->
+    <LevelHistoryPanel />
 
     <!-- Export Buttons -->
     <div class="flex flex-wrap gap-3 mt-6 no-print" role="group" :aria-label="t('review.export')">

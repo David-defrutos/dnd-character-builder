@@ -248,14 +248,28 @@
     "back": "Back",
     "cancel": "Cancel",
     "confirm": "Confirm",
+    "close": "Close",
     "select": "Select",
     "remove": "Remove",
     "level": "Level",
+    "hp": "HP",
     "search": "Search",
     "noResults": "No results",
     "loading": "Loading...",
     "unnamed": "Unnamed",
     "stepProgress": "Step {current} of {total}"
+  },
+  "history": {
+    "title": "Level History",
+    "description": "Snapshots of this character at each level. Click a level to view its state or restore the character to that point.",
+    "viewLevel": "View character at level {level}",
+    "snapshotTitle": "Level {level} — {name}",
+    "savedAt": "Saved at",
+    "resetButton": "Reset to this level",
+    "confirmReset": "This will permanently discard the character's progress beyond level {level} (currently at level {current}). This action cannot be undone. Continue?",
+    "confirmYes": "Yes, reset",
+    "restoredOk": "Character restored to level {level}.",
+    "restoreError": "Could not restore the snapshot."
   },
   "validation": {
     "selectRace": "Select a species before continuing",

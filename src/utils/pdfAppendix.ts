@@ -46,7 +46,7 @@ function contentWidth() { return PAGE_WIDTH - MARGIN_X * 2 }
 
 // Tipografía — afinada en #77 para mejorar legibilidad sin sobrepasar
 // las dimensiones de las hojas oficiales (603x774).
-const SECTION_HEADER_SIZE = 14
+const SECTION_HEADER_SIZE = 13
 // #114: bajado de 11 a 9 para que los subheaders (Gnomish Cunning, nombre
 // del feat en MAGIC INITIATE, nombres de magic items...) no salgan más
 // grandes que su descripción. Conserva la negrita y el color gris oscuro.
@@ -242,7 +242,7 @@ function drawAbilityBreakdown(state: DrawState, char: CharacterData): void {
   const breakdown = computeAbilityBreakdown(char)
   if (!breakdown.length) return
 
-  drawSectionHeader(state, 'ABILITY SCORES')
+  drawSectionHeader(state, 'Ability Scores')
 
   const w = contentWidth()
   // #114: columnas estrechas para Ability (3 letras) y Total (2 dígitos).
@@ -276,7 +276,7 @@ function drawClassFeatures(state: DrawState, char: CharacterData): void {
     : []
 
   if (!featuresUpToLevel.length && !subFeatures.length) return
-  drawSectionHeader(state, 'CLASS FEATURES')
+  drawSectionHeader(state, 'Class Features')
 
   // #110: tabla de 3 columnas. UNA FILA POR ESCALADO — si Action Surge
   // aparece en lv.2 y de nuevo en lv.17 (uso extra), serán 2 filas. Si la
@@ -314,7 +314,7 @@ function drawClassFeatures(state: DrawState, char: CharacterData): void {
   const colDesc = w - colLevel - colName
 
   const columns: readonly TableColumn[] = [
-    { header: 'Lv.',         width: colLevel, align: 'center' },
+    { header: 'Lv.',         width: colLevel },
     { header: 'Feature',     width: colName },
     { header: 'Description', width: colDesc },
   ]
@@ -332,7 +332,7 @@ function drawClassFeatures(state: DrawState, char: CharacterData): void {
 function drawSpeciesTraits(state: DrawState, char: CharacterData): void {
   const race = char.race ? getRaceById(char.race) : undefined
   if (!race) return
-  drawSectionHeader(state, 'SPECIES TRAITS')
+  drawSectionHeader(state, 'Species Traits')
 
   const raceTraits = race.traits ?? []
   raceTraits.forEach((trait, idx) => {
@@ -438,7 +438,7 @@ function drawFeats(state: DrawState, char: CharacterData): void {
   }
 
   if (!rows.length) return
-  drawSectionHeader(state, 'FEATS')
+  drawSectionHeader(state, 'Feats')
 
   // Ordenar: origin (lv.0) primero, luego por nivel ASC.
   rows.sort((a, b) => a.level - b.level)
@@ -449,7 +449,7 @@ function drawFeats(state: DrawState, char: CharacterData): void {
   const colDesc = w - colLevel - colName
 
   const columns: readonly TableColumn[] = [
-    { header: 'Lv.',         width: colLevel, align: 'center' },
+    { header: 'Lv.',         width: colLevel },
     { header: 'Feat',        width: colName },
     { header: 'Description', width: colDesc },
   ]
@@ -463,7 +463,7 @@ function drawFeats(state: DrawState, char: CharacterData): void {
 function drawMagicItems(state: DrawState, char: CharacterData): void {
   const magic = (char.inventory ?? []).filter(i => i.kind === 'magic')
   if (!magic.length) return
-  drawSectionHeader(state, 'MAGIC ITEMS')
+  drawSectionHeader(state, 'Magic Items')
   magic.forEach((item, idx) => {
     const data = getMagicItemById(item.itemId)
     const attunedTag = item.attuned ? ' [attuned]' : ''
@@ -512,7 +512,7 @@ function drawSpeciesSpells(state: DrawState, char: CharacterData): void {
   const spellIds   = char.speciesGrantedSpells   ?? []
   if (!cantripIds.length && !spellIds.length) return
 
-  drawSectionHeader(state, 'SPECIES SPELLS')
+  drawSectionHeader(state, 'Species Spells')
 
   const items: Array<{ id: string; isSpell: boolean }> = [
     ...cantripIds.map(id => ({ id, isSpell: false })),
@@ -551,7 +551,7 @@ function drawCharacterSpells(state: DrawState, char: CharacterData): void {
 
   if (!filteredCantrips.length && !filteredSpells.length) return
 
-  drawSectionHeader(state, 'SPELLS')
+  drawSectionHeader(state, 'Spells')
 
   const items: string[] = [...filteredCantrips, ...filteredSpells]
   items.forEach((id, idx) => {
@@ -564,7 +564,29 @@ function drawMagicInitiate(state: DrawState, char: CharacterData): void {
   const choices = char.magicInitiateChoices ?? []
   if (!choices.length) return
 
-  drawSectionHeader(state, 'MAGIC INITIATE')
+  // Determinar el header de sección:
+  //   - Si al menos uno de los choices proviene del background (source === 'origin'),
+  //     pintamos "Origin: <background>" para reflejar que Magic Initiate es el
+  //     feat de origin de este personaje (caso típico).
+  //   - Si todos provienen de ASI checkpoints (Magic Initiate es repeatable),
+  //     mantenemos un título neutro "Magic Initiate".
+  const hasOriginSource = choices.some(c => c.source === 'origin')
+  const bgName = (char.background ?? '').trim()
+  const sectionTitle = hasOriginSource && bgName
+    ? `Origin: ${bgName}`
+    : 'Magic Initiate'
+  drawSectionHeader(state, sectionTitle)
+
+  // Subheader con el nombre del feat y, debajo, su descripción.
+  if (hasOriginSource) {
+    const featInfo = getFeatById('magic-initiate')
+    drawSubheader(state, 'Magic Initiate')
+    if (featInfo?.description) {
+      drawBody(state, featInfo.description)
+      drawItemGap(state)
+    }
+  }
+
   choices.forEach((choice, idx) => {
     const sourceLabel = choice.source === 'origin'
       ? 'Background'
@@ -602,7 +624,7 @@ function drawWeaponAttacks(state: DrawState, char: CharacterData): void {
     : (char.weapons ?? []).map(w => w.name)
 
   if (!names.length) return
-  drawSectionHeader(state, 'WEAPON ATTACKS')
+  drawSectionHeader(state, 'Weapon Attacks')
   names.forEach((name, idx) => {
     const info = computeWeaponAttack(name, char)
     drawSubheader(state, name)
@@ -645,7 +667,7 @@ function drawWeaponMasteries(state: DrawState, char: CharacterData): void {
   const masteries = sanitizeMasteries(char)
   if (!masteries.length) return
 
-  drawSectionHeader(state, 'WEAPON MASTERIES')
+  drawSectionHeader(state, 'Weapon Masteries')
 
   const w = contentWidth()
   const colWeapon = Math.round(w * 0.28)
@@ -687,7 +709,7 @@ function drawResourceTable(state: DrawState, char: CharacterData): void {
   const rows = getLimitedResources(char)
   if (!rows.length) return
 
-  drawSectionHeader(state, 'LIMITED-USE RESOURCES')
+  drawSectionHeader(state, 'Limited-Use Resources')
 
   const w = contentWidth()
   const colName = Math.round(w * 0.30)
@@ -783,12 +805,12 @@ export async function appendCharacterAppendix(
   state.y -= 22
 
   drawAbilityBreakdown(state, char)
-  drawClassFeatures(state, char)
   drawSpeciesTraits(state, char)
+  drawMagicInitiate(state, char)     // "Origin: <background>" — sube aquí
+  drawClassFeatures(state, char)
+  drawFeats(state, char)
   drawSpeciesSpells(state, char)
   drawCharacterSpells(state, char)
-  drawFeats(state, char)
-  drawMagicInitiate(state, char)
   drawMagicItems(state, char)
   drawWeaponAttacks(state, char)
   drawWeaponMasteries(state, char)
