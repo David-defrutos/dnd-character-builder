@@ -36,16 +36,23 @@ function daOf(doc: PDFDocument, fieldName: string): string | null {
 }
 
 describe('#120 — normalizeSpellFieldFonts', () => {
-  it('PDF base TIENE el bug: SName_2 usa LibreBaskerville', async () => {
+  // #122 — La plantilla base ahora ya viene con las DAs normalizadas
+  // (scripts/normalize-pdf-template.ts las aplicó in-place al archivo
+  // public/pdf/dnd-2024-sheet.pdf). Los tests que verificaban "el bug existe
+  // en la plantilla" se convierten en regresión: verifican que el fix sigue
+  // persistido y no se ha vuelto a romper si alguien regenera la plantilla.
+  it('PDF base persiste el fix: SName_2 NO usa LibreBaskerville', async () => {
     const doc = await loadFreshPdf()
     const da = daOf(doc, 'SName_2')
-    expect(da).toContain('LibreBaskerville')
+    expect(da).not.toContain('LibreBaskerville')
+    expect(da).toContain('QuattrocentoSans')
   })
 
-  it('PDF base TIENE el bug: SLevel_3 usa LibreBaskerville', async () => {
+  it('PDF base persiste el fix: SLevel_3 NO usa LibreBaskerville', async () => {
     const doc = await loadFreshPdf()
     const da = daOf(doc, 'SLevel_3')
-    expect(da).toContain('LibreBaskerville')
+    expect(da).not.toContain('LibreBaskerville')
+    expect(da).toContain('QuattrocentoSans')
   })
 
   it('tras normalizar, SName_2 usa QuattrocentoSans (DA canónica)', async () => {

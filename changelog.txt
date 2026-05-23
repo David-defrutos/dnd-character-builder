@@ -7,6 +7,57 @@ Convenciones:
 - # = referencia al bug/feature en la memoria de trabajo.
 
 ────────────────────────────────────────
+2026-05-23 10:16 · #122 — PDF: persistir el fix de fuente en la plantilla base
+────────────────────────────────────────
+SÍNTOMA: tras #120, "Vicious Mockery" en la fila 2 de CANTRIPS & PREPARED
+SPELLS seguía mostrándose con fuente descomunalmente grande. La normalización
+runtime de #120 (normalizeSpellFieldFonts en usePdfExport.ts) NO bastaba en
+algunos visores externos.
+
+CAUSA: el runtime sobreescribe el /DA del campo en el PDFDocument cargado en
+pdf-lib, pero al guardar el PDF rellenado algunos visores recuperan o
+recalculan la apariencia del campo desde el AcroForm preservado, leyendo
+todavía la /DA original con LibreBaskerville-Bold (que no está embedida).
+La fuente queda en fallback y se ve gigante. El comportamiento varía por
+visor: Chrome con Preview integrado mostraba el bug; otros visores no.
+
+FIX: persistir la normalización DIRECTAMENTE en la plantilla base
+public/pdf/dnd-2024-sheet.pdf, no solo en runtime.
+
+ARCHIVOS:
+- scripts/normalize-pdf-template.ts (NUEVO):
+    · Script one-off que carga la plantilla, llama a normalizeSpellFieldFonts
+      y la guarda de vuelta (useObjectStreams: false para mantener acceso
+      individual a cada campo).
+    · Ejecutado una vez: npx tsx scripts/normalize-pdf-template.ts.
+    · Idempotente: re-ejecutarlo no rompe nada.
+- public/pdf/dnd-2024-sheet.pdf:
+    · Las 150 celdas spell (30 filas × 5 subcampos SLevel/SName/STime/SRange/
+      SNotes) ya tienen /DA = (/QuattrocentoSans,Bold 0 Tf 0 g) PERSISTIDA.
+    · Tamaño: 833 KB → 1.28 MB. El crecimiento se debe a que pdf-lib
+      re-serializa sin object streams (necesario para individualizar
+      campos). Sigue siendo aceptable para un PDF de ficha completa.
+- src/utils/pdfFontNormalize.test.ts:
+    · Los 2 tests que verificaban "el bug existe en la plantilla" se
+      convierten en regresión: ahora verifican que el fix sigue persistido.
+      Si alguien regenera la plantilla sin pasarla por el script, estos
+      tests fallarán y avisarán.
+
+RED DE SEGURIDAD DOBLE: la llamada runtime normalizeSpellFieldFonts(pdfDoc)
+en usePdfExport.ts se conserva. Es idempotente: aplicarla sobre la plantilla
+ya-fixed no cambia nada. Si en el futuro WotC publica una plantilla nueva
+con el mismo bug y alguien la sustituye sin pasar por el script, el runtime
+sigue corrigiendo el problema en el PDF generado al usuario final.
+
+VERIFICACIÓN:
+- npx vitest run src/utils/pdfFontNormalize.test.ts → 8/8 OK.
+  · SName_2 ahora persiste con /DA = QuattrocentoSans,Bold.
+  · SLevel_3 ídem.
+  · Tras llamar a normalizeSpellFieldFonts encima, el DA sigue siendo
+    canónico (idempotencia).
+- Suite global: 858/858 OK. Build production: OK. TS strict: OK.
+
+────────────────────────────────────────
 2026-05-23 09:26 · #120 — PDF: spell columns + Detailed Reference (7 secciones nuevas)
 ────────────────────────────────────────
 Cambio amplio en el export PDF, agrupando tres fixes relacionados:
