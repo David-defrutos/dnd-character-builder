@@ -310,6 +310,20 @@ describe('useCharacterStore', () => {
       expect(data.inventory![2]!.qty).toBe(2)
     })
 
+    it('preserva weight válido y descarta weight inválido en inventory', () => {
+      const store = useCharacterStore()
+      const json = JSON.stringify(makeMinimalCharacter({
+        inventory: [
+          { slotId: 'a', kind: 'custom', itemId: '', name: 'Rations', qty: 2, weight: 2 },
+          { slotId: 'b', kind: 'custom', itemId: '', name: 'Broken', qty: 1, weight: -1 },
+        ],
+      }))
+      const { data } = store.importJson(json)
+      expect(data.inventory).toHaveLength(2)
+      expect(data.inventory![0]!.weight).toBe(2)
+      expect(data.inventory![1]!.weight).toBeUndefined()
+    })
+
     it('regenera slotId si falta', () => {
       const store = useCharacterStore()
       const json = JSON.stringify(makeMinimalCharacter({

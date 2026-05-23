@@ -7,6 +7,277 @@ Convenciones:
 - # = referencia al bug/feature en la memoria de trabajo.
 
 ────────────────────────────────────────
+2026-05-23 09:26 · #120 — PDF: spell columns + Detailed Reference (7 secciones nuevas)
+────────────────────────────────────────
+Cambio amplio en el export PDF, agrupando tres fixes relacionados:
+
+A) Hoja 2 — Spell table: rellenar columnas vacías + arreglar fuente
+B) Hoja 2 — Resolver nombre canónico de hechizos (vicious-mockery → Vicious Mockery)
+C) Hoja 3 — Detailed Reference: 7 nuevas secciones explicativas
+
+────── A) Hoja 2 — Normalizar fuente de filas spell ──────
+
+BUG: en la plantilla oficial dnd-2024-sheet.pdf de WotC, las primeras filas
+de la tabla de spells tienen el campo /DA (Default Appearance) apuntando a
+"/LibreBaskerville-Bold" en vez del estándar "/QuattrocentoSans,Bold". Como
+Libre Baskerville NO está embedido en el PDF, los visores caen a un fallback
+con métrica distinta y el texto se ve descomunalmente grande
+(ej. "vicious-mockery" en SName_2 salía ~2x el tamaño esperado).
+
+Filas afectadas:
+  - Fila 1: STime_1, SRange_1
+  - Fila 2: TODO (SLevel_2, SName_2, STime_2, SRange_2, SNotes_2)
+  - Filas 3, 4, 5: SLevel_N
+  - Filas 6-30: correctas
+
+FIX:
+- src/utils/pdfFontNormalize.ts (NUEVO):
+    · normalizeSpellFieldFonts(pdfDoc) sobreescribe el /DA de TODOS los
+      campos textuales de las 30 filas spell (SLevel, SName, STime, SRange,
+      SNotes) con la DA canónica "/QuattrocentoSans,Bold 0 Tf 0 g".
+    · Aplicar a TODAS las filas (no solo a las rotas) es idempotente y
+      defensivo: si WotC actualiza la plantilla y rompe más filas, seguimos
+      corregidos.
+    · No toca checkboxes (SC_N, SR_N, SM_N), no llevan font de texto.
+- src/composables/usePdfExport.ts:
+    · Llama a normalizeSpellFieldFonts(pdfDoc) justo después de getForm()
+      y antes de empezar a rellenar.
+    · Estrategia "runtime", no modifica el PDF base en public/pdf/.
+
+────── B) Hoja 2 — Spell columns rellenadas + name canónico ──────
+
+BUG: pdfFieldMapping solo rellenaba SLevel_N y SName_N (este último con el
+id crudo en kebab-case, "vicious-mockery"). Las columnas STime_N, SRange_N,
+SC_N (Concentration), SR_N (Ritual), SM_N (Material) y SNotes_N quedaban
+vacías a pesar de existir en la plantilla.
+
+FIX en src/utils/pdfFieldMapping.ts:
+- Importa getSpellById de '@/data/dnd5e/spells'.
+- Refactor del bucle de spells: tipo interno SpellEntry { level, lookupId,
+  displayId, tag? } separa id de lookup (con prefijo de nivel "3-tiny-hut")
+  e id de display (sin prefijo, para fallback). Lookup tolerante a ambos
+  formatos (cantrips usan id sin prefijo, leveled spells con prefijo).
+- Cada entrada del catálogo aporta:
+    · SName_N = spell.name (canónico) + " (Race)/(MI)/(BW)/(DW)" si tag
+    · STime_N = spell.castingTime
+    · SRange_N = spell.range
+    · SC_N = true si duration empieza por "Concentration"
+    · SR_N = true si castingTime incluye "Ritual"
+    · SM_N = true si components incluye "M" (componente material)
+    · SNotes_N = spell.duration (opción A — solo duration, decisión usuario)
+- Si el id no se resuelve (homebrew, typo): SName = id crudo, otros campos
+  quedan vacíos. El render sigue sin romper.
+
+────── C) Hoja 3 — Detailed Reference: 7 secciones nuevas ──────
+
+NUEVA UTILIDAD src/utils/detailedReferenceCalc.ts:
+Funciones puras (sin dibujo pdf-lib) que calculan el QUÉ debe imprimirse:
+  - totalAbilityScore, abilityModifier, fmtMod, pbForLevel, lbsToKg
+  - computeSavingThrows(char) → 6 filas con desglose por ability
+  - computeHitPointsBreakdown(char) → max HP desglosado por fuente
+  - computeMiscellaneous(char) → Initiative + Passive Perception + Expertise
+  - computeSpellcastingCalculations(char) → Ability, Save DC, Atk Bonus
+  - computeSpellSlots(char) → standard 1-9 o Pact Magic según casterType
+  - computeCarryingCapacity(char) → umbrales en lbs + kg (Math.round(0.4536))
+
+Las funciones draw* en pdfAppendix.ts consumen esos helpers; solo se
+encargan del CÓMO (layout, tablas, etc.).
+
+ORDEN FINAL de las secciones en el Detailed Reference:
+   1. Ability Scores
+   2. Saving Throws                  (NUEVO)
+   3. Armor Class
+   4. Hit Points                     (NUEVO)
+   5. Miscellaneous                  (NUEVO: Init + PP + Expertise)
+   6. Species Traits
+   7. Origin (background)
+   8. Class Features
+   9. Feats
+  10. Species Spells
+  11. Spellcasting Calculations      (NUEVO)
+  12. Spell Slots                    (NUEVO)
+  13. Spells
+  14. Magic Items
+  15. Weapon Attacks
+  16. Weapon Masteries
+  17. Carrying Capacity              (NUEVO)
+  18. Limited-Use Resources
+
+DETALLES POR SECCIÓN:
+
+- Saving Throws: tabla 6 filas (Ability | Total | Sources). Sources muestra
+  "DEX +2, PB +4 (proficient)" o "STR -1" según corresponda. Detecta
+  proficiency tanto de char.savingThrowProficiencies como de
+  char.featAddedSavingThrows (Resilient feat).
+
+- Hit Points: tabla desglosada por fuente. Para Salusa lv.10 Bard CON +0:
+    Bard lv.1 (max d8)                    8
+    Bard lv.2-10 (avg 5/lv x 9)          45
+    CON modifier (+0 x 10 lv)             0
+    Total Max HP                         53
+  Añade fila Tough feat y Dwarven Toughness si aplican.
+
+- Miscellaneous: prosa breve, 2-3 líneas:
+    "Initiative: DEX +2 = +2" (o "+ PB +X (Alert feat)" si tiene Alert)
+    "Passive Perception: 10 + WIS +1 + PB +4 (proficient) + PB +4 (expertise) = 19"
+    "Skills with Expertise: Acrobatics, Stealth, Insight, Perception (PB counted twice = +8)."
+  La línea de Expertise se omite si el PJ no tiene ninguna.
+
+- Spellcasting Calculations: 3 líneas. Solo si char.spellcastingAbility está
+  declarada. Para Salusa:
+    "Spellcasting Ability: Charisma (CHA +4)"
+    "Spell Save DC: 8 + PB +4 + CHA +4 = 16"
+    "Spell Attack Bonus: PB +4 + CHA +4 = +8"
+
+- Spell Slots: tabla "Level | Slots". Lee FULL_CASTER_SLOTS,
+  HALF_CASTER_SLOTS, THIRD_CASTER_SLOTS, o PACT_MAGIC_SLOTS según
+  cls.spellcasting.casterType. Pact Magic usa formato distinto
+  (N slots / Level X). Para Salusa Bard lv.10:
+    1st 4, 2nd 3, 3rd 3, 4th 3, 5th 2.
+
+- Carrying Capacity: 4 líneas con umbrales PHB 2024 (STR × 15/30/5/10).
+  Cada cifra en lbs y kg (redondeado al entero, factor 0.4536). NO calcula
+  carga actual (los magic items y custom items aún no tienen weight; se
+  abordará en un chat paralelo). Para Salusa STR 8:
+    Carrying Capacity: STR 8 x 15 = 120 lbs (54 kg)
+    Push, Drag, or Lift: 240 lbs (109 kg) — 2x capacity
+    Encumbered: more than 40 lbs (18 kg) — STR x 5
+    Heavily Encumbered: more than 80 lbs (36 kg) — STR x 10
+
+────── Otros ajustes ──────
+
+- tsconfig.app.json: añade exclude para src/**/*.test.ts y *.spec.ts.
+  Motivo: el test del normalizador (pdfFontNormalize.test.ts) importa
+  node:fs/node:path para cargar el PDF base. vitest los compila con su
+  propia toolchain laxa, pero vue-tsc -b strict los incluía y rompía con
+  TS2307 (Cannot find module 'node:fs'). Patrón consistente con la pauta
+  del proyecto: "tests vitest usan compilación laxa".
+
+ARCHIVOS:
+- src/utils/pdfFontNormalize.ts            (NUEVO)
+- src/utils/pdfFontNormalize.test.ts       (NUEVO, 8 tests)
+- src/utils/detailedReferenceCalc.ts       (NUEVO)
+- src/utils/detailedReferenceCalc.test.ts  (NUEVO, 32 tests)
+- src/composables/usePdfExport.ts          (llama a normalizeSpellFieldFonts)
+- src/utils/pdfFieldMapping.ts             (spell columns + getSpellById)
+- src/utils/pdfFieldMapping.test.ts        (+8 tests #120)
+- src/utils/pdfAppendix.ts                 (6 nuevas draw*, reordenadas)
+- tsconfig.app.json                        (exclude tests)
+
+TESTS:
+- pdfFontNormalize.test.ts (8): verifica DA antes/después; idempotencia;
+  150 campos actualizados (30 filas × 5 subcampos); constante canónica.
+- pdfFieldMapping.test.ts (+8): vicious-mockery → "Vicious Mockery";
+  Light tiene material check; Hideous Laughter tiene Concentration check;
+  Tiny Hut tiene Ritual y Material check; id desconocido → fallback al
+  id crudo; species/MI mantienen tags con name canónico; Salusa pos 2
+  resuelve a "Vicious Mockery".
+- detailedReferenceCalc.test.ts (32): helpers básicos + las 6 funciones
+  compute*. Caso Salusa real + varios PJ arquetípicos (Fighter, Paladin,
+  Warlock, Wizard, Rogue con Expertise multi-palabra).
+
+Total: 803 → 851 (48 nuevos). Build OK.
+
+NOTAS:
+- La "Current Load" (peso transportado actual) NO se calcula todavía.
+  Magic items NO tienen campo weight en el catálogo; custom items no
+  tienen forma de declarar peso. Se aborda en chat paralelo: añadir
+  weight a magic-items.ts + UI para custom items + sección "Current Load"
+  como extensión de "Carrying Capacity" de #120.
+- normalizeSpellFieldFonts es runtime, no modifica public/pdf/dnd-2024-sheet.pdf.
+  Si WotC publica una plantilla corregida en el futuro, no perdemos su fix.
+
+────────────────────────────────────────
+2026-05-23 09:52 · #121 — Current Load (peso transportado) + merge con #120
+────────────────────────────────────────
+Mergeada la rama paralela #121 que el usuario desarrolló en otro chat. Esta
+entrada agrupa el contenido original del #121 más los ajustes de integración
+con #120 hechos en este chat.
+
+OBJETIVO del #121 original:
+- Calcular el peso transportado del PJ (Current Load) a partir de
+  char.inventory[], indicando carga total, % de capacidad usada y estado
+  (Unencumbered / Encumbered / Heavily Encumbered).
+- Habilitar weight en magic items (260+ entradas) y en custom items.
+
+CAMBIOS HEREDADOS DE #121 (sin modificar):
+- src/data/dnd5e/magic-items.ts:
+    · MagicItem.weight pasa a ser obligatorio.
+    · 260 entradas base con weight en libras (Bag of Holding 15 lb; anillos
+      y joyería 0 lb; wands 1 lb; staffs 4 lb; rods 2 lb; potions 0.5 lb).
+    · weaponPlusItems y armorPlusItems resuelven weight automáticamente
+      desde equipment.ts (armas/armaduras +1/+2/+3).
+- src/stores/character.ts:
+    · InventoryItem añade weight?: number (solo aplica a custom items;
+      catalogue items resuelven peso por itemId).
+    · importJson conserva weight válido [0..100000] y descarta inválidos.
+- src/stores/character.test.ts: test del nuevo campo.
+- src/components/shared/EquipmentManager.vue:
+    · Input "Weight (lbs)" para custom items (creación + edición inline).
+    · El gear añadido desde adventuringGear conserva g.weight como custom.
+- src/components/steps/Step9Review.vue:
+    · Warning visual (banner ámbar) si Encumbered o Heavily Encumbered.
+- src/utils/carryingLoad.ts (NUEVO):
+    · computeCurrentLoad(char) → { total, totalKg, capacity, capacityUsedPct,
+      status, breakdown[] }.
+    · itemUnitWeight resuelve weapon/armor/magic por itemId, custom por
+      item.weight ?? 0.
+- src/utils/carryingLoad.test.ts (NUEVO, 4 tests).
+- src/data/dnd5e/magic-items-weight.test.ts (NUEVO, 2 tests): verifica que
+  todas las entradas tienen weight numérico no negativo y casos especiales.
+
+AJUSTES DE INTEGRACIÓN (hechos en este chat para mergear con #120):
+- src/utils/carryingLoad.ts refactorizado para reutilizar la fuente de
+  verdad del #120:
+    · Importa lbsToKg y computeCarryingCapacity de detailedReferenceCalc.ts
+      (antes #121 duplicaba ambas funciones localmente).
+    · totalAbilityScore también se importa de allí (antes era abilityTotal
+      local).
+    · Se mantiene el re-export de lbsToKg para no romper el test del #121
+      que la importa directamente desde carryingLoad.
+    · La interfaz pública (computeCurrentLoad y CarryingLoadResult) NO
+      cambia: Step9Review.vue y el smoke test del #121 siguen sin
+      modificarse.
+- src/utils/pdfAppendix.ts:
+    · drawCarryingCapacity ampliada con 3 filas adicionales tras los
+      umbrales (que ya añadía #120):
+        Current Load: {total} lbs ({kg} kg)
+        Capacity used: {pct}%
+        Status: {status}
+    · Import de computeCurrentLoad de carryingLoad.
+
+VERIFICACIÓN MANUAL CON SALUSA (Bard Glamour lv.10, STR 8):
+- Inventario real del usuario (armadura estudiada + 4 dagas + Bag of Holding
+  + Cloak of Protection + violín + thieves' tools + bedroll + rope +
+  2 healing potions): Current Load = 53 lbs (24 kg).
+- Capacity used: 44% de 120 lbs (53/120).
+- Status: Encumbered (53 > STR×5 = 40).
+- Coherente con la regla PHB 2024 (variant encumbrance: STR×5 / STR×10).
+
+ARCHIVOS DEL MERGE:
+- src/utils/carryingLoad.ts (NUEVO, refactorizado)
+- src/utils/carryingLoad.test.ts (NUEVO)
+- src/data/dnd5e/magic-items.ts (weights añadidos)
+- src/data/dnd5e/magic-items-weight.test.ts (NUEVO)
+- src/stores/character.ts (InventoryItem.weight)
+- src/stores/character.test.ts (test weight)
+- src/components/shared/EquipmentManager.vue (UI weight)
+- src/components/steps/Step9Review.vue (warning encumbrance)
+- src/utils/pdfAppendix.ts (drawCarryingCapacity con Current Load)
+
+TESTS:
+- 858 totales (antes #120: 851; #121 aporta 7: 4 carryingLoad + 2 magic-
+  items-weight + 1 character.test).
+- Build production: OK.
+- TS strict (vue-tsc -b): OK.
+
+NOTA: el #121 original quedó pendiente de integrar en el PDF porque la rama
+no podía tocar pdfAppendix.ts sin entrar en conflicto con #120. Tras este
+merge, ambas funcionalidades quedan unificadas: la sección "Carrying
+Capacity" del Detailed Reference muestra umbrales (lbs+kg) y carga real
+(lbs+kg+%+status) en una sola unidad coherente.
+
+────────────────────────────────────────
 2026-05-23 07:42 · #119 — Catálogo completo de Limited-Use Resources
 ────────────────────────────────────────
 BUG REPORTADO: al exportar la ficha de Salusa Secundus (Bard Glamour lv.10

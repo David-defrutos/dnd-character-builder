@@ -4,6 +4,7 @@ import { useCharacterStore } from '@/stores/character'
 import type { CharacterData } from '@/stores/character'
 import { getDnd2024FieldMapping } from '@/utils/pdfFieldMapping'
 import { appendCharacterAppendix } from '@/utils/pdfAppendix'
+import { normalizeSpellFieldFonts } from '@/utils/pdfFontNormalize'
 
 export function usePdfExport() {
   const exporting = ref(false)
@@ -38,6 +39,13 @@ export function usePdfExport() {
       const pdfBytes = await pdfResponse.arrayBuffer()
       const pdfDoc = await PDFDocument.load(pdfBytes)
       const form = pdfDoc.getForm()
+
+      // #120: corrige inconsistencia de la plantilla oficial 2024 — la fila 2
+      // (y parcialmente la 1, 3, 4, 5) tiene /DA apuntando a LibreBaskerville
+      // que no está embedido en el PDF; los visores caen a un fallback con
+      // métrica distinta y la fuente sale visiblemente más grande. Forzamos
+      // QuattrocentoSans,Bold en todos los campos textuales de spells.
+      normalizeSpellFieldFonts(pdfDoc)
 
       const fieldMapping = getDnd2024FieldMapping(char)
 

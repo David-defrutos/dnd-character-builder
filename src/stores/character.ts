@@ -75,6 +75,8 @@ export interface InventoryItem {
   notes?: string
   /** Quantity (default 1). */
   qty: number
+  /** Weight in pounds for custom/adventuring-gear items. Catalogue items resolve weight by itemId. */
+  weight?: number
   /** #118 — Item equipped on the character (worn/wielded right now).
    *  Multiple items can be equipped; uniqueness rules (1 armor, 1 shield,
    *  1 cloak, max 2 rings) are enforced by the equip helper, not the data. */
@@ -782,6 +784,9 @@ export const useCharacterStore = defineStore('character', () => {
           qty: typeof i.qty === 'number' && i.qty > 0 ? Math.min(i.qty, 999) : 1,
           attuned: typeof i.attuned === 'boolean' ? i.attuned : undefined,
           notes: typeof i.notes === 'string' ? (i.notes as string).slice(0, 500) : undefined,
+          weight: typeof i.weight === 'number' && Number.isFinite(i.weight) && i.weight >= 0 && i.weight <= 100000
+            ? i.weight
+            : undefined,
           // #118: campos nuevos. Boolean strict para evitar truthy raros.
           equipped: typeof i.equipped === 'boolean' ? i.equipped : undefined,
           customAcBonus: typeof i.customAcBonus === 'number' && i.customAcBonus >= -10 && i.customAcBonus <= 10

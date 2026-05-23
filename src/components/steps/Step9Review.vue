@@ -18,6 +18,7 @@ import LevelHistoryPanel from '@/components/shared/LevelHistoryPanel.vue'
 import { feats } from '@/data/dnd5e/feats'
 import { pendingLevelDecisions } from '@/utils/levelUpGating'
 import { buildExportFilename } from '@/utils/exportFilename'
+import { computeCurrentLoad } from '@/utils/carryingLoad'
 import {
   describeAsiFeatChoice, describeOriginFeatChoice, describeFightingStyle,
 } from '@/utils/featChoiceDescription'
@@ -30,6 +31,8 @@ const gt = useGameTerms()
 const char = computed(() => characterStore.character)
 const mods = computed(() => characterStore.abilityModifiers)
 const prof = computed(() => characterStore.profBonus)
+const currentLoad = computed(() => computeCurrentLoad(char.value))
+const isEncumbered = computed(() => currentLoad.value.status !== 'Unencumbered')
 
 const saveMessage = ref<{ type: 'success' | 'info'; text: string } | null>(null)
 
@@ -642,6 +645,19 @@ function handleImport(event: Event) {
         <h4 class="font-semibold text-stone-300 mb-1">{{ t('equipment.title') }}</h4>
         <p class="text-stone-400 text-sm">{{ char.equipment.join(', ') }}</p>
       </div>
+    </div>
+
+    <!-- Current Load warning (#weight) -->
+    <div
+      v-if="isEncumbered"
+      class="bg-amber-950/50 border border-amber-700 rounded-lg p-3 mb-4 text-amber-200"
+      role="alert"
+    >
+      <p class="font-semibold">Encumbrance warning: {{ currentLoad.status }}</p>
+      <p class="text-sm text-amber-100/80">
+        Current Load: {{ currentLoad.total }} lbs ({{ currentLoad.totalKg }} kg),
+        {{ currentLoad.capacityUsedPct }}% of {{ currentLoad.capacity }} lbs capacity.
+      </p>
     </div>
 
     <!-- Equipment Manager — full inventory with magic items, filters, attunement -->

@@ -3,6 +3,7 @@ import { modifier, proficiencyBonus, formatModifier, spellSaveDC, spellAttackBon
 import { getClassById } from '@/data/dnd5e/classes'
 import { getRaceById } from '@/data/dnd5e/races'
 import { getFeatById } from '@/data/dnd5e/feats'
+import { getSpellById } from '@/data/dnd5e/spells'
 import { armor as dnd5eArmorCatalogue } from '@/data/dnd5e/equipment'
 import { computeAcBreakdown } from './armorClassBreakdown'
 import { computeWeaponAttack } from './weaponCalc'
@@ -607,33 +608,55 @@ export function getDnd2024FieldMapping(char: CharacterData): Record<string, stri
   // tick them manually, until we wire computeSpellSlots() into this mapping.
 
   // Cantrips + Prepared spells listed in the spell table (up to 30 rows).
-  const allSpellEntries: { level: number; name: string }[] = []
-  for (const c of char.cantrips ?? []) allSpellEntries.push({ level: 0, name: c })
+  // #120: ahora resolvemos cada entrada contra el catálogo de spells para
+  // rellenar TODAS las columnas de la fila (Name canónico, Time, Range,
+  // Concentration check, Ritual check, Material check, Notes con duration).
+  // Si un id no se resuelve (homebrew, typo), usamos el id crudo como name
+  // y dejamos vacíos los demás campos sin romper.
+  //
+  // El catálogo de spells usa dos esquemas de id:
+  //   - Cantrips: sin prefijo (ej "light", "vicious-mockery")
+  //   - Leveled: con prefijo de nivel (ej "3-tiny-hut", "2-knock")
+  // Como `char.spellsKnown` ya guarda ids con prefijo, y otros campos (como
+  // speciesGrantedSpells) también, pero `speciesGrantedCantrips` no, hacemos
+  // un lookup tolerante: primero con el id completo, después con baseId
+  // (id sin prefijo de nivel, si lo había).
+  type SpellEntry = { level: number; lookupId: string; displayId: string; tag?: string }
+  const allSpellEntries: SpellEntry[] = []
+  for (const c of char.cantrips ?? []) {
+    allSpellEntries.push({ level: 0, lookupId: c, displayId: c })
+  }
   for (const s of char.spellsKnown ?? []) {
     const m = /^(\d+)-(.*)$/.exec(s)
-    if (m) allSpellEntries.push({ level: parseInt(m[1]!, 10), name: m[2]! })
-    else   allSpellEntries.push({ level: 1, name: s })
+    if (m) {
+      // lookup con el id completo (ej "3-tiny-hut"); display sin el prefijo
+      // de nivel para el fallback ("tiny-hut" si no se encuentra el spell).
+      allSpellEntries.push({ level: parseInt(m[1]!, 10), lookupId: s, displayId: m[2]! })
+    } else {
+      allSpellEntries.push({ level: 1, lookupId: s, displayId: s })
+    }
   }
   // #105: Species grants (Forest Gnome Minor Illusion, Drow Faerie Fire, etc.).
   // Etiquetados (Race) para distinguirlos de los hechizos elegidos de clase.
   for (const cId of char.speciesGrantedCantrips ?? []) {
-    if (cId) allSpellEntries.push({ level: 0, name: `${cId} (Race)` })
+    if (cId) allSpellEntries.push({ level: 0, lookupId: cId, displayId: cId, tag: 'Race' })
   }
   for (const sId of char.speciesGrantedSpells ?? []) {
     const m = /^(\d+)-(.*)$/.exec(sId)
-    if (m) allSpellEntries.push({ level: parseInt(m[1]!, 10), name: `${m[2]!} (Race)` })
-    else   allSpellEntries.push({ level: 1, name: `${sId} (Race)` })
+    if (m) allSpellEntries.push({ level: parseInt(m[1]!, 10), lookupId: sId, displayId: m[2]!, tag: 'Race' })
+    else   allSpellEntries.push({ level: 1, lookupId: sId, displayId: sId, tag: 'Race' })
   }
   // Magic Initiate (#74): 2 cantrips + 1 level-1 spell per instance.
   // Tagged so the player can tell them apart from class spells on the sheet.
   for (const mi of char.magicInitiateChoices ?? []) {
     for (const cId of mi.cantrips) {
-      if (cId) allSpellEntries.push({ level: 0, name: `${cId} (MI)` })
+      if (cId) allSpellEntries.push({ level: 0, lookupId: cId, displayId: cId, tag: 'MI' })
     }
     if (mi.levelOneSpell) {
       const m = /^(\d+)-(.*)$/.exec(mi.levelOneSpell)
-      const nm = m ? m[2]! : mi.levelOneSpell
-      allSpellEntries.push({ level: 1, name: `${nm} (MI)` })
+      const lookupId = mi.levelOneSpell
+      const displayId = m ? m[2]! : mi.levelOneSpell
+      allSpellEntries.push({ level: 1, lookupId, displayId, tag: 'MI' })
     }
   }
   // H5: Blessed Warrior / Druidic Warrior — cantrips alternativos al Fighting Style.
@@ -641,14 +664,44 @@ export function getDnd2024FieldMapping(char: CharacterData): Record<string, stri
   if (char.martialCasterAlt) {
     const tag = char.martialCasterAlt.source === 'paladin-blessed' ? 'BW' : 'DW'
     for (const cId of char.martialCasterAlt.cantrips) {
-      if (cId) allSpellEntries.push({ level: 0, name: `${cId} (${tag})` })
+      if (cId) allSpellEntries.push({ level: 0, lookupId: cId, displayId: cId, tag })
     }
   }
   for (let i = 0; i < Math.min(allSpellEntries.length, 30); i++) {
     const e = allSpellEntries[i]!
     const n = i + 1
+    // Lookup tolerante: primero con lookupId (con prefijo si lo hay), después
+    // con displayId (id "limpio") por si el id se guarda sin prefijo.
+    const spell = getSpellById(e.lookupId) ?? getSpellById(e.displayId)
+    const baseName = spell?.name ?? e.displayId
+    const displayName = e.tag ? `${baseName} (${e.tag})` : baseName
+
     fields[`SLevel_${n}`] = e.level === 0 ? 'C' : String(e.level)
-    fields[`SName_${n}`]  = e.name
+    fields[`SName_${n}`]  = displayName
+
+    if (spell) {
+      fields[`STime_${n}`]  = spell.castingTime
+      fields[`SRange_${n}`] = spell.range
+      // SNotes_N: duration (decisión del usuario, opción A — solo duration).
+      fields[`SNotes_${n}`] = spell.duration
+      // SC_N: checkbox Concentration. La duration empieza por "Concentration".
+      if (/^Concentration/i.test(spell.duration)) {
+        fields[`SC_${n}`] = true
+      }
+      // SR_N: checkbox Ritual. PHB 2024 codifica los rituales en castingTime
+      // (ej: "1 minute or Ritual"); no se distingue por marca en el id.
+      if (/Ritual/i.test(spell.castingTime)) {
+        fields[`SR_${n}`] = true
+      }
+      // SM_N: checkbox componente Material. La cadena components puede ser
+      // "V", "V, S", "V, S, M (...)", "V, M (...)", etc. Buscamos M como
+      // token aislado (no confundir con palabras tipo "Magic" si las hubiera).
+      if (/\bM\b/.test(spell.components)) {
+        fields[`SM_${n}`] = true
+      }
+    }
+    // Si el id no se resuelve, dejamos STime/SRange/SC/SR/SM/SNotes vacíos
+    // — el PDF mantendrá los campos en blanco sin romper el render.
   }
 
   // ── Story / Description boxes (page 2) ───────────────────────────────────

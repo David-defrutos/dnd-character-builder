@@ -194,13 +194,22 @@ const gearCategoryLabels: Record<string, string> = {
 const customItemName = ref('')
 const customItemNotes = ref('')
 const customItemQty = ref(1)
+const customItemWeight = ref(0)
 
 function addCustomItem() {
   if (!customItemName.value.trim()) return
-  addItem({ kind: 'custom', itemId: '', name: customItemName.value.trim(), notes: customItemNotes.value.trim() || undefined, qty: customItemQty.value })
+  addItem({
+    kind: 'custom',
+    itemId: '',
+    name: customItemName.value.trim(),
+    notes: customItemNotes.value.trim() || undefined,
+    qty: customItemQty.value,
+    weight: Math.max(0, customItemWeight.value || 0),
+  })
   customItemName.value = ''
   customItemNotes.value = ''
   customItemQty.value = 1
+  customItemWeight.value = 0
 }
 
 // ─── Rarity badge colors ─────────────────────────────────────────────────────
@@ -320,6 +329,11 @@ function rarityBg(rarity: string): string {
             <input v-model="item.notes"
               class="mt-1 w-full bg-transparent text-stone-400 text-xs placeholder-stone-600 outline-none border-b border-transparent hover:border-stone-600 focus:border-amber-600 transition-colors"
               placeholder="Notes (charges, condition…)" />
+            <label v-if="item.kind === 'custom'" class="mt-1 flex items-center gap-2 text-xs text-stone-500">
+              <span>Weight (lbs)</span>
+              <input v-model.number="item.weight" type="number" min="0" step="0.25"
+                class="w-20 bg-stone-900 border border-stone-700 rounded px-2 py-0.5 text-xs text-stone-200" />
+            </label>
           </div>
 
           <!-- Qty -->
@@ -350,6 +364,9 @@ function rarityBg(rarity: string): string {
             placeholder="Notes (optional)" />
           <input v-model.number="customItemQty" type="number" min="1"
             class="w-14 bg-stone-800 border border-stone-700 rounded px-2 py-1 text-sm text-stone-200 text-center" />
+          <input v-model.number="customItemWeight" type="number" min="0" step="0.25"
+            class="w-24 bg-stone-800 border border-stone-700 rounded px-2 py-1 text-sm text-stone-200 text-center"
+            placeholder="Weight (lbs)" />
           <button @click="addCustomItem"
             class="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-stone-900 rounded text-sm font-semibold cursor-pointer">+</button>
         </div>
@@ -517,7 +534,7 @@ function rarityBg(rarity: string): string {
 
       <div class="space-y-1 max-h-80 overflow-y-auto pr-1">
         <button v-for="g in filteredGear" :key="g.name"
-          @click="addItem({ kind: 'custom', itemId: '', name: g.name, qty: 1, notes: g.description })"
+          @click="addItem({ kind: 'custom', itemId: '', name: g.name, qty: 1, notes: g.description, weight: g.weight })"
           class="w-full flex items-start gap-3 px-3 py-2 rounded transition-colors cursor-pointer text-left bg-stone-800 hover:bg-stone-700">
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2 flex-wrap">

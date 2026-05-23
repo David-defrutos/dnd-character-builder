@@ -222,3 +222,112 @@ describe('Milestone 18 — PDF Inventory incluye magic items (#59)', () => {
   })
 })
 
+// ─── #120 — Spell columns en hoja 2 (Name canónico + STime + SRange + checks + Notes)
+describe('#120 — PDF spell columns', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  it('Cantrip "vicious-mockery" → name canónico + Action + 60 feet + Instantaneous', () => {
+    const char = freshChar()
+    char.className = 'bard'
+    char.level = 1
+    char.cantrips = ['vicious-mockery']
+    const f = getDnd2024FieldMapping(char)
+    expect(f['SLevel_1']).toBe('C')
+    expect(f['SName_1']).toBe('Vicious Mockery')
+    expect(f['STime_1']).toBe('Action')
+    expect(f['SRange_1']).toBe('60 feet')
+    expect(f['SNotes_1']).toBe('Instantaneous')
+    // V only — no Concentration, no Ritual, no Material
+    expect(f['SC_1']).toBeUndefined()
+    expect(f['SR_1']).toBeUndefined()
+    expect(f['SM_1']).toBeUndefined()
+  })
+
+  it('"light" tiene componente Material (V, M) → SM check', () => {
+    const char = freshChar()
+    char.className = 'bard'
+    char.level = 1
+    char.cantrips = ['light']
+    const f = getDnd2024FieldMapping(char)
+    expect(f['SName_1']).toBe('Light')
+    expect(f['SNotes_1']).toBe('1 hour')
+    expect(f['SM_1']).toBe(true)
+    expect(f['SC_1']).toBeUndefined()
+  })
+
+  it('"hideous-laughter" (V,S,M, Concentration) → SC, SM check', () => {
+    const char = freshChar()
+    char.className = 'bard'
+    char.level = 1
+    char.spellsKnown = ['1-hideous-laughter']
+    const f = getDnd2024FieldMapping(char)
+    expect(f['SLevel_1']).toBe('1')
+    expect(f['SName_1']).toBe('Hideous Laughter')
+    expect(f['SC_1']).toBe(true)
+    expect(f['SM_1']).toBe(true)
+    expect(f['SR_1']).toBeUndefined()
+    expect(f['SNotes_1']).toMatch(/Concentration/)
+  })
+
+  it('"tiny-hut" tiene Ritual en castingTime → SR check', () => {
+    const char = freshChar()
+    char.className = 'bard'
+    char.level = 5
+    char.spellsKnown = ['3-tiny-hut']
+    const f = getDnd2024FieldMapping(char)
+    expect(f['SName_1']).toBe('Tiny Hut')
+    expect(f['SR_1']).toBe(true)
+    expect(f['SM_1']).toBe(true)
+    expect(f['STime_1']).toMatch(/Ritual/)
+    expect(f['SNotes_1']).toBe('8 hours')
+  })
+
+  it('Spell id desconocido (homebrew/typo) → name = id crudo, otros campos vacíos', () => {
+    const char = freshChar()
+    char.className = 'bard'
+    char.level = 1
+    char.cantrips = ['homebrew-not-in-catalog']
+    const f = getDnd2024FieldMapping(char)
+    expect(f['SName_1']).toBe('homebrew-not-in-catalog')
+    expect(f['STime_1']).toBeUndefined()
+    expect(f['SRange_1']).toBeUndefined()
+    expect(f['SNotes_1']).toBeUndefined()
+  })
+
+  it('Species-granted cantrip mantiene tag (Race) con name canónico', () => {
+    const char = freshChar()
+    char.className = 'bard'
+    char.level = 1
+    char.speciesGrantedCantrips = ['light']
+    const f = getDnd2024FieldMapping(char)
+    expect(f['SName_1']).toBe('Light (Race)')
+    expect(f['STime_1']).toBe('Action')
+  })
+
+  it('Magic Initiate mantiene tag (MI) con name canónico', () => {
+    const char = freshChar()
+    char.className = 'fighter'
+    char.level = 4
+    char.magicInitiateChoices = [
+      { source: 'origin', spellList: 'wizard', cantrips: ['fire-bolt'], levelOneSpell: '1-shield' },
+    ] as any
+    const f = getDnd2024FieldMapping(char)
+    expect(f['SName_1']).toBe('Fire Bolt (MI)')
+    expect(f['SLevel_1']).toBe('C')
+    expect(f['STime_1']).toBe('Action')
+  })
+
+  it('Salusa lv.10 — cantrip pos 2 es "Vicious Mockery" (canónico)', () => {
+    const char = freshChar()
+    char.className = 'bard'
+    char.subclass = 'glamour'
+    char.level = 10
+    char.cantrips = ['light', 'vicious-mockery', 'starry-wisp', 'message']
+    const f = getDnd2024FieldMapping(char)
+    expect(f['SName_1']).toBe('Light')
+    expect(f['SName_2']).toBe('Vicious Mockery') // antes salía 'vicious-mockery' crudo
+    expect(f['SName_3']).toBe('Starry Wisp')
+    expect(f['SName_4']).toBe('Message')
+  })
+})
+

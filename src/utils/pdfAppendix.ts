@@ -32,6 +32,12 @@ import { computeAcBreakdown } from './armorClassBreakdown'
 import {
   describeAsiFeatChoice, describeOriginFeatChoice, describeFightingStyle,
 } from './featChoiceDescription'
+import {
+  fmtMod,
+  computeSavingThrows, computeHitPointsBreakdown, computeMiscellaneous,
+  computeSpellcastingCalculations, computeSpellSlots, computeCarryingCapacity,
+} from './detailedReferenceCalc'
+import { computeCurrentLoad } from './carryingLoad'
 
 // ─── Layout constants ─────────────────────────────────────────────────────
 // Las dimensiones de página por defecto (US Letter). El PDF oficial 2024 de
@@ -814,6 +820,131 @@ function drawResourceTable(state: DrawState, char: CharacterData): void {
   }
 }
 
+// ─── #120 — Detailed Reference: nuevas secciones ────────────────────────
+// Los cálculos viven en `detailedReferenceCalc.ts`; aquí solo se renderizan.
+
+/** Saving Throws: tabla de las 6 abilities con desglose. */
+function drawSavingThrows(state: DrawState, char: CharacterData): void {
+  const rows = computeSavingThrows(char)
+
+  drawSectionHeader(state, 'Saving Throws')
+
+  const w = contentWidth()
+  const colAbility = 60
+  const colTotal = 50
+  const colSources = w - colAbility - colTotal
+
+  const columns: readonly TableColumn[] = [
+    { header: 'Ability', width: colAbility },
+    { header: 'Total',   width: colTotal, align: 'center' },
+    { header: 'Sources', width: colSources },
+  ]
+  const tableRows: TableRow[] = rows.map(r => ({
+    cells: [r.ability.toUpperCase(), fmtMod(r.total), r.sources],
+  }))
+
+  drawTable(state, columns, tableRows)
+}
+
+/** Hit Points: cálculo Max HP por fuente. */
+function drawHitPoints(state: DrawState, char: CharacterData): void {
+  const bd = computeHitPointsBreakdown(char)
+  if (!bd) return
+
+  drawSectionHeader(state, 'Hit Points')
+
+  const w = contentWidth()
+  const colSource = w - 80
+  const colValue = 80
+
+  const columns: readonly TableColumn[] = [
+    { header: 'Source',       width: colSource },
+    { header: 'Contribution', width: colValue, align: 'center' },
+  ]
+
+  const rows: TableRow[] = bd.rows.map(r => ({
+    cells: [r.label, String(r.value)],
+  }))
+  rows.push({ cells: ['Total Max HP', String(bd.total)] })
+
+  drawTable(state, columns, rows)
+}
+
+/** Miscellaneous: Initiative, Passive Perception, Skills with Expertise. */
+function drawMiscellaneous(state: DrawState, char: CharacterData): void {
+  const m = computeMiscellaneous(char)
+
+  drawSectionHeader(state, 'Miscellaneous')
+
+  const lines = [m.initiative, m.passivePerception]
+  if (m.expertise) lines.push(m.expertise)
+  drawBody(state, lines.join('\n'))
+}
+
+/** Spellcasting Calculations: Ability, Save DC, Attack Bonus. */
+function drawSpellcastingCalculations(state: DrawState, char: CharacterData): void {
+  const c = computeSpellcastingCalculations(char)
+  if (!c) return
+
+  drawSectionHeader(state, 'Spellcasting Calculations')
+  drawBody(state, [c.abilityLine, c.saveDcLine, c.attackBonusLine].join('\n'))
+}
+
+/** Spell Slots: tabla con slots por nivel según casterType. */
+function drawSpellSlots(state: DrawState, char: CharacterData): void {
+  const data = computeSpellSlots(char)
+  if (!data) return
+  const cls = getClassById(char.className)
+  const className = cls?.name ?? char.className
+  const lv = char.level || 1
+
+  if (data.type === 'pact') {
+    drawSectionHeader(state, `Spell Slots (${className} — Pact Magic lv.${lv})`)
+    const cols: readonly TableColumn[] = [
+      { header: 'Slots', width: 80, align: 'center' },
+      { header: 'Slot Level', width: contentWidth() - 80, align: 'center' },
+    ]
+    const rows: TableRow[] = [{ cells: [String(data.pactSlots ?? 0), `Level ${data.pactSlotLevel ?? 1}`] }]
+    drawTable(state, cols, rows)
+    return
+  }
+
+  const slots = data.slots ?? []
+  if (!slots.length) return
+
+  drawSectionHeader(state, `Spell Slots (${className} — ${data.casterLabel} lv.${lv})`)
+
+  const w = contentWidth()
+  const cols: readonly TableColumn[] = [
+    { header: 'Level', width: 80, align: 'center' },
+    { header: 'Slots', width: w - 80, align: 'left' },
+  ]
+  const ordinals = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th']
+  const rows: TableRow[] = slots.map((n, i) => ({ cells: [ordinals[i] ?? `${i + 1}th`, String(n)] }))
+  drawTable(state, cols, rows)
+}
+
+/** Carrying Capacity: STR × 15 lbs, push/drag/lift, encumbered thresholds. */
+function drawCarryingCapacity(state: DrawState, char: CharacterData): void {
+  const c = computeCarryingCapacity(char)
+  // #121 — Current Load real basada en char.inventory[]
+  const load = computeCurrentLoad(char)
+
+  drawSectionHeader(state, 'Carrying Capacity')
+
+  const lines = [
+    `Carrying Capacity: STR ${c.totalStr} x 15 = ${c.capacityLbs} lbs (${c.capacityKg} kg)`,
+    `Push, Drag, or Lift: ${c.pushDragLiftLbs} lbs (${c.pushDragLiftKg} kg) — 2x capacity`,
+    `Encumbered: more than ${c.encumberedAtLbs} lbs (${c.encumberedAtKg} kg) — STR x 5`,
+    `Heavily Encumbered: more than ${c.heavilyEncumberedAtLbs} lbs (${c.heavilyEncumberedAtKg} kg) — STR x 10`,
+    // #121 — 3 filas con la carga real, calculada del inventario.
+    `Current Load: ${load.total} lbs (${load.totalKg} kg)`,
+    `Capacity used: ${load.capacityUsedPct}%`,
+    `Status: ${load.status}`,
+  ]
+  drawBody(state, lines.join('\n'))
+}
+
 // ─── Public entry point ───────────────────────────────────────────────────
 
 /**
@@ -854,15 +985,21 @@ export async function appendCharacterAppendix(
   state.y -= 22
 
   drawAbilityBreakdown(state, char)
+  drawSavingThrows(state, char)                 // #120
   drawArmorClass(state, char)
+  drawHitPoints(state, char)                    // #120
+  drawMiscellaneous(state, char)                // #120 (Init + Passive + Expertise)
   drawSpeciesTraits(state, char)
   drawMagicInitiate(state, char)     // "Origin: <background>" — sube aquí
   drawClassFeatures(state, char)
   drawFeats(state, char)
   drawSpeciesSpells(state, char)
+  drawSpellcastingCalculations(state, char)     // #120
+  drawSpellSlots(state, char)                   // #120
   drawCharacterSpells(state, char)
   drawMagicItems(state, char)
   drawWeaponAttacks(state, char)
   drawWeaponMasteries(state, char)
+  drawCarryingCapacity(state, char)             // #120
   drawResourceTable(state, char)
 }
