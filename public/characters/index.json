@@ -1,0 +1,16 @@
+[
+  {
+    "file": "Cecino - fighter - lv10.json",
+    "name": "Cecino",
+    "className": "fighter",
+    "level": 10,
+    "race": "gnome"
+  },
+  {
+    "file": "Salusa Secundus - bard - lv10.json",
+    "name": "Salusa Secundus",
+    "className": "bard",
+    "level": 10,
+    "race": "aasimar"
+  }
+]

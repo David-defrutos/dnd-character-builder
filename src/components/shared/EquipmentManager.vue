@@ -7,6 +7,9 @@ import { simpleWeapons, martialWeapons, armor, adventuringGear } from '@/data/dn
 import { allMagicItems as magicItems, weaponPlusItems, armorPlusItems } from '@/data/dnd5e/magic-items'
 import type { MagicItemCategory, MagicItemRarity } from '@/data/dnd5e/magic-items'
 import { slotsToUnequip, categorizeForEquip } from '@/utils/armorClassBreakdown'
+// #123 — equipItem y attuneItem con reglas extendidas (slot, rings, attunement total)
+import { equipItem, attuneItem, isMagicalContainer } from '@/utils/equipSlots'
+import InventoryItemRow from './InventoryItemRow.vue'
 
 const characterStore = useCharacterStore()
 
@@ -19,12 +22,19 @@ function showToast(msg: string) {
   toastMessage.value = msg
   toastVisible.value = true
   if (toastTimer) clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => { toastVisible.value = false }, 2000)
+  toastTimer = setTimeout(() => { toastVisible.value = false }, 2500)
 }
 
 // ─── Tabs ────────────────────────────────────────────────────────────────────
-type Tab = 'weapons' | 'armor' | 'magic' | 'gear' | 'inventory'
-const activeTab = ref<Tab>('inventory')
+// #125 — Dos niveles de pestañas:
+//   - MainTab: la división principal entre "My Equipment" (gestión) y
+//     "Add New" (catálogo + custom).
+//   - SubTab: las 4 categorías dentro de "Add New". Solo se ven cuando
+//     activeMainTab === 'add-new'.
+type MainTab = 'my-equipment' | 'add-new'
+type SubTab = 'weapons' | 'armor' | 'magic' | 'gear'
+const activeMainTab = ref<MainTab>('my-equipment')
+const activeTab = ref<SubTab>('weapons')
 
 // ─── Inventory helpers ───────────────────────────────────────────────────────
 function ensureInventory() {
@@ -45,15 +55,9 @@ function removeItem(slotId: string) {
   if (idx >= 0) characterStore.character.inventory!.splice(idx, 1)
 }
 
-function updateItem(slotId: string, patch: Partial<InventoryItem>) {
-  ensureInventory()
-  const item = characterStore.character.inventory!.find(i => i.slotId === slotId)
-  if (item) Object.assign(item, patch)
-}
-
-// #118 — Togglear equipped en un item. Si va a equiparse, aplica las reglas
-// de unicidad: desequipa la armor anterior, el shield anterior, el cloak
-// anterior, o el anillo más antiguo (si ya hay 2 puestos).
+// #123 — Togglear equipped usando equipItem (con auto-desplazamiento y notice).
+// Mantenemos slotsToUnequip/categorizeForEquip del #118 como fallback para
+// items legacy que no caen en mi catálogo de slots (armor genérica, shields).
 function toggleEquip(slotId: string) {
   ensureInventory()
   const inv = characterStore.character.inventory!
@@ -61,19 +65,80 @@ function toggleEquip(slotId: string) {
   if (!item) return
 
   if (item.equipped) {
-    // Desequipar es siempre seguro
+    // Desequipar es siempre seguro.
     item.equipped = false
+    showToast(`○ ${item.name} unequipped`)
     return
   }
 
-  // Equipar: aplicar reglas de unicidad
-  const toUnequip = slotsToUnequip(inv, item)
-  for (const sid of toUnequip) {
-    const other = inv.find(i => i.slotId === sid)
-    if (other) other.equipped = false
+  // #123 — equipItem aplica las reglas nuevas (slot único, sale de stored
+  // automáticamente). Para items que NO tienen slot detectable (armor sin
+  // catalogación, shields homebrew sin selectedSlot…), caemos en el camino
+  // legacy de slotsToUnequip que sigue cubriendo los casos del #118.
+  const result = equipItem(inv, slotId)
+  for (const u of result.updates) {
+    const target = inv.find(i => i.slotId === u.slotId)
+    if (!target) continue
+    if (u.equipped !== undefined) target.equipped = u.equipped
+    if (u.stored !== undefined) target.stored = u.stored
   }
-  item.equipped = true
-  showToast(`✓ ${item.name} equipped`)
+
+  // Legacy fallback: si equipItem no detectó slot para items armor/shield
+  // genéricos, slotsToUnequip aún sabe gestionarlos.
+  const legacy = slotsToUnequip(inv, item)
+  for (const sid of legacy) {
+    const other = inv.find(i => i.slotId === sid)
+    if (other && sid !== slotId) other.equipped = false
+  }
+
+  if (result.notice) {
+    showToast(result.notice)
+  } else {
+    showToast(`✓ ${item.name} equipped`)
+  }
+}
+
+// #123 — Atunear con reglas: máx 3 atunados, máx 2 anillos atunados.
+function toggleAttuned(slotId: string) {
+  ensureInventory()
+  const inv = characterStore.character.inventory!
+  const item = inv.find(i => i.slotId === slotId)
+  if (!item) return
+
+  if (item.attuned) {
+    item.attuned = false
+    showToast(`○ ${item.name} unattuned`)
+    return
+  }
+
+  const result = attuneItem(inv, slotId)
+  for (const u of result.updates) {
+    const target = inv.find(i => i.slotId === u.slotId)
+    if (target && u.attuned !== undefined) target.attuned = u.attuned
+  }
+
+  if (result.notice) {
+    showToast(result.notice)
+  } else {
+    showToast(`✦ ${item.name} attuned`)
+  }
+}
+
+// #123 — Mover un item al/del bloque "stored" (dentro de container mágico).
+// stored y equipped son mutuamente excluyentes: al guardar se desequipa.
+function toggleStored(slotId: string) {
+  ensureInventory()
+  const inv = characterStore.character.inventory!
+  const item = inv.find(i => i.slotId === slotId)
+  if (!item) return
+  if (item.stored) {
+    item.stored = false
+    showToast(`◀ ${item.name} taken out`)
+  } else {
+    item.stored = true
+    if (item.equipped) item.equipped = false
+    showToast(`▶ ${item.name} stored in magical container`)
+  }
 }
 
 /** Devuelve true si el item es candidato a equiparse (no es "other"). */
@@ -82,6 +147,23 @@ function canBeEquipped(item: InventoryItem): boolean {
 }
 
 const inventoryItems = computed(() => characterStore.character.inventory ?? [])
+
+// #123 — ¿el PJ tiene al menos un container mágico? Necesario para mostrar
+// el bloque "In Magical Containers" y el botón "Store".
+const hasMagicalContainer = computed(() =>
+  inventoryItems.value.some(i => isMagicalContainer(i))
+)
+
+// #123 — 3 bloques visuales: equipped, carried, stored.
+const equippedItems = computed(() =>
+  inventoryItems.value.filter(i => i.equipped && !i.stored)
+)
+const carriedItems = computed(() =>
+  inventoryItems.value.filter(i => !i.equipped && !i.stored)
+)
+const storedItems = computed(() =>
+  inventoryItems.value.filter(i => i.stored)
+)
 
 const attunedCount = computed(() =>
   inventoryItems.value.filter(i => i.kind === 'magic' && i.attuned).length
@@ -195,6 +277,9 @@ const customItemName = ref('')
 const customItemNotes = ref('')
 const customItemQty = ref(1)
 const customItemWeight = ref(0)
+// #123 — selector de slot y checkbox container para custom items
+const customItemSlot = ref<'' | 'armor' | 'shield' | 'boots' | 'gloves' | 'belt' | 'cloak' | 'head' | 'neck' | 'ring' | 'other'>('')
+const customItemIsContainer = ref(false)
 
 function addCustomItem() {
   if (!customItemName.value.trim()) return
@@ -205,11 +290,15 @@ function addCustomItem() {
     notes: customItemNotes.value.trim() || undefined,
     qty: customItemQty.value,
     weight: Math.max(0, customItemWeight.value || 0),
+    selectedSlot: customItemSlot.value || undefined,
+    isMagicalContainer: customItemIsContainer.value || undefined,
   })
   customItemName.value = ''
   customItemNotes.value = ''
   customItemQty.value = 1
   customItemWeight.value = 0
+  customItemSlot.value = ''
+  customItemIsContainer.value = false
 }
 
 // ─── Rarity badge colors ─────────────────────────────────────────────────────
@@ -264,117 +353,169 @@ function rarityBg(rarity: string): string {
       </div>
     </div>
 
-    <!-- Tabs -->
+    <!-- #125 — MAIN TABS (My Equipment / Add New) -->
     <div class="flex border-b border-stone-700 bg-stone-800/50">
-      <button v-for="tab in (['inventory', 'weapons', 'armor', 'gear', 'magic'] as Tab[])" :key="tab"
-        @click="activeTab = tab"
-        class="px-4 py-2 text-sm font-medium transition-colors cursor-pointer capitalize"
-        :class="activeTab === tab
+      <button
+        @click="activeMainTab = 'my-equipment'"
+        class="px-4 py-2 text-sm font-medium transition-colors cursor-pointer"
+        :class="activeMainTab === 'my-equipment'
           ? 'text-amber-400 border-b-2 border-amber-400 bg-stone-900/50'
           : 'text-stone-400 hover:text-stone-200'">
+        My Equipment
+      </button>
+      <button
+        @click="activeMainTab = 'add-new'"
+        class="px-4 py-2 text-sm font-medium transition-colors cursor-pointer"
+        :class="activeMainTab === 'add-new'
+          ? 'text-amber-400 border-b-2 border-amber-400 bg-stone-900/50'
+          : 'text-stone-400 hover:text-stone-200'">
+        Add New
+      </button>
+    </div>
+
+    <!-- #125 — SUB-TABS (solo dentro de "Add New") -->
+    <div v-if="activeMainTab === 'add-new'" class="flex border-b border-stone-700 bg-stone-900/30">
+      <button v-for="tab in (['weapons', 'armor', 'gear', 'magic'] as SubTab[])" :key="tab"
+        @click="activeTab = tab"
+        class="px-4 py-2 text-xs font-medium transition-colors cursor-pointer capitalize"
+        :class="activeTab === tab
+          ? 'text-amber-400 border-b-2 border-amber-400 bg-stone-900/50'
+          : 'text-stone-500 hover:text-stone-300'">
         {{ tab === 'magic' ? 'Magic Items' : tab === 'gear' ? 'Gear' : tab.charAt(0).toUpperCase() + tab.slice(1) }}
       </button>
     </div>
 
-    <!-- ── TAB: INVENTORY ─────────────────────────────────────────────────── -->
-    <div v-if="activeTab === 'inventory'" class="p-4">
+    <!-- ── MAIN TAB: MY EQUIPMENT ──────────────────────────────────────────── -->
+    <div v-if="activeMainTab === 'my-equipment'" class="p-4">
       <div v-if="inventoryItems.length === 0" class="text-center py-8 text-stone-500 text-sm">
-        No items yet. Browse the tabs to add weapons, armor, or magic items.
+        No items yet. Switch to "Add New" to browse weapons, armor, gear, or magic items.
       </div>
 
-      <div v-else class="space-y-2 mb-4">
-        <div v-for="item in inventoryItems" :key="item.slotId"
-          class="flex items-start gap-3 rounded-lg px-3 py-2"
-          :class="item.kind === 'magic' ? rarityBg(magicItems.find(m => m.id === item.itemId)?.rarity ?? 'Common') : 'bg-stone-800'">
-
-          <!-- Kind badge -->
-          <span class="shrink-0 text-xs px-1.5 py-0.5 rounded mt-0.5"
-            :class="{
-              'bg-red-900 text-red-300': item.kind === 'weapon',
-              'bg-blue-900 text-blue-300': item.kind === 'armor',
-              'bg-purple-900 text-purple-300': item.kind === 'magic',
-              'bg-stone-700 text-stone-300': item.kind === 'custom',
-            }">
-            {{ item.kind }}
-          </span>
-
-          <!-- Name + notes -->
-          <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-2 flex-wrap">
-              <span class="font-medium text-stone-100 text-sm">{{ item.name }}</span>
-              <!-- Rarity for magic items -->
-              <span v-if="item.kind === 'magic'" class="text-xs"
-                :class="rarityColor(magicItems.find(m => m.id === item.itemId)?.rarity ?? 'Common')">
-                {{ magicItems.find(m => m.id === item.itemId)?.rarity }}
-              </span>
-              <!-- Attunement toggle -->
-              <button v-if="item.kind === 'magic' && magicItems.find(m => m.id === item.itemId)?.attunement"
-                @click="updateItem(item.slotId, { attuned: !item.attuned })"
-                class="text-xs px-1.5 py-0.5 rounded cursor-pointer transition-colors"
-                :class="item.attuned ? 'bg-amber-700 text-amber-100' : 'bg-stone-700 text-stone-400 hover:bg-stone-600'"
-                :title="item.attuned ? 'Attuned — click to remove' : 'Not attuned — click to attune'">
-                {{ item.attuned ? '✦ Attuned' : '○ Attune' }}
-              </button>
-              <!-- #118: Equip/Unequip toggle. Solo aparece para items con
-                   categoría conocida (armor, shield, cloak, ring). -->
-              <button v-if="canBeEquipped(item)"
-                @click="toggleEquip(item.slotId)"
-                class="text-xs px-1.5 py-0.5 rounded cursor-pointer transition-colors"
-                :class="item.equipped ? 'bg-emerald-700 text-emerald-100' : 'bg-stone-700 text-stone-400 hover:bg-stone-600'"
-                :title="item.equipped ? 'Equipped — click to unequip' : 'Not equipped — click to equip'">
-                {{ item.equipped ? '✓ Equipped' : '○ Equip' }}
-              </button>
-            </div>
-            <!-- Notes (editable) -->
-            <input v-model="item.notes"
-              class="mt-1 w-full bg-transparent text-stone-400 text-xs placeholder-stone-600 outline-none border-b border-transparent hover:border-stone-600 focus:border-amber-600 transition-colors"
-              placeholder="Notes (charges, condition…)" />
-            <label v-if="item.kind === 'custom'" class="mt-1 flex items-center gap-2 text-xs text-stone-500">
-              <span>Weight (lbs)</span>
-              <input v-model.number="item.weight" type="number" min="0" step="0.25"
-                class="w-20 bg-stone-900 border border-stone-700 rounded px-2 py-0.5 text-xs text-stone-200" />
-            </label>
+      <div v-else class="space-y-4 mb-4">
+        <!-- #123 — Bloque 1: EQUIPPED -->
+        <section v-if="equippedItems.length > 0">
+          <h4 class="text-xs font-semibold uppercase tracking-wider text-emerald-400 mb-2 pb-1 border-b border-stone-700">
+            Equipped <span class="text-stone-500 font-normal">({{ equippedItems.length }})</span>
+          </h4>
+          <div class="space-y-2">
+            <InventoryItemRow
+              v-for="item in equippedItems" :key="item.slotId"
+              :item="item"
+              block="equipped"
+              :hasContainer="hasMagicalContainer"
+              :canEquip="canBeEquipped(item)"
+              :needsAttune="item.kind === 'magic' && (magicItems.find(m => m.id === item.itemId)?.attunement ?? false)"
+              @toggle-equip="toggleEquip"
+              @toggle-attune="toggleAttuned"
+              @toggle-stored="toggleStored"
+              @remove="removeItem"
+              @qty-decrement="(sid) => { const it = inventoryItems.find(i => i.slotId === sid); if (it) it.qty = Math.max(1, (it.qty ?? 1) - 1) }"
+              @qty-increment="(sid) => { const it = inventoryItems.find(i => i.slotId === sid); if (it) it.qty = (it.qty ?? 1) + 1 }"
+            />
           </div>
+        </section>
 
-          <!-- Qty -->
-          <div class="flex items-center gap-1 shrink-0">
-            <button @click="item.qty = Math.max(1, (item.qty ?? 1) - 1)"
-              class="w-5 h-5 rounded bg-stone-700 hover:bg-stone-600 text-stone-300 text-xs cursor-pointer flex items-center justify-center">−</button>
-            <span class="text-stone-300 text-sm w-4 text-center">{{ item.qty ?? 1 }}</span>
-            <button @click="item.qty = (item.qty ?? 1) + 1"
-              class="w-5 h-5 rounded bg-stone-700 hover:bg-stone-600 text-stone-300 text-xs cursor-pointer flex items-center justify-center">+</button>
+        <!-- #123 — Bloque 2: CARRIED -->
+        <section v-if="carriedItems.length > 0">
+          <h4 class="text-xs font-semibold uppercase tracking-wider text-stone-400 mb-2 pb-1 border-b border-stone-700">
+            Carried <span class="text-stone-500 font-normal">({{ carriedItems.length }})</span>
+          </h4>
+          <div class="space-y-2">
+            <InventoryItemRow
+              v-for="item in carriedItems" :key="item.slotId"
+              :item="item"
+              block="carried"
+              :hasContainer="hasMagicalContainer"
+              :canEquip="canBeEquipped(item)"
+              :needsAttune="item.kind === 'magic' && (magicItems.find(m => m.id === item.itemId)?.attunement ?? false)"
+              @toggle-equip="toggleEquip"
+              @toggle-attune="toggleAttuned"
+              @toggle-stored="toggleStored"
+              @remove="removeItem"
+              @qty-decrement="(sid) => { const it = inventoryItems.find(i => i.slotId === sid); if (it) it.qty = Math.max(1, (it.qty ?? 1) - 1) }"
+              @qty-increment="(sid) => { const it = inventoryItems.find(i => i.slotId === sid); if (it) it.qty = (it.qty ?? 1) + 1 }"
+            />
           </div>
+        </section>
 
-          <!-- Remove -->
-          <button @click="removeItem(item.slotId)"
-            class="shrink-0 text-stone-600 hover:text-red-400 transition-colors text-lg leading-none cursor-pointer mt-0.5"
-            title="Remove">×</button>
-        </div>
+        <!-- #123 — Bloque 3: STORED — solo si hay container mágico -->
+        <section v-if="hasMagicalContainer || storedItems.length > 0">
+          <h4 class="text-xs font-semibold uppercase tracking-wider text-purple-400 mb-2 pb-1 border-b border-stone-700">
+            In Magical Containers <span class="text-stone-500 font-normal">({{ storedItems.length }})</span>
+            <span class="ml-2 text-stone-500 font-normal normal-case">— does not count for encumbrance</span>
+          </h4>
+          <div v-if="storedItems.length === 0" class="text-xs text-stone-600 italic py-2">
+            Move items here to keep them in your container (Bag of Holding, Handy Haversack, etc.).
+          </div>
+          <div v-else class="space-y-2">
+            <InventoryItemRow
+              v-for="item in storedItems" :key="item.slotId"
+              :item="item"
+              block="stored"
+              :hasContainer="hasMagicalContainer"
+              :canEquip="canBeEquipped(item)"
+              :needsAttune="item.kind === 'magic' && (magicItems.find(m => m.id === item.itemId)?.attunement ?? false)"
+              @toggle-equip="toggleEquip"
+              @toggle-attune="toggleAttuned"
+              @toggle-stored="toggleStored"
+              @remove="removeItem"
+              @qty-decrement="(sid) => { const it = inventoryItems.find(i => i.slotId === sid); if (it) it.qty = Math.max(1, (it.qty ?? 1) - 1) }"
+              @qty-increment="(sid) => { const it = inventoryItems.find(i => i.slotId === sid); if (it) it.qty = (it.qty ?? 1) + 1 }"
+            />
+          </div>
+        </section>
       </div>
+    </div>
+    <!-- ↑ Fin del MAIN TAB: MY EQUIPMENT -->
 
-      <!-- Custom item adder -->
-      <div class="border-t border-stone-700 pt-3">
-        <p class="text-xs text-stone-500 mb-2">Add a custom item</p>
-        <div class="flex gap-2">
-          <input v-model="customItemName" @keyup.enter="addCustomItem"
-            class="flex-1 bg-stone-800 border border-stone-700 rounded px-2 py-1 text-sm text-stone-200 placeholder-stone-600"
-            placeholder="Item name" />
-          <input v-model="customItemNotes"
-            class="flex-1 bg-stone-800 border border-stone-700 rounded px-2 py-1 text-sm text-stone-200 placeholder-stone-600"
-            placeholder="Notes (optional)" />
-          <input v-model.number="customItemQty" type="number" min="1"
-            class="w-14 bg-stone-800 border border-stone-700 rounded px-2 py-1 text-sm text-stone-200 text-center" />
-          <input v-model.number="customItemWeight" type="number" min="0" step="0.25"
-            class="w-24 bg-stone-800 border border-stone-700 rounded px-2 py-1 text-sm text-stone-200 text-center"
-            placeholder="Weight (lbs)" />
-          <button @click="addCustomItem"
-            class="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-stone-900 rounded text-sm font-semibold cursor-pointer">+</button>
-        </div>
+    <!-- #125 — Custom item adder: vive bajo "Add New" porque ES la
+         interfaz de creación de items. Visible en cualquier sub-tab. -->
+    <div v-if="activeMainTab === 'add-new'" class="p-4 border-t border-stone-700">
+      <p class="text-xs text-stone-500 mb-2">Add a custom item</p>
+      <div class="flex gap-2">
+        <input v-model="customItemName" @keyup.enter="addCustomItem"
+          class="flex-1 bg-stone-800 border border-stone-700 rounded px-2 py-1 text-sm text-stone-200 placeholder-stone-600"
+          placeholder="Item name" />
+        <input v-model="customItemNotes"
+          class="flex-1 bg-stone-800 border border-stone-700 rounded px-2 py-1 text-sm text-stone-200 placeholder-stone-600"
+          placeholder="Notes (optional)" />
+        <input v-model.number="customItemQty" type="number" min="1"
+          class="w-14 bg-stone-800 border border-stone-700 rounded px-2 py-1 text-sm text-stone-200 text-center" />
+        <input v-model.number="customItemWeight" type="number" min="0" step="0.25"
+          class="w-24 bg-stone-800 border border-stone-700 rounded px-2 py-1 text-sm text-stone-200 text-center"
+          placeholder="Weight (lbs)" />
+        <button @click="addCustomItem"
+          class="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-stone-900 rounded text-sm font-semibold cursor-pointer">+</button>
+      </div>
+      <!-- #123 — slot + container -->
+      <div class="flex items-center gap-3 mt-2 text-xs text-stone-500">
+        <label class="flex items-center gap-1">
+          <span>Slot:</span>
+          <select v-model="customItemSlot"
+            class="bg-stone-800 border border-stone-700 rounded px-1 py-0.5 text-xs text-stone-200">
+            <option value="">None</option>
+            <option value="armor">Armor</option>
+            <option value="shield">Shield</option>
+            <option value="boots">Boots</option>
+            <option value="gloves">Gloves</option>
+            <option value="belt">Belt</option>
+            <option value="cloak">Cloak</option>
+            <option value="head">Head</option>
+            <option value="neck">Neck</option>
+            <option value="ring">Ring</option>
+            <option value="other">Other</option>
+          </select>
+        </label>
+        <label class="flex items-center gap-1">
+          <input v-model="customItemIsContainer" type="checkbox"
+            class="bg-stone-800 border-stone-700" />
+          <span>Magical container (extradimensional)</span>
+        </label>
       </div>
     </div>
 
     <!-- ── TAB: WEAPONS ───────────────────────────────────────────────────── -->
-    <div v-if="activeTab === 'weapons'" class="p-4">
+    <div v-if="activeMainTab === 'add-new' && activeTab === 'weapons'" class="p-4">
       <!-- Filters -->
       <div class="flex flex-wrap gap-2 mb-3">
         <input v-model="weaponSearch"
@@ -418,7 +559,7 @@ function rarityBg(rarity: string): string {
     </div>
 
     <!-- ── TAB: ARMOR ─────────────────────────────────────────────────────── -->
-    <div v-if="activeTab === 'armor'" class="p-4">
+    <div v-if="activeMainTab === 'add-new' && activeTab === 'armor'" class="p-4">
       <div class="flex flex-wrap gap-2 mb-3">
         <input v-model="armorSearch"
           class="bg-stone-800 border border-stone-700 rounded px-2 py-1 text-sm text-stone-200 placeholder-stone-600 flex-1 min-w-32"
@@ -457,7 +598,7 @@ function rarityBg(rarity: string): string {
     </div>
 
     <!-- ── TAB: MAGIC ITEMS ───────────────────────────────────────────────── -->
-    <div v-if="activeTab === 'magic'" class="p-4">
+    <div v-if="activeMainTab === 'add-new' && activeTab === 'magic'" class="p-4">
       <!-- Filters row 1 -->
       <div class="flex flex-wrap gap-2 mb-2">
         <input v-model="magicSearch"
@@ -510,7 +651,7 @@ function rarityBg(rarity: string): string {
     </div>
 
     <!-- ── TAB: GEAR (Adventuring Gear) — #67 ─────────────────────────────── -->
-    <div v-if="activeTab === 'gear'" class="p-4">
+    <div v-if="activeMainTab === 'add-new' && activeTab === 'gear'" class="p-4">
       <!-- Filters -->
       <div class="flex flex-wrap gap-2 mb-3">
         <input v-model="gearSearch"

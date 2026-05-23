@@ -81,12 +81,31 @@ export interface InventoryItem {
    *  Multiple items can be equipped; uniqueness rules (1 armor, 1 shield,
    *  1 cloak, max 2 rings) are enforced by the equip helper, not the data. */
   equipped?: boolean
+  /** #123 — Item stored inside a magical (extradimensional) container, so
+   *  its weight does NOT count for encumbrance (Bag of Holding, Handy
+   *  Haversack, etc.). Mutually exclusive with `equipped`: a stored item is,
+   *  by definition, not being worn or wielded. */
+  stored?: boolean
+  /** #123 — Slot type for custom items, since they don't have a catalogue
+   *  entry to read from. Used to enforce single-slot rules (1 cloak, 1 belt,
+   *  max 2 attuned rings, etc.). Magic items resolve their slot from the
+   *  catalogue via MagicItem.slot. Weapons/armor resolve via kind. */
+  selectedSlot?: SlotType
+  /** #123 — For custom items: declare that this item is a magical
+   *  (extradimensional) container, so its contents don't count for
+   *  encumbrance. Catalogue magic items use MagicItem.isContainer. */
+  isMagicalContainer?: boolean
   /** #118 — For homebrew items: AC bonus that this item grants while
    *  equipped (and attuned, if attuned is also required). Canonical items
    *  use a hardcoded lookup in armorClassBreakdown; this field lets users
    *  declare a bonus for items not in the catalogue. */
   customAcBonus?: number
 }
+
+/** #123 — Slot types for equipment-uniqueness rules. */
+export type SlotType =
+  | 'armor' | 'shield' | 'boots' | 'gloves' | 'belt' | 'cloak'
+  | 'head' | 'neck' | 'ring' | 'other'
 
 export interface CharacterData {
   id: string
@@ -789,6 +808,13 @@ export const useCharacterStore = defineStore('character', () => {
             : undefined,
           // #118: campos nuevos. Boolean strict para evitar truthy raros.
           equipped: typeof i.equipped === 'boolean' ? i.equipped : undefined,
+          // #123: stored y selectedSlot y isMagicalContainer.
+          stored: typeof i.stored === 'boolean' ? i.stored : undefined,
+          selectedSlot: typeof i.selectedSlot === 'string'
+            && ['armor', 'shield', 'boots', 'gloves', 'belt', 'cloak', 'head', 'neck', 'ring', 'other'].includes(i.selectedSlot as string)
+            ? (i.selectedSlot as SlotType)
+            : undefined,
+          isMagicalContainer: typeof i.isMagicalContainer === 'boolean' ? i.isMagicalContainer : undefined,
           customAcBonus: typeof i.customAcBonus === 'number' && i.customAcBonus >= -10 && i.customAcBonus <= 10
             ? i.customAcBonus
             : undefined,

@@ -4,6 +4,7 @@ import { useCharacterStore } from '@/stores/character'
 import { useAppStore } from '@/stores/app'
 import type { GameVariant } from '@/stores/app'
 import { ensureStepData } from '@/data'
+import SharedCharacters from '@/components/shared/SharedCharacters.vue'
 
 const { t } = useI18n()
 const characterStore = useCharacterStore()
@@ -20,6 +21,9 @@ async function selectVariant(variant: GameVariant) {
 <template>
   <section aria-labelledby="variant-heading">
     <h2 id="variant-heading" class="text-2xl font-bold text-amber-500 mb-6">{{ t('variant.title') }}</h2>
+
+    <!-- #123 — Shared characters library -->
+    <SharedCharacters />
 
     <div class="grid grid-cols-1 md:grid-cols-1 gap-6" role="radiogroup" :aria-label="t('variant.title')">
       <button

@@ -40,6 +40,14 @@ export interface CarryingLoadResult {
   capacityUsedPct: number
   status: CarryingLoadStatus
   breakdown: CarryingLoadBreakdownItem[]
+  /** #123 — Desglose por bloque del inventario.
+   *  - equippedLbs: peso de items con `equipped: true`. CUENTAN para Current Load.
+   *  - carriedLbs: peso de items sin equipped y sin stored. CUENTAN.
+   *  - storedLbs: peso de items con `stored: true` (dentro de containers
+   *    mágicos). NO CUENTAN (regla extradimensional PHB 2024). */
+  equippedLbs: number
+  carriedLbs: number
+  storedLbs: number
 }
 
 export function computeCarryingLoadStatus(total: number, char: CharacterData): CarryingLoadStatus {
@@ -58,6 +66,9 @@ function itemUnitWeight(item: InventoryItem): number {
 
 export function computeCurrentLoad(char: CharacterData): CarryingLoadResult {
   const breakdown: CarryingLoadBreakdownItem[] = []
+  let equippedLbs = 0
+  let carriedLbs = 0
+  let storedLbs = 0
   for (const item of char.inventory ?? []) {
     const qty = Math.max(1, Number.isFinite(item.qty) ? item.qty : 1)
     const unitWeight = Math.max(0, itemUnitWeight(item))
@@ -71,8 +82,16 @@ export function computeCurrentLoad(char: CharacterData): CarryingLoadResult {
       unitWeight,
       totalWeight,
     })
+    // #123 — Clasificar por bloque. stored y equipped son mutuamente
+    // excluyentes lógicamente; si por error ambos están a true (PJ importado
+    // inconsistente), priorizamos stored (más conservador para encumbrance:
+    // no penalizar al PJ por una inconsistencia de datos).
+    if (item.stored) storedLbs += totalWeight
+    else if (item.equipped) equippedLbs += totalWeight
+    else carriedLbs += totalWeight
   }
-  const total = breakdown.reduce((sum, item) => sum + item.totalWeight, 0)
+  // El TOTAL para encumbrance es equipped + carried (stored NO cuenta).
+  const total = equippedLbs + carriedLbs
   // Reutilizamos la fuente de verdad: capacityLbs del Detailed Reference.
   const capacity = computeCarryingCapacity(char).capacityLbs
   return {
@@ -82,5 +101,8 @@ export function computeCurrentLoad(char: CharacterData): CarryingLoadResult {
     capacityUsedPct: capacity > 0 ? Math.round((total / capacity) * 100) : 0,
     status: computeCarryingLoadStatus(total, char),
     breakdown,
+    equippedLbs,
+    carriedLbs,
+    storedLbs,
   }
 }

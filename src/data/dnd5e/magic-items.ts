@@ -1,4 +1,4 @@
-// Documento generado el 2026-05-19-2253
+// Documento generado el 2026-05-23-1132
 // Magic Items SRD 5.2.1 — D&D 2024
 // Source: /mnt/project/magic-items.md (Creative Commons Attribution 4.0)
 
@@ -10,6 +10,12 @@ export type MagicItemCategory =
 
 export type MagicItemRarity =
   | 'Common' | 'Uncommon' | 'Rare' | 'Very Rare' | 'Legendary' | 'Artifact' | 'Varies'
+
+/** #123 — Slot types used to enforce equipped-uniqueness rules.
+ *  Mirrors stores/character.ts SlotType (kept here to avoid circular imports). */
+export type MagicItemSlot =
+  | 'armor' | 'shield' | 'boots' | 'gloves' | 'belt' | 'cloak'
+  | 'head' | 'neck' | 'ring' | 'other'
 
 export interface MagicItem {
   id: string
@@ -24,6 +30,15 @@ export interface MagicItem {
   weight: number
   /** Raw type+rarity line from the SRD (e.g. 'Wondrous Item, Rare (Requires Attunement)'). */
   description: string
+  /** #123 — Slot type for equipped-uniqueness rules. Optional: items without
+   *  a declared slot are treated as freely equippable (no limit). Lookup is
+   *  via getMagicItemById(itemId).slot when the inventory item references the
+   *  catalogue. Custom items declare their slot via InventoryItem.selectedSlot. */
+  slot?: MagicItemSlot
+  /** #123 — True if this is a magical extradimensional container (Bag of
+   *  Holding, Handy Haversack, Portable Hole, etc.). Items stored inside
+   *  don't count for the character's encumbrance. */
+  isContainer?: boolean
 }
 
 export const magicItems: readonly MagicItem[] = [
@@ -35,6 +50,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: false,
     weight: 0,
     description: "This suit of armor is reinforced with adamantine, one of the hardest substances in existence. While you're wearing it, any Critical Hit against you becomes a normal hit.",
+    slot: "armor",
   },
   {
     id: "ammunition-1-2-or-3",
@@ -62,6 +78,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 0,
     description: "Your Constitution is 19 while you wear this amulet. It has no effect on you if your Constitution is 19 or higher without it.",
+    slot: "neck",
   },
   {
     id: "amulet-of-proof-against-detection-and-location",
@@ -71,6 +88,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 0,
     description: "While wearing this amulet, you can't be targeted by Divination spells or perceived through magical scrying sensors unless you allow it.",
+    slot: "neck",
   },
   {
     id: "amulet-of-the-planes",
@@ -80,6 +98,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 0,
     description: "While wearing this amulet, you can take a Magic action to name a location that you are familiar with on another plane of existence. Then make a DC 15 Intelligence (Arcana) check. On a successful check, you cast _Plane Shift_. On a failed check, you and each creature and object within 15 feet of you travel to a random destination determined by rolling 1d100 and consulting the following table.\n\n<table>\n  <thead>\n    <tr>\n      <th>1d100</th>\n      <th>Destination</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <td>01–60</td>\n      <td>Random location on the plane you named</td>\n    </tr>\n    <tr>\n      <td>61–70</td>\n      <td>Random location on an Inner Plane determined by rolling 1d6: on a 1, the Plane of Air; on a 2, the Plane of Earth; on a 3, the Plane of Fire; on a 4, the Plane of Water; on a 5, the Feywild; on a 6, the Shadowfell</td>\n    </tr>\n    <tr>\n      <td>71–80</td>\n      <td>Random location on an Outer Plane determined by rolling 1d8: on a 1, Arborea; on a 2, Arcadia; on a 3, the Beastlands; on a 4, Bytopia; on a 5, Elysium; on a 6, Mechanus; on a 7, Mount Celestia; on an 8, Ysgard</td>\n    </tr>\n    <tr>\n      <td>81–90</td>\n      <td>Random location on an Outer Plane determined by rolling 1d8: on a 1, the Abyss; on a 2, Acheron; on a 3, Carceri; on a 4, Gehenna; on a 5, Hades; on a 6, Limbo; on a 7, the Nine Hells; on an 8, Pandemonium</td>\n    </tr>\n    <tr>\n      <td>91–00</td>\n      <td>Random location on the Astral Plane</td>\n    </tr>\n  </tbody>\n</table>",
+    slot: "neck",
   },
   {
     id: "animated-shield",
@@ -89,6 +108,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 6,
     description: "While holding this Shield, you can take a Bonus Action to cause it to animate. The Shield leaps into the air and hovers in your space to protect you as if you were wielding it, leaving your hands free. The Shield remains animate for 1 minute, until you take a Bonus Action to end this effect, or until you die or have the Incapacitated condition, at which point the Shield falls to the ground or into your hand if you have one free.",
+    slot: "shield",
   },
   {
     id: "apparatus-of-the-crab",
@@ -107,6 +127,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: false,
     weight: 0,
     description: "Armor (Any Light, Medium, or Heavy), Rare (+1), Very Rare (+2), or Legendary (+3)",
+    slot: "armor",
   },
   {
     id: "armor-of-invulnerability",
@@ -116,6 +137,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 0,
     description: "You have Resistance to Bludgeoning, Piercing, and Slashing damage while you wear this armor.\n\n**_Metal Shell._** You can take a Magic action to give yourself Immunity to Bludgeoning, Piercing, and Slashing damage for 10 minutes or until you are no longer wearing the armor. Once this property is used, it can't be used again until the next dawn.",
+    slot: "armor",
   },
   {
     id: "armor-of-resistance",
@@ -125,6 +147,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 0,
     description: "You have Resistance to one type of damage while you wear this armor. The GM chooses the type or determines it randomly by rolling on the following table.\n\n<table>\n  <thead>\n    <tr>\n      <th>1d10</th>\n      <th>Damage Type</th>\n      <th>1d10</th>\n      <th>Damage Type</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <td>1</td>\n      <td>Acid</td>\n      <td>6</td>\n      <td>Necrotic</td>\n    </tr>\n    <tr>\n      <td>2</td>\n      <td>Cold</td>\n      <td>7</td>\n      <td>Poison</td>\n    </tr>\n    <tr>\n      <td>3</td>\n      <td>Fire</td>\n      <td>8</td>\n      <td>Psychic</td>\n    </tr>\n    <tr>\n      <td>4</td>\n      <td>Force</td>\n      <td>9</td>\n      <td>Radiant</td>\n    </tr>\n    <tr>\n      <td>5</td>\n      <td>Lightning</td>\n      <td>10</td>\n      <td>Thunder</td>\n    </tr>\n  </tbody>\n</table>",
+    slot: "armor",
   },
   {
     id: "armor-of-vulnerability",
@@ -134,6 +157,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 0,
     description: "While wearing this armor, you have Resistance to one of the following damage types: Bludgeoning, Piercing, or Slashing. The GM chooses the type or determines it randomly.\n\n_Curse._ This armor is cursed, a fact that is revealed only when the _Identify_ spell is cast on the armor or you attune to it. Attuning to the armor curses you until you are targeted by a _Remove Curse_ spell or similar magic; removing the armor fails to end the curse. While cursed, you have Vulnerability to two of the three damage types associated with the armor (not the one to which it grants Resistance).",
+    slot: "armor",
   },
   {
     id: "arrow-catching-shield",
@@ -143,6 +167,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 6,
     description: "You gain a +2 bonus to Armor Class against ranged attack rolls while you wield this Shield. This bonus is in addition to the Shield's normal bonus to AC.\n\nWhenever an attacker makes a ranged attack roll against a target within 5 feet of you, you can take a Reaction to become the target of the attack instead.",
+    slot: "shield",
   },
   {
     id: "bag-of-beans",
@@ -170,6 +195,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: false,
     weight: 15,
     description: "This bag has an interior space considerably larger than its outside dimensions—roughly 2 feet square and 4 feet deep on the inside. The bag can hold up to 500 pounds, not exceeding a volume of 64 cubic feet. The bag weighs 5 pounds, regardless of its contents. Retrieving an item from the bag requires a Utilize action.\n\nIf the bag is overloaded, pierced, or torn, it is destroyed, and its contents are scattered in the Astral Plane. If the bag is turned inside out, its contents spill forth unharmed, but the bag must be put right before it can be used again. The bag holds enough air for 10 minutes of breathing, divided by the number of breathing creatures inside.\n\nPlacing a _Bag of Holding_ inside an extradimensional space created by a _Handy Haversack_, _Portable Hole_, or similar item instantly destroys both items and opens a gate to the Astral Plane. The gate originates where the one item was placed inside the other. Any creature within a 10-foot-radius Sphere centered on the gate is sucked through it to a random location on the Astral Plane. The gate then closes. The gate is one-way and can't be reopened.",
+    isContainer: true,
   },
   {
     id: "bag-of-tricks",
@@ -206,6 +232,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 1,
     description: "While wearing this belt, you gain the following benefits:\n\n**Dwarvish.** You know Dwarvish.\n\n**Friend of Dwarvenkind.** You have Advantage on Charisma (Persuasion) checks made to interact with dwarves and duergar.\n\n**Toughness.** Your Constitution increases by 2, to a maximum of 20.\n\nIn addition, while attuned to the belt, you have a 50 percent chance each day at dawn of growing a full beard if you can grow one, or a thicker beard if you already have one.\n\nIf you aren't a dwarf or duergar, you gain the following additional benefits while wearing the belt:\n\n**Darkvision.** You have Darkvision with a range of 60 feet.\n\n**Resilience.** You have Resistance to Poison damage. You also have Advantage on saving throws you make to avoid or end the Poisoned condition.",
+    slot: "belt",
   },
   {
     id: "belt-of-giant-strength",
@@ -215,6 +242,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 1,
     description: "While wearing this belt, your Strength changes to a score granted by the belt. The type of giant determines the score (see the table below). The item has no effect on you if your Strength without the belt is equal to or greater than the belt's score.\n\n<table>\n  <thead>\n    <tr>\n      <th>Belt</th>\n      <th>Str.</th>\n      <th>Rarity</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <td>Belt of Giant Strength (hill)</td>\n      <td>21</td>\n      <td>Rare</td>\n    </tr>\n    <tr>\n      <td>Belt of Giant Strength (frost or stone)</td>\n      <td>23</td>\n      <td>Very Rare</td>\n    </tr>\n    <tr>\n      <td>Belt of Giant Strength (fire)</td>\n      <td>25</td>\n      <td>Very Rare</td>\n    </tr>\n    <tr>\n      <td>Belt of Giant Strength (cloud)</td>\n      <td>27</td>\n      <td>Legendary</td>\n    </tr>\n    <tr>\n      <td>Belt of Giant Strength (storm)</td>\n      <td>29</td>\n      <td>Legendary</td>\n    </tr>\n  </tbody>\n</table>",
+    slot: "belt",
   },
   {
     id: "berserker-axe",
@@ -233,6 +261,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: false,
     weight: 1,
     description: "While you wear these boots, your steps make no sound, regardless of the surface you are moving across. You also have Advantage on Dexterity (Stealth) checks.",
+    slot: "boots",
   },
   {
     id: "boots-of-levitation",
@@ -242,6 +271,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 1,
     description: "While you wear these boots, you can cast _Levitate_ on yourself.",
+    slot: "boots",
   },
   {
     id: "boots-of-speed",
@@ -251,6 +281,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 1,
     description: "While you wear these boots, you can take a Bonus Action to click the boots' heels together. If you do, the boots double your Speed, and any creature that makes an Opportunity Attack against you has Disadvantage on the attack roll. If you click your heels together again, you end the effect.\n\nWhen you've used the boots' property for a total of 10 minutes, the magic ceases to function for you until you finish a Long Rest.",
+    slot: "boots",
   },
   {
     id: "boots-of-striding-and-springing",
@@ -260,6 +291,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 1,
     description: "While you wear these boots, your Speed becomes 30 feet unless your Speed is higher, and your Speed isn't reduced by you carrying weight in excess of your carrying capacity or wearing Heavy Armor.\n\nOnce on each of your turns, you can jump up to 30 feet by spending only 10 feet of movement.",
+    slot: "boots",
   },
   {
     id: "boots-of-the-winterlands",
@@ -269,6 +301,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 1,
     description: "These furred boots are snug and feel warm. While wearing them, you gain the following benefits.\n\n_Cold Resistance._ You have Resistance to Cold damage and can tolerate temperatures of 0 degrees Fahrenheit or lower without any additional protection.\n\n_Winter Strider._ You ignore Difficult Terrain created by ice or snow.",
+    slot: "boots",
   },
   {
     id: "bowl-of-commanding-water-elementals",
@@ -287,6 +320,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 1,
     description: "While wearing these bracers, you have proficiency with the Longbow and Shortbow, and you gain a +2 bonus to damage rolls made with such weapons.",
+    slot: "other",
   },
   {
     id: "bracers-of-defense",
@@ -296,6 +330,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 1,
     description: "While wearing these bracers, you gain a +2 bonus to Armor Class if you are wearing no armor and using no Shield.",
+    slot: "other",
   },
   {
     id: "brazier-of-commanding-fire-elementals",
@@ -314,6 +349,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 0,
     description: "While wearing this brooch, you have Resistance to Force damage, and you have Immunity to damage from the _Magic Missile_ spell.",
+    slot: "other",
   },
   {
     id: "broom-of-flying",
@@ -341,6 +377,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: false,
     weight: 1,
     description: "This cape smells faintly of brimstone. While wearing it, you can use it to cast _Dimension Door_ as a Magic action. This property can't be used again until the next dawn.\n\nWhen you teleport with that spell, you leave behind a cloud of smoke. The space you left is Lightly Obscured by that smoke until the end of your next turn.",
+    slot: "cloak",
   },
   {
     id: "carpet-of-flying",
@@ -377,6 +414,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: false,
     weight: 1,
     description: "While wearing this circlet, you can cast _Scorching Ray_ with it (+5 to hit). The circlet can't cast this spell again until the next dawn.",
+    slot: "head",
   },
   {
     id: "cloak-of-arachnida",
@@ -386,6 +424,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 1,
     description: "This fine garment is made of black silk interwoven with faint, silvery threads. While wearing it, you gain the following benefits.\n\n_Poison Resistance._ You have Resistance to Poison damage.\n\n_Spider Climb._ You have a Climb Speed equal to your Speed and can move up, down, and across vertical surfaces and along ceilings, while leaving your hands free.\n\n_Spider Walk._ You can't be caught in webs of any sort and can move through webs as if they were Difficult Terrain.\n\n_Web._ You can cast _Web_ (save DC 13). The web created by the spell fills twice its normal area. Once used, this property can't be used again until the next dawn.",
+    slot: "cloak",
   },
   {
     id: "cloak-of-displacement",
@@ -395,6 +434,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 1,
     description: "While you wear this cloak, it magically projects an illusion that makes you appear to be standing in a place near your actual location, causing any creature to have Disadvantage on attack rolls against you. If you take damage, the property ceases to function until the start of your next turn. This property is suppressed while your Speed is 0.",
+    slot: "cloak",
   },
   {
     id: "cloak-of-elvenkind",
@@ -404,6 +444,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 1,
     description: "While you wear this cloak, Wisdom (Perception) checks made to perceive you have Disadvantage, and you have Advantage on Dexterity (Stealth) checks.",
+    slot: "cloak",
   },
   {
     id: "cloak-of-invisibility",
@@ -413,6 +454,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 1,
     description: "This cloak has 3 charges and regains 1d3 expended charges daily at dawn. While wearing the cloak, you can take a Magic action to pull its hood over your\nhead and expend 1 charge to give yourself the Invisible condition for 1 hour. The effect ends early if you pull the hood down (no action required) or cease wearing the cloak.",
+    slot: "cloak",
   },
   {
     id: "cloak-of-protection",
@@ -422,6 +464,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 1,
     description: "You gain a +1 bonus to Armor Class and saving throws while you wear this cloak.",
+    slot: "cloak",
   },
   {
     id: "cloak-of-the-bat",
@@ -431,6 +474,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 1,
     description: "While wearing this cloak, you have Advantage on Dexterity (Stealth) checks. In an area of Dim Light or Darkness, you can grip the edges of the cloak and use it to gain a Fly Speed of 40 feet. If you ever fail to grip the cloak's edges while flying in this way, or if you are no longer in Dim Light or Darkness, you lose this Fly Speed.\n\nWhile wearing the cloak in an area of Dim Light or Darkness, you can cast _Polymorph_ on yourself, shape-shifting into a Bat. While in that form, you retain your Intelligence, Wisdom, and Charisma scores. The cloak can't be used this way again until the next dawn.",
+    slot: "cloak",
   },
   {
     id: "cloak-of-the-manta-ray",
@@ -440,6 +484,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 1,
     description: "While wearing this cloak, you can breathe underwater, and you have a Swim Speed of 60 feet.",
+    slot: "cloak",
   },
   {
     id: "crystal-ball",
@@ -548,6 +593,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 65,
     description: "While wearing this armor, you gain a +1 bonus to Armor Class, and you know Abyssal. In addition, the armor's clawed gauntlets allow your Unarmed Strikes to deal 1d8 Slashing damage instead of the usual Bludgeoning damage, and you gain a +1 bonus to the attack and damage rolls of your Unarmed Strikes.\n\n_Curse._ Once you don this cursed armor, you can't doff it unless you are targeted by a _Remove Curse_ spell or similar magic. While wearing the armor, you have Disadvantage on attack rolls against demons and on saving throws against their spells and special abilities.",
+    slot: "armor",
   },
   {
     id: "dimensional-shackles",
@@ -575,6 +621,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 45,
     description: "Dragon Scale Mail is made of the scales of one kind of dragon. Sometimes dragons collect their cast-off\nscales and gift them. Other times, hunters carefully preserve the hide of a dead dragon. In either case, _Dragon Scale Mail_ is highly valued.\n\nWhile wearing this armor, you gain a +1 bonus to Armor Class, you have Advantage on saving throws against the breath weapons of Dragons, and you have Resistance to one damage type determined by the kind of dragon that provided the scales (see the accompanying table).\n\nAdditionally, you can focus your senses as a Magic action to discern the distance and direction to the closest dragon within 30 miles of yourself that is of the same type as the armor. This action can't be used again until the next dawn.\n\n<table>\n  <thead>\n    <tr>\n      <th>Dragon</th>\n      <th>Resistance</th>\n      <th>Dragon</th>\n      <th>Resistance</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <td>Black</td>\n      <td>Acid</td>\n      <td>Gold</td>\n      <td>Fire</td>\n    </tr>\n    <tr>\n      <td>Blue</td>\n      <td>Lightning</td>\n      <td>Green</td>\n      <td>Poison</td>\n    </tr>\n    <tr>\n      <td>Brass</td>\n      <td>Fire</td>\n      <td>Red</td>\n      <td>Fire</td>\n    </tr>\n    <tr>\n      <td>Bronze</td>\n      <td>Lightning</td>\n      <td>Silver</td>\n      <td>Cold</td>\n    </tr>\n    <tr>\n      <td>Copper</td>\n      <td>Acid</td>\n      <td>White</td>\n      <td>Cold</td>\n    </tr>\n  </tbody>\n</table>",
+    slot: "armor",
   },
   {
     id: "dragon-slayer",
@@ -620,6 +667,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: false,
     weight: 65,
     description: "While wearing this armor, you gain a +2 bonus to Armor Class. In addition, if an effect moves you against your will along the ground, you can take a Reaction to reduce the distance you are moved by up to 10 feet.",
+    slot: "armor",
   },
   {
     id: "dwarven-thrower",
@@ -639,6 +687,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: false,
     weight: 2,
     description: "Each of the quiver's three compartments connects to an extradimensional space that allows the quiver to hold numerous items while never weighing more than 2 pounds. The shortest compartment can hold up to 60 Arrows, Bolts, or similar objects. The midsize compartment holds up to 18 Javelins or similar objects. The longest compartment holds up to 6 long objects, such as bows, Quarterstaffs, or Spears.\n\nYou can draw any item the quiver contains as if doing so from a regular quiver or scabbard.",
+    isContainer: true,
   },
   {
     id: "efreeti-bottle",
@@ -675,6 +724,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: false,
     weight: 20,
     description: "You gain a +1 bonus to Armor Class while you wear this armor. You are considered trained with this armor even if you lack training with Medium or Heavy armor.",
+    slot: "armor",
   },
   {
     id: "energy-bow",
@@ -702,6 +752,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 1,
     description: "These crystal lenses fit over the eyes. They have 3 charges. While wearing them, you can expend 1 or more charges to cast _Charm Person_ (save DC 13). For 1 charge, you cast the level 1 version of the spell. You increase the spell's level by one for each additional charge you expend. The lenses regain all expended charges daily at dawn.",
+    slot: "head",
   },
   {
     id: "eyes-of-minute-seeing",
@@ -711,6 +762,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: false,
     weight: 1,
     description: "These crystal lenses fit over the eyes. While wearing them, your vision improves significantly out to a range of 1 foot, granting you Darkvision within that range and Advantage on Intelligence (Investigation) checks made to examine something within that range.",
+    slot: "head",
   },
   {
     id: "eyes-of-the-eagle",
@@ -720,6 +772,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: false,
     weight: 1,
     description: "These crystal lenses fit over the eyes. While wearing them, you have Advantage on Wisdom (Perception) checks that rely on sight. In conditions of clear visibility, you can make out details of even extremely distant creatures and objects as small as 2 feet across.",
+    slot: "head",
   },
   {
     id: "feather-token",
@@ -783,6 +836,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 1,
     description: "Your Strength is 19 while you wear these gauntlets. They have no effect on you if your Strength is 19 or higher without them.",
+    slot: "gloves",
   },
   {
     id: "gem-of-brightness",
@@ -819,6 +873,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: false,
     weight: 13,
     description: "While wearing this armor, you gain a +1 bonus to Armor Class. You can also take a Bonus Action to\ncause the armor to assume the appearance of a normal set of clothing or some other kind of armor. You decide what it looks like—including color, style, and accessories—but the armor retains its normal bulk and weight. The illusory appearance lasts until you use this property again or doff the armor.",
+    slot: "armor",
   },
   {
     id: "gloves-of-missile-snaring",
@@ -828,6 +883,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 1,
     description: "If you're hit by an attack roll made with a Ranged or Thrown weapon while wearing these gloves, you can take a Reaction to reduce the damage by 1d10 plus your Dexterity modifier if you have a free hand. If you reduce the damage to 0, you can catch the ammunition or weapon if it is small enough for you to hold in that hand.",
+    slot: "gloves",
   },
   {
     id: "gloves-of-swimming-and-climbing",
@@ -837,6 +893,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 1,
     description: "While wearing these gloves, you have a Climb Speed and a Swim Speed equal to your Speed, and you gain a +5 bonus to Strength (Athletics) checks made to climb or swim.",
+    slot: "gloves",
   },
   {
     id: "gloves-of-thievery",
@@ -846,6 +903,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: false,
     weight: 1,
     description: "These gloves are imperceptible while worn. While wearing them, you gain a +5 bonus to Dexterity (Sleight of Hand) checks.",
+    slot: "gloves",
   },
   {
     id: "goggles-of-night",
@@ -855,6 +913,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: false,
     weight: 1,
     description: "While wearing these dark lenses, you have Darkvision out to 60 feet. If you already have Darkvision, wearing the goggles increases its range by 60 feet.",
+    slot: "head",
   },
   {
     id: "hammer-of-thunderbolts",
@@ -873,6 +932,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: false,
     weight: 5,
     description: "This backpack has a central pouch and two side pouches, each of which is an extradimensional space. Each side pouch can hold up to 200 pounds of material, not exceeding a volume of 25 cubic feet. The central pouch can hold up to 500 pounds of material, not exceeding a volume of 64 cubic feet. The haversack always weighs 5 pounds, regardless of its contents.\n\nRetrieving an item from the haversack requires a Utilize action or a Bonus Action (your choice). When you reach into the haversack for a specific item, the item is always magically on top.\n\nIf any of its pouches is overloaded, pierced, or torn, the haversack ruptures and is destroyed. If the haversack is destroyed, its contents are lost forever, although an Artifact always turns up again somewhere. If the haversack is turned inside out, its contents spill forth unharmed, and the haversack must be put right before it can be used again.\n\nEach pouch of the haversack holds enough air for 10 minutes of breathing, divided by the number of breathing creatures inside.\n\nPlacing the haversack inside an extradimensional space created by a _Bag of Holding_, _Portable Hole_, or similar item instantly destroys both items and opens a gate to the Astral Plane. The gate originates where the one item was placed inside the other. Any creature within 10 feet of the gate and not behind Total Cover is sucked through it and deposited in a random location on the Astral Plane. The gate then closes. The gate is one-way only and can't be reopened.",
+    isContainer: true,
   },
   {
     id: "hat-of-disguise",
@@ -882,6 +942,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 1,
     description: "While wearing this hat, you can cast the _Disguise Self_ spell. The spell ends if the hat is removed.",
+    slot: "head",
   },
   {
     id: "hat-of-many-spells",
@@ -892,6 +953,7 @@ export const magicItems: readonly MagicItem[] = [
   attunementNote: "a Wizard",
     weight: 1,
     description: "Wondrous Item, Very Rare (Requires Attunement by a Wizard)",
+    slot: "head",
   },
   {
     id: "headband-of-intellect",
@@ -901,6 +963,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 1,
     description: "Your Intelligence is 19 while you wear this headband. It has no effect on you if your Intelligence is 19 or higher without it.",
+    slot: "head",
   },
   {
     id: "helm-of-brilliance",
@@ -910,6 +973,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 1,
     description: "This helm is set with 1d10 diamonds, 2d10 rubies, 3d10 fire opals, and 4d10 opals. Any gem pried from the helm crumbles to dust. When all the gems are removed or destroyed, the helm loses its magic.\n\nYou gain the following benefits while wearing the helm.\n\n_Diamond Light._ As long as it has at least one diamond, the helm emits a 30-foot Emanation. When at least one Undead is within that area, the Emanation is filled with Dim Light. Any Undead that starts its turn in that area takes 1d6 Radiant damage.\n\n_Fire Opal Flames._ As long as the helm has at least one fire opal, you can take a Magic action to cause one weapon you are holding to burst into flames. The flames emit Bright Light in a 10-foot radius and Dim Light for an additional 10 feet. The flames are harmless to you and the weapon. When you hit with an attack using the blazing weapon, the target takes an extra 1d6 Fire damage. The flames last until you take a Bonus Action to extinguish them or until you drop or stow the weapon.\n\n_Ruby Resistance._ As long as the helm has at least one ruby, you have Resistance to Fire damage.\n\n_Spells._ You can cast one of the following spells (save DC 18), using one of the helm's gems of the specified type as a component: _Daylight_ (opal), _Fireball_ (fire opal), _Prismatic Spray_ (diamond), or _Wall of Fire_ (ruby). The gem is destroyed when the spell is cast and disappears from the helm.\n\n_Taking Fire Damage._ Roll 1d20 if you are wearing the helm and take Fire damage as a result of failing\na saving throw against a spell. On a roll of 1, the helm emits beams of light from its remaining gems and is then destroyed. Each creature within a 60-foot Emanation originating from you must succeed on a DC 17 Dexterity saving throw or be struck by a beam, taking Radiant damage equal to the number of gems in the helm.",
+    slot: "head",
   },
   {
     id: "helm-of-comprehending-languages",
@@ -919,6 +983,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: false,
     weight: 1,
     description: "While wearing this helm, you can cast _Comprehend Languages_ from it.",
+    slot: "head",
   },
   {
     id: "helm-of-telepathy",
@@ -928,6 +993,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 1,
     description: "While wearing this helm, you have telepathy with a range of 30 feet, and you can cast _Detect Thoughts_ or _Suggestion_ (save DC 13) from the helm. Once either spell is cast from the helm, that spell can't be cast from it again until the next dawn.",
+    slot: "head",
   },
   {
     id: "helm-of-teleportation",
@@ -937,6 +1003,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 1,
     description: "This helm has 3 charges. While wearing it, you can expend 1 charge to cast _Teleport_ from it. The helm regains 1d3 expended charges daily at dawn.",
+    slot: "head",
   },
   {
     id: "holy-avenger",
@@ -974,6 +1041,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: false,
     weight: 4,
     description: "These horseshoes come in a set of four. As a Magic action, you can touch one of the horseshoes to the hoof of a horse or similar creature, whereupon the horseshoe affixes itself to the hoof. Removing a horseshoe also takes a Magic action.\n\nWhile all four shoes are affixed to the hooves of a horse or similar creature, they allow the creature to move normally while floating 4 inches above a surface. This effect means the creature can cross or stand above nonsolid or unstable surfaces, such as water or lava. The creature leaves no tracks and ignores Difficult Terrain. In addition, the creature can travel for up to 12 hours a day without gaining Exhaustion levels from extended travel.",
+    slot: "other",
   },
   {
     id: "horseshoes-of-speed",
@@ -983,6 +1051,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: false,
     weight: 4,
     description: "These horseshoes come in a set of four. As a Magic action, you can touch one of the horseshoes to the hoof of a horse or similar creature, whereupon the horseshoe affixes itself to the hoof. Removing a horseshoe also takes a Magic action.\n\nWhile all four horseshoes are attached to the same creature, its Speed is increased by 30 feet.",
+    slot: "other",
   },
   {
     id: "immovable-rod",
@@ -1010,6 +1079,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 0,
     description: "Roughly marble sized, _Ioun Stones_ are named after Ioun, a god of knowledge and prophecy revered on some worlds. Many types of _Ioun Stones_ exist, each type a distinct combination of shape and color.\n\nWhen you take a Magic action to toss an _Ioun Stone_ into the air, the stone orbits your head at a distance of 1d3 feet, conferring its benefit to you while doing so. You can have up to three _Ioun Stones_ orbiting your head at the same time.\n\nEach _Ioun Stone_ orbiting your head is considered to be an object you are wearing. The orbiting stone avoids contact with other creatures and objects, adjusting its orbit to avoid collisions and thwarting all attempts by other creatures to attack or snatch it.\n\nAs a Utilize action, you can seize and stow any number of _Ioun Stones_ orbiting your head. If your Attunement to an _Ioun Stone_ ends while it's orbiting your head, the stone falls as though you had dropped it.\n\nThe type of stone determines its rarity and effects.\n\n_Absorption (Very Rare)_. While this pale lavender ellipsoid orbits your head, you can take a Reaction to cancel a spell of level 4 or lower cast by a creature you can see. A canceled spell has no effect, and any resources used to cast it are wasted. Once the stone has canceled 20 levels of spells, it burns out, turns dull gray, and loses its magic.\n\n_Agility (Very Rare)_. Your Dexterity increases by 2, to a maximum of 20, while this deep-red sphere orbits your head.\n\n_Awareness (Rare)_. While this dark-blue rhomboid orbits your head, you have Advantage on Initiative rolls and Wisdom (Perception) checks.\n\n_Fortitude (Very Rare)_. Your Constitution increases by 2, to a maximum of 20, while this pink rhomboid orbits your head.\n\n_Greater Absorption (Legendary)_. While this marbled lavender and green ellipsoid orbits your head, you can take a Reaction to cancel a spell of level 8 or lower cast by a creature you can see. A canceled spell has no effect, and any resources used to cast it are wasted. Once the stone has canceled 20 levels of spells, it burns out, turns dull gray, and loses its magic.\n\n_Insight (Very Rare)_. Your Wisdom increases by 2, to a maximum of 20, while this incandescent blue sphere orbits your head.\n\n_Intellect (Very Rare)_. Your Intelligence increases by 2, to a maximum of 20, while this marbled scarlet and blue sphere orbits your head.\n\n_Leadership (Very Rare)_. Your Charisma increases by 2, to a maximum of 20, while this marbled pink and green sphere orbits your head.\n_Mastery (Legendary)._ Your Proficiency Bonus increases by 1 while this pale green prism orbits your head.\n\n_Protection (Rare)._ You gain a +1 bonus to Armor Class while this dusty-rose prism orbits your head.\n\n_Regeneration (Legendary)._ You regain 15 Hit Points at the end of each hour this pearly white spindle orbits your head if you have at least 1 Hit Point.\n\n_Reserve (Rare)._ This vibrant purple prism stores spells cast into it, holding them until you use them. The stone can store up to 4 levels of spells at a time. When found, it contains 1d4 levels of stored spells chosen by the GM.\n\nAny creature can cast a spell of level 1 through 4 into the stone by touching it as the spell is cast. The spell has no effect, other than to be stored in the stone. If the stone can't hold the spell, the spell is expended without effect. The level of the slot used to cast the spell determines how much space it uses.\n\nWhile this stone orbits your head, you can cast any spell stored in it. The spell uses the slot level, spell save DC, spell attack bonus, and spellcasting ability of the original caster but is otherwise treated as if you cast the spell. The spell cast from the stone is no longer stored in it, freeing up space.\n\n_Strength (Very Rare)._ Your Strength increases by 2, to a maximum of 20, while this pale blue rhomboid orbits your head.\n\n_Sustenance (Rare)._ You don't need to eat or drink while this clear spindle orbits your head.",
+    slot: "other",
   },
   {
     id: "iron-bands",
@@ -1091,6 +1161,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 1,
     description: "You have Advantage on saving throws against spells while you wear this cloak.",
+    slot: "cloak",
   },
   {
     id: "manual-of-bodily-health",
@@ -1145,6 +1216,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 0,
     description: "The medallion has 5 charges. While wearing it, you can expend 1 charge to cast _Detect Thoughts_ (save DC 13) from it. The medallion regains 1d4 expended charges daily at dawn.",
+    slot: "neck",
   },
   {
     id: "mirror-of-life-trapping",
@@ -1163,6 +1235,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: false,
     weight: 0,
     description: "Mithral is a light, flexible metal. Armor made of this substance can be worn under normal clothes. If the armor normally imposes Disadvantage on Dexterity (Stealth) checks or has a Strength requirement, the mithral version of the armor doesn't.",
+    slot: "armor",
   },
   {
     id: "mysterious-deck",
@@ -1190,6 +1263,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 0,
     description: "While wearing this necklace, you can breathe normally in any environment, and you have Advantage on saving throws made to avoid or end the Poisoned condition.",
+    slot: "neck",
   },
   {
     id: "necklace-of-fireballs",
@@ -1199,6 +1273,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: false,
     weight: 0,
     description: "This necklace has 1d6 + 3 beads hanging from it. You can take a Magic action to detach a bead and throw it up to 60 feet away. When it reaches the end of its trajectory, the bead detonates as a level 3 _Fireball_ (save DC 15).\n\nYou can hurl multiple beads, or even the whole necklace, at one time. When you do so, increase the damage of the _Fireball_ by 1d6 for each bead after the first (maximum 12d6).",
+    slot: "neck",
   },
   {
     id: "necklace-of-prayer-beads",
@@ -1209,6 +1284,7 @@ export const magicItems: readonly MagicItem[] = [
   attunementNote: "a Cleric, Druid, or Paladin",
     weight: 0,
     description: "Wondrous Item, Rare (Requires Attunement by a Cleric, Druid, or Paladin)",
+    slot: "neck",
   },
   {
     id: "nine-lives-stealer",
@@ -1254,6 +1330,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: false,
     weight: 0.5,
     description: "One vial of this oil can cover one Medium or smaller creature, along with the equipment it's wearing and carrying (one additional vial is required for each size category above Medium). Applying the oil takes 10 minutes. The affected creature then gains the effect of the _Freedom of Movement_ spell for 8 hours.\n\nAlternatively, the oil can be poured on the ground as a Magic action, where it covers a 10-foot square, duplicating the effect of the _Grease_ spell in that area for 8 hours.\n\nThis sticky, black unguent is thick and heavy, but it flows quickly when poured.",
+    slot: "boots",
   },
   {
     id: "pearl-of-power",
@@ -1273,6 +1350,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 0,
     description: "While wearing this pendant, you can take a Magic action to regain 2d4 + 2 Hit Points. Once used, this property can't be used again until the next dawn.\n\nIn addition, you have Advantage on saving throws to avoid or end the Poisoned condition while you wear this pendant.",
+    slot: "neck",
   },
   {
     id: "periapt-of-proof-against-poison",
@@ -1282,6 +1360,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 0,
     description: "This delicate silver chain has a brilliant-cut black gem pendant. While you wear it, you have Immunity to the Poisoned condition and Poison damage.",
+    slot: "neck",
   },
   {
     id: "periapt-of-wound-closure",
@@ -1291,6 +1370,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 0,
     description: "While wearing this pendant, you gain the following benefits.\n\n**_Life Preservation._** Whenever you make a Death Saving Throw, you can change a roll of 9 or lower to a 10, turning a failed save into a successful one.\n\n**_Natural Healing Boost._** Whenever you roll a Hit Point Die to regain Hit Points, double the number of Hit Points it restores.",
+    slot: "neck",
   },
   {
     id: "philter-of-love",
@@ -1327,6 +1407,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 65,
     description: "While you're wearing this armor, you can take a Magic action and use a command word to gain the effect of the _Etherealness_ spell. The spell ends immediately if you remove the armor or take a Magic action to repeat the command word. This property of the armor can't be used again until the next dawn.",
+    slot: "armor",
   },
   {
     id: "portable-hole",
@@ -1336,6 +1417,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: false,
     weight: 0,
     description: "This fine black cloth, soft as silk, is folded up to the dimensions of a handkerchief. It unfolds into a circular sheet 6 feet in diameter.\n\nYou can take a Magic action to unfold a _Portable Hole_ and place it on or against a solid surface, whereupon the _Portable Hole_ creates an\nextradimensional hole 10 feet deep. The cylindrical space within the hole exists on a different plane of existence, so it can't be used to create open passages. Any creature inside an open _Portable Hole_ can exit the hole by climbing out of it.\n\nYou can take a Magic action to close a _Portable Hole_ by taking hold of the edges of the cloth and folding it up. Folding the cloth closes the hole, and any creatures or objects within remain in the extradimensional space. No matter what's in it, the hole weighs next to nothing.\n\nIf the hole is folded up, a creature within the hole's extradimensional space can take an action to make a DC 10 Strength (Athletics) check. On a successful check, the creature forces its way out and appears within 5 feet of the _Portable Hole_. A closed _Portable Hole_ holds enough air for 1 hour of breathing, divided by the number of breathing creatures inside.\n\nPlacing a _Portable Hole_ inside an extradimensional space created by a _Bag of Holding_, _Handy Haversack_, or similar item instantly destroys both items and opens a gate to the Astral Plane. The gate originates where the one item was placed inside the other. Any creature within 10 feet of the gate and not behind Total Cover is sucked through it and deposited in a random location on the Astral Plane. The gate then closes. The gate is one-way only and can't be reopened.",
+    isContainer: true,
   },
   {
     id: "potion-of-animal-friendship",
@@ -1525,6 +1607,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: false,
     weight: 0,
     description: "This ring has 3 charges, and it regains 1d3 expended charges daily at dawn. While wearing the ring, you can expend 1 charge to cast one of the following spells (save DC 13) from it:\n\n- _Animal Friendship_\n- _Fear_ (affects Beasts only)\n- _Speak with Animals_",
+    slot: "ring",
   },
   {
     id: "ring-of-djinni-summoning",
@@ -1534,6 +1617,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 0,
     description: "While wearing this ring, you can take a Magic action to summon a particular **Djinni** from the Elemental Plane of Air. The djinni appears in an unoccupied space you choose within 120 feet of yourself. It remains as long as you maintain Concentration, to a maximum of 1 hour, or until it drops to 0 Hit Points.\n\nWhile summoned, the djinni is Friendly to you and your allies, and it obeys your commands. If you fail to command it, the djinni defends itself against attackers but takes no other actions.\n\nAfter the djinni departs, it can't be summoned again for 24 hours, and the ring becomes nonmagical if the djinni dies.\n\n_Rings of Djinni Summoning_ are often created by the djinn they summon and given to mortals as gifts of friendship or tokens of esteem.",
+    slot: "ring",
   },
   {
     id: "ring-of-elemental-command",
@@ -1543,6 +1627,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 0,
     description: "Each _Ring of Elemental Command_ is linked to one of the four Elemental Planes. The GM chooses or randomly determines the linked plane. For example, a _Ring of Elemental Command_ (air) is linked to the Elemental Plane of Air.\n\nEvery _Ring of Elemental Command_ has the following two properties:\n\n**Elemental Bane.** While wearing the ring, you have Advantage on attack rolls against Elementals and they have Disadvantage on attack rolls against you.\n\n**Elemental Compulsion.** While wearing the ring, you can take a Magic action to try to compel an Elemental you see within 60 feet of yourself. The Elemental makes a DC 18 Wisdom saving throw. On a failed save, the Elemental has the Charmed condition until the start your next turn, and you determine what it does with its move and action on its next turn.\n\n_Elemental Focus._ While wearing the ring, you benefit from additional properties corresponding to the ring's linked Elemental Plane:\n\n**Air.** You know Auran, you have Resistance to Lightning damage, and you have a Fly Speed equal to your Speed and can hover.\n\n**Earth.** You know Terran, and you have Resistance to Acid damage. Terrain composed of rubble, rocks, or dirt isn't Difficult Terrain for you. In addition, you can move through solid earth or rock as if those areas were Difficult Terrain without disturbing the matter through which you pass. If you end your turn in solid earth or rock, you are shunted out to the nearest unoccupied space you last occupied.\n\n**Fire.** You know Ignan, and you have Immunity to Fire damage.\n\n**Water.** You know Aquan, you gain a Swim Speed of 60 feet, and you can breathe underwater.\n\n_Spellcasting._ The ring has 5 charges and regains 1d4 + 1 expended charges daily at dawn. While wearing the ring, you can cast a spell from it. Choose the spell from the list of available spells based on the Elemental Plane the ring is linked to, as shown in the following table. The table indicates how many charges you must expend to cast the spell, which has a save DC of 18.\n\n<table>\n  <thead>\n    <tr>\n      <th>Plane</th>\n      <th>Spells (Charges)</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <td>Air</td>\n      <td>*Chain Lightning* (3 charges), *Feather Fall* (0 charges), *Gust of Wind* (2 charges), *Wind Wall* (1 charge)</td>\n    </tr>\n    <tr>\n      <td>Earth</td>\n      <td>*Earthquake* (5 charges), *Stone Shape* (2 charges), *Stoneskin* (3 charges), *Wall of Stone* (3 charges)</td>\n    </tr>\n    <tr>\n      <td>Fire</td>\n      <td>*Burning Hands* (1 charge), *Fireball* (2 charges), *Fire Storm* (4 charges), *Wall of Fire* (3 charges)</td>\n    </tr>\n    <tr>\n      <td>Water</td>\n      <td>*Create or Destroy Water* (1 charge), *Ice Storm* (2 charges), *Tsunami* (5 charges), *Wall of Ice* (3 charges), *Water Walk* (2 charges)</td>\n    </tr>\n  </tbody>\n</table>",
+    slot: "ring",
   },
   {
     id: "ring-of-evasion",
@@ -1552,6 +1637,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 0,
     description: "This ring has 3 charges, and it regains 1d3 expended charges daily at dawn. When you fail a Dexterity saving throw while wearing the ring, you can take a Reaction to expend 1 charge to succeed on that save instead.",
+    slot: "ring",
   },
   {
     id: "ring-of-feather-falling",
@@ -1561,6 +1647,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 0,
     description: "When you fall while wearing this ring, you descend 60 feet per round and take no damage from falling.",
+    slot: "ring",
   },
   {
     id: "ring-of-free-action",
@@ -1570,6 +1657,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 0,
     description: "While you wear this ring, Difficult Terrain doesn't cost you extra movement. In addition, magic can neither reduce any of your Speeds nor cause you to have the Paralyzed or Restrained condition.",
+    slot: "ring",
   },
   {
     id: "ring-of-invisibility",
@@ -1579,6 +1667,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 0,
     description: "While wearing this ring, you can take a Magic action to give yourself the Invisible condition. You remain Invisible until the ring is removed or until you take a Bonus Action to become visible again.",
+    slot: "ring",
   },
   {
     id: "ring-of-jumping",
@@ -1588,6 +1677,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 0,
     description: "While wearing this ring, you can cast _Jump_ from it, but can target only yourself when you do so.",
+    slot: "ring",
   },
   {
     id: "ring-of-mind-shielding",
@@ -1597,6 +1687,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 0,
     description: "While wearing this ring, you are immune to magic that allows other creatures to read your thoughts, determine whether you are lying, know your alignment, or know your creature type. Creatures can telepathically communicate with you only if you allow it.\n\nYou can take a Magic action to cause the ring to become imperceptible until you take another Magic action to make it perceptible, until you remove the ring, or until you die.\n\nIf you die while wearing the ring, your soul enters it, unless it already houses a soul. You can remain in the ring or depart for the afterlife. As long as your soul is in the ring, you can telepathically communicate with any creature wearing it. A wearer can't prevent this telepathic communication.",
+    slot: "ring",
   },
   {
     id: "ring-of-protection",
@@ -1606,6 +1697,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 0,
     description: "You gain a +1 bonus to Armor Class and saving throws while wearing this ring.",
+    slot: "ring",
   },
   {
     id: "ring-of-regeneration",
@@ -1615,6 +1707,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 0,
     description: "While wearing this ring, you regain 1d6 Hit Points every 10 minutes if you have at least 1 Hit Point. If you lose a body part, the ring causes the missing part to regrow and return to full functionality after 1d6 + 1 days if you have at least 1 Hit Point the whole time.",
+    slot: "ring",
   },
   {
     id: "ring-of-resistance",
@@ -1624,6 +1717,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: false,
     weight: 0,
     description: "You have Resistance to one damage type while wearing this ring. The gemstone in the ring indicates the type, which the GM chooses or determines randomly by rolling on the following table.\n\n<table>\n  <thead>\n    <tr>\n      <th>1d10</th>\n      <th>Damage Type</th>\n      <th>Gemstone</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <td>1</td>\n      <td>Acid</td>\n      <td>Pearl</td>\n    </tr>\n    <tr>\n      <td>2</td>\n      <td>Cold</td>\n      <td>Tourmaline</td>\n    </tr>\n    <tr>\n      <td>3</td>\n      <td>Fire</td>\n      <td>Garnet</td>\n    </tr>\n    <tr>\n      <td>4</td>\n      <td>Force</td>\n      <td>Sapphire</td>\n    </tr>\n    <tr>\n      <td>5</td>\n      <td>Lightning</td>\n      <td>Citrine</td>\n    </tr>\n    <tr>\n      <td>6</td>\n      <td>Necrotic</td>\n      <td>Jet</td>\n    </tr>\n    <tr>\n      <td>7</td>\n      <td>Poison</td>\n      <td>Amethyst</td>\n    </tr>\n    <tr>\n      <td>8</td>\n      <td>Psychic</td>\n      <td>Jade</td>\n    </tr>\n    <tr>\n      <td>9</td>\n      <td>Radiant</td>\n      <td>Topaz</td>\n    </tr>\n    <tr>\n      <td>10</td>\n      <td>Thunder</td>\n      <td>Spinel</td>\n    </tr>\n  </tbody>\n</table>",
+    slot: "ring",
   },
   {
     id: "ring-of-shooting-stars",
@@ -1633,6 +1727,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 0,
     description: "You can cast _Dancing Lights_ or _Light_ from the ring.\n\nThe ring has 6 charges and regains 1d6 expended charges daily at dawn. You can expend its charges to use the properties below.\n\n**_Faerie Fire._** You can expend 1 charge to cast _Faerie Fire_ from the ring.\n\n**_Lightning Spheres._** You can expend 2 charges as a Magic action to create up to four 3-foot-diameter spheres of lightning. Each sphere appears in an unoccupied space you can see within 120 feet of yourself. The spheres last as long as you maintain Concentration, up to 1 minute. Each sphere sheds Dim Light in a 30-foot radius.\n\nAs a Bonus Action, you can move each sphere up to 30 feet, but no farther than 120 feet away from yourself. The first time the sphere comes within 5 feet of a creature other than you that isn't behind Total Cover, the sphere discharges lightning at that creature and disappears. That creature makes a DC 15 Dexterity saving throw. On a failed save, the creature takes Lightning damage based on the number of spheres you created, as shown in the following table. On a successful save, the creature takes half as much damage.\n\n<table>\n  <thead>\n    <tr>\n      <th>Number of Spheres</th>\n      <th>Lightning Damage</th>\n      <th>Number of Spheres</th>\n      <th>Lightning Damage</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <td>1</td>\n      <td>4d12</td>\n      <td>3</td>\n      <td>2d6</td>\n    </tr>\n    <tr>\n      <td>2</td>\n      <td>5d4</td>\n      <td>4</td>\n      <td>2d4</td>\n    </tr>\n  </tbody>\n</table>\n\n_Shooting Stars._ You can expend 1 to 3 charges as a Magic action. For every charge you expend, you launch a glowing mote of light from the ring at a point you can see within 60 feet of yourself. Each creature in a 15-foot Cube originating from that point is showered in sparks and makes a DC 15 Dexterity saving throw, taking 5d4 Radiant damage on a failed save or half as much damage on a successful one.",
+    slot: "ring",
   },
   {
     id: "ring-of-spell-storing",
@@ -1642,6 +1737,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 0,
     description: "This ring stores spells cast into it, holding them until the attuned wearer uses them. The ring can store up to 5 levels worth of spells at a time. When found, it contains 1d6 − 1 levels of stored spells chosen by the GM.\n\nAny creature can cast a spell of level 1 through 5 into the ring by touching the ring as the spell is cast. The spell has no effect other than to be stored in the ring. If the ring can't hold the spell, the spell is expended without effect. The level of the slot used to cast the spell determines how much space it uses.\n\nWhile wearing this ring, you can cast any spell stored in it. The spell uses the slot level, spell save DC, spell attack bonus, and spellcasting ability of the original caster but is otherwise treated as if you cast the spell. The spell cast from the ring is no longer stored in it, freeing up space.",
+    slot: "ring",
   },
   {
     id: "ring-of-spell-turning",
@@ -1651,6 +1747,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 0,
     description: "While wearing this ring, you have Advantage on saving throws against spells. If you succeed on the save for a spell of level 7 or lower, the spell has no effect on you. If that spell targeted only you and didn't create an area of effect, you can take a Reaction to deflect the spell back at the spell's caster; the caster must make a saving throw against the spell using their own spell save DC.",
+    slot: "ring",
   },
   {
     id: "ring-of-swimming",
@@ -1660,6 +1757,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: false,
     weight: 0,
     description: "You have a Swim Speed of 40 feet while wearing this ring.",
+    slot: "ring",
   },
   {
     id: "ring-of-telekinesis",
@@ -1669,6 +1767,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 0,
     description: "While wearing this ring, you can cast _Telekinesis_ from it.",
+    slot: "ring",
   },
   {
     id: "ring-of-the-ram",
@@ -1678,6 +1777,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 0,
     description: "This ring has 3 charges and regains 1d3 expended charges daily at dawn. While wearing the ring, you can take a Magic action to expend 1 to 3 charges to make a ranged spell attack against one creature you can see within 60 feet of yourself. The ring produces a spectral ram's head and makes its attack roll with a +7 bonus. On a hit, for each charge you spend, the target takes 2d10 Force damage and is pushed 5 feet away from you.\n\nAlternatively, you can expend 1 to 3 of the ring's charges as a Magic action to try to break a nonmagical object you can see within 60 feet of yourself that isn't being worn or carried. The ring makes a Strength check with a +5 bonus for each charge you spend.",
+    slot: "ring",
   },
   {
     id: "ring-of-three-wishes",
@@ -1687,6 +1787,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: false,
     weight: 0,
     description: "While wearing this ring, you can expend 1 of its 3 charges to cast _Wish_ from it. The ring becomes nonmagical when you use the last charge.",
+    slot: "ring",
   },
   {
     id: "ring-of-warmth",
@@ -1696,6 +1797,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 0,
     description: "If you take Cold damage while wearing this ring, the ring reduces the damage you take by 2d8.\n\nIn addition, while wearing this ring, you and everything you wear and carry are unharmed by temperatures of 0 degrees Fahrenheit or lower.",
+    slot: "ring",
   },
   {
     id: "ring-of-water-walking",
@@ -1705,6 +1807,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: false,
     weight: 0,
     description: "While wearing this ring, you cast _Water Walk_ from it, targeting only yourself.",
+    slot: "ring",
   },
   {
     id: "ring-of-x-ray-vision",
@@ -1714,6 +1817,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 0,
     description: "While wearing this ring, you can take a Magic action to gain X-ray vision with a range of 30 feet for 1 minute. To you, solid objects within that radius appear transparent and don't prevent light from passing through them. The vision can penetrate 1 foot of stone, 1 inch of common metal, or up to 3 feet of wood or dirt. Thicker substances or a thin sheet of lead block the vision.\n\nWhenever you use the ring again before taking a Long Rest, you must succeed on a DC 15 Constitution saving throw or gain 1 Exhaustion level.",
+    slot: "ring",
   },
   {
     id: "robe-of-eyes",
@@ -1723,6 +1827,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 4,
     description: "This robe is adorned with eyelike patterns. While you wear the robe, you gain the following benefits:\n\n**All-Around Vision.** The robe gives you Advantage on Wisdom (Perception) checks that rely on sight.\n\n**Special Senses.** You have Darkvision and Truesight, both with a range of 120 feet.\n\n_Drawbacks._ A _Light_ spell cast on the robe or a _Daylight_ spell cast within 5 feet of the robe gives you the Blinded condition for 1 minute. At the end of each of your turns, you make a Constitution saving throw (DC 11 for _Light_ or DC 15 for _Daylight_), ending the condition on yourself on a success.",
+    slot: "other",
   },
   {
     id: "robe-of-scintillating-colors",
@@ -1732,6 +1837,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 4,
     description: "This robe has 3 charges, and it regains 1d3 expended charges daily at dawn. While you wear it, you can take a Magic action and expend 1 charge to cause the garment to display a shifting pattern of dazzling hues until the end of your next turn. During this time, the robe sheds Bright Light in a 30-foot radius and Dim Light for an additional 30 feet, and creatures that can see you have Disadvantage on attack rolls against you. Any creature in the Bright Light that can see you when the robe's power is activated must succeed on a DC 15 Wisdom saving throw or have the Stunned condition until the effect ends.",
+    slot: "other",
   },
   {
     id: "robe-of-stars",
@@ -1741,6 +1847,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 4,
     description: "This black or dark-blue robe is embroidered with small white or silver stars. You gain a +1 bonus to saving throws while you wear it.\n\nSix stars, located on the robe's upper-front portion, are particularly large. While wearing this robe, you can take a Magic action to remove one of the stars and expend it to cast the level 5 version of _Magic Missile_. Daily at dusk, 1d6 removed stars reappear on the robe.\n\nWhile you wear the robe, you can take a Magic action to enter the Astral Plane along with everything you are wearing and carrying. You remain there until you take a Magic action to return to the plane you were on. You reappear in the last space you occupied or, if that space is occupied, the nearest unoccupied space.",
+    slot: "other",
   },
   {
     id: "robe-of-the-archmagi",
@@ -1751,6 +1858,7 @@ export const magicItems: readonly MagicItem[] = [
   attunementNote: "a Sorcerer, Warlock, or Wizard",
     weight: 4,
     description: "Wondrous Item, Legendary (Requires Attunement by a Sorcerer, Warlock, or Wizard)",
+    slot: "other",
   },
   {
     id: "robe-of-useful-items",
@@ -1760,6 +1868,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: false,
     weight: 4,
     description: "This robe has cloth patches of various shapes and colors covering it. While wearing the robe, you can take a Magic action to detach one of the patches, causing it to become the object or creature it represents. Once the last patch is removed, the robe becomes an ordinary garment.\n\nThe robe has two of each of the following patches:\n\n- Bullseye Lantern (filled and lit)\n- Dagger\n- Mirror\n- Pole\n- Rope (coiled)\n- Sack\n\nIn addition, the robe has 4d4 other patches. The GM chooses the patches or determines them randomly by rolling on the following table.\n\n<table>\n  <thead>\n    <tr>\n      <th>1d100</th>\n      <th>Patch</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <td>01–08</td>\n      <td>Bag of 100 GP</td>\n    </tr>\n    <tr>\n      <td>09–15</td>\n      <td>Silver coffer (1 foot long, 6 inches wide and deep) worth 500 GP</td>\n    </tr>\n    <tr>\n      <td>16–22</td>\n      <td>Iron door (up to 10 feet wide and 10 feet high, barred on one side of your choice), which you can place in an opening you can reach; it conforms to fit the opening, attaching and hinging itself</td>\n    </tr>\n    <tr>\n      <td>23–30</td>\n      <td>10 gems worth 100 GP each</td>\n    </tr>\n    <tr>\n      <td>31–44</td>\n      <td>Wooden ladder (24 feet long)</td>\n    </tr>\n    <tr>\n      <td>45–51</td>\n      <td>Riding Horse with a Riding Saddle</td>\n    </tr>\n    <tr>\n      <td>52–59</td>\n      <td>Open pit (a 10-foot Cube), which you can place on the ground within 10 feet of yourself</td>\n    </tr>\n    <tr>\n      <td>60–68</td>\n      <td>4 Potions of Healing</td>\n    </tr>\n    <tr>\n      <td>69–75</td>\n      <td>Rowboat (12 feet long)</td>\n    </tr>\n    <tr>\n      <td>76–83</td>\n      <td>Spell Scroll containing one spell of level 1, 2, or 3 (your choice)</td>\n    </tr>\n    <tr>\n      <td>84–90</td>\n      <td>2 Mastiffs</td>\n    </tr>\n    <tr>\n      <td>91–96</td>\n      <td>Window (2 feet by 4 feet, up to 2 feet deep), which you can place on a vertical surface you can reach</td>\n    </tr>\n    <tr>\n      <td>97–00</td>\n      <td>Portable Ram</td>\n    </tr>\n  </tbody>\n</table>",
+    slot: "other",
   },
   {
     id: "rod-of-absorption",
@@ -1841,6 +1950,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 0,
     description: "This beetle-shaped medallion provides three benefits while it is on your person.\n\n_Defense._ You gain a +1 bonus to Armor Class.\n\n_Preservation._ The scarab has 12 charges. If you fail a saving throw against a Necromancy spell or a harmful effect originating from an Undead, you can take a Reaction to expend 1 charge and turn the failed save into a successful one. The scarab crumbles into powder and is destroyed when its last charge is expended.\n\n_Spell Resistance._ You have Advantage on saving throws against spells.",
+    slot: "neck",
   },
   {
     id: "scimitar-of-speed",
@@ -1868,6 +1978,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: false,
     weight: 6,
     description: "While holding this Shield, you have Advantage on Initiative rolls and Wisdom (Perception) checks. The Shield is emblazoned with a symbol of an eye.",
+    slot: "shield",
   },
   {
     id: "shield-1-2-or-3",
@@ -1877,6 +1988,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: false,
     weight: 6,
     description: "While holding this Shield, you have a bonus to Armor Class determined by the Shield's rarity, in addition to the Shield's normal bonus to AC.",
+    slot: "shield",
   },
   {
     id: "shield-of-missile-attraction",
@@ -1886,6 +1998,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 6,
     description: "While holding this Shield, you have Resistance to damage from attacks made with Ranged weapons.\n\n_Curse._ This Shield is cursed. Attuning to it curses you until you are targeted by a _Remove Curse_ spell or similar magic. Removing the Shield fails to end the curse on you. Whenever an attack with a Ranged weapon targets a creature within 10 feet of you, the curse causes you to become the target instead.",
+    slot: "shield",
   },
   {
     id: "shield-of-the-cavalier",
@@ -1895,6 +2008,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 6,
     description: "While holding this Shield, you have a +2 bonus to Armor Class. This bonus is in addition to the Shield's normal bonus to AC.\n\nThe Shield has the following additional properties that you can use while holding it.\n\n_Forceful Bash._ When you take the Attack action, you can make one of the attack rolls using the Shield against a target within 5 feet of yourself. Apply your Proficiency Bonus and Strength modifier to the attack roll. On a hit, the Shield deals Force damage to the target equal to 2d6 + 2 plus your Strength modifier, and if the target is a creature, you can push it up to 10 feet directly away from yourself. If the creature is your size or smaller, you can also knock it down, giving it the Prone condition.\n\n_Protective Field._ As a Reaction, when you or an ally you can see within 5 feet of you is targeted by an attack or makes a saving throw against an area of effect, you can use the Shield to create an immobile 5-foot Emanation originating from you. When the Emanation appears, any creatures or objects not fully contained within it are pushed into the nearest unoccupied spaces outside it. The attack or area of effect that triggered the Reaction has no effect on creatures and objects inside the Emanation, which lasts as long as you maintain Concentration, up to 1 minute. Nothing can pass into or out of the Emanation. A creature or object inside the Emanation can't be damaged by attacks or effects originating from outside, nor can a creature inside the Emanation damage anything outside it. Once this property is used, it can't be used again until the next dawn.",
+    slot: "shield",
   },
   {
     id: "slippers-of-spider-climbing",
@@ -1904,6 +2018,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 1,
     description: "While you wear these light shoes, you can move up, down, and across vertical surfaces and along ceilings, while leaving your hands free. You have a Climb Speed equal to your Speed. However, the slippers don't allow you to move this way on a slippery surface, such as one covered by ice or oil.",
+    slot: "boots",
   },
   {
     id: "sovereign-glue",
@@ -1922,6 +2037,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 6,
     description: "While holding this Shield, you have Advantage on saving throws against spells and other magical effects, and spell attack rolls have Disadvantage against you.",
+    slot: "shield",
   },
   {
     id: "spell-scroll",
@@ -2120,6 +2236,7 @@ export const magicItems: readonly MagicItem[] = [
   attunementNote: "a Cleric or Paladin",
     weight: 0,
     description: "Wondrous Item, Legendary (Requires Attunement by a Cleric or Paladin)",
+    slot: "neck",
   },
   {
     id: "talisman-of-the-sphere",
@@ -2129,6 +2246,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 0,
     description: "While holding or wearing this talisman, you have Advantage on any Intelligence (Arcana) check you make to control a _Sphere of Annihilation_. In addition, when you start your turn in control of a _Sphere of Annihilation_, you can take a Magic action to move it 10 feet plus a number of additional feet equal to 10 times your Intelligence modifier. This movement doesn't have to be in a straight line.",
+    slot: "neck",
   },
   {
     id: "talisman-of-ultimate-evil",
@@ -2138,6 +2256,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 0,
     description: "This item symbolizes unrepentant evil. A creature that isn't a Fiend or an Undead that touches the talisman takes 8d6 Necrotic damage and takes the damage again each time it ends its turn holding or carrying the talisman.\n\n_Holy Symbol._ You can use the talisman as a Holy Symbol. You gain a +2 bonus to spell attack rolls while you wear or hold it.\n\n_Ultimate End._ The talisman has 6 charges. While wearing or holding the talisman, you can take a Magic action to expend 1 charge and target one creature you can see on the ground within 120 feet of yourself. A flaming fissure opens under the target, and the target makes a DC 20 Dexterity saving throw. If the target is a Celestial, it has Disadvantage on the save. On a failed save, the target falls into the fissure and is destroyed, leaving no remains. On a successful save, the target isn't cast into the fissure but takes 4d6 Psychic damage from the ordeal. In either case, the fissure then closes, leaving no trace of its existence. When you expend the last charge, the talisman dissolves into foul-smelling slime and is destroyed.",
+    slot: "neck",
   },
   {
     id: "thunderous-greatclub",
@@ -2378,6 +2497,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 1,
     description: "These boots have 4 charges and regain 1d4 expended charges daily at dawn. While wearing the boots, you can take a Magic action to expend 1 charge, gaining a Fly Speed of 30 feet for 1 hour. If you are flying when the duration expires, you descend at a rate of 30 feet per round until you land.",
+    slot: "boots",
   },
   {
     id: "wings-of-flying",
@@ -2387,6 +2507,7 @@ export const magicItems: readonly MagicItem[] = [
     attunement: true,
     weight: 1,
     description: "While wearing this cloak, you can take a Magic action to turn the cloak into a pair of wings on your back. The wings lasts for 1 hour or until you end the effect early as a Magic action. The wings give you a Fly Speed of 60 feet. If you are aloft when the wings disappear, you fall. When the wings disappear, you can't use them again for 1d12 hours.",
+    slot: "cloak",
   },
 ]
 

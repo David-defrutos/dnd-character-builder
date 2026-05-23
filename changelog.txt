@@ -7,6 +7,305 @@ Convenciones:
 - # = referencia al bug/feature en la memoria de trabajo.
 
 ────────────────────────────────────────
+2026-05-23 12:13 · #125 — Equipment Manager en 2 pestañas: My Equipment / Add New
+────────────────────────────────────────
+Separación visual del EquipmentManager en dos secciones de propósito
+distinto, accesibles por pestañas padre:
+
+  1. "My Equipment" — gestión del inventario actual: equipar, atunar,
+     mover entre Equipped/Carried/In Magical Containers, borrar.
+  2. "Add New" — añadir nuevo equipamiento: catálogos de weapons, armor,
+     gear, magic items + adder de custom items.
+
+ANTES DE #125: una sola fila de 5 pestañas planas (inventory, weapons,
+armor, gear, magic), donde "inventory" era la gestión y las otras 4 los
+catálogos. Era confuso porque mezclaba dos verbos (gestionar vs añadir)
+en la misma jerarquía.
+
+DESPUÉS DE #125: jerarquía de 2 niveles.
+  - MainTab (padre): My Equipment / Add New.
+  - SubTab (hija): solo visible bajo "Add New", con las 4 categorías de
+    catálogo (weapons / armor / gear / magic).
+  - El custom item adder vive bajo "Add New" (común a las 4 sub-pestañas),
+    no bajo "My Equipment" — porque crear un item ES añadir, no gestionar.
+
+ARCHIVOS:
+- src/components/shared/EquipmentManager.vue:
+    · Type Tab (5 valores) → split en MainTab ('my-equipment'|'add-new') y
+      SubTab ('weapons'|'armor'|'gear'|'magic'). Defaults: my-equipment +
+      weapons.
+    · Template: dos filas de tabs (MainTab visible siempre, SubTab solo
+      cuando activeMainTab === 'add-new'), con jerarquía visual (sub-tabs
+      en fuente más pequeña y fondo distinto).
+    · Los v-if de los 4 sub-tabs ahora guardan también activeMainTab.
+    · Custom item adder movido al bloque "Add New" (debajo de los 4
+      sub-tabs, visible siempre que estés en "Add New").
+    · Mensaje empty actualizado: "Switch to Add New to browse..." (antes:
+      "Browse the tabs", referencia obsoleta al modelo plano).
+
+NO cambia el modelo de datos ni la lógica de equipar/atunar/store. Es un
+refactor puramente visual. La pestaña "My Equipment" conserva los 3
+bloques (Equipped/Carried/In Magical Containers) del #123 intactos.
+
+TESTS: 890/890 OK. Build: OK. TS strict: OK.
+
+────────────────────────────────────────
+2026-05-23 12:01 · #124 — Anotación manual completa de slots en magic-items
+────────────────────────────────────────
+CONTEXTO: #123 dejó 73 items anotados con `slot` por patrón automático.
+Ampliado en sesión paralela (otro chat) que revisó manualmente los items
+restantes leyendo la `description` de cada uno.
+
+RESULTADO FINAL (102 items con slot, 158 sin slot):
+
+  Slot            Items
+  ───────────────────────
+  ring              22
+  neck              14
+  head              12
+  armor             12
+  other             11
+  cloak             10
+  boots              8
+  shield             7
+  gloves             4
+  belt               2
+  ───────────────────────
+  Total slot       102
+  Sin slot         158
+
+CRITERIO APLICADO POR EL CHAT PARALELO:
+- Lectura de la description: "While you wear this X", "When you wear..."
+  identifica el slot real, no solo el nombre.
+- Items "no llevados puestos" (potions, scrolls, wands, weapons concretos
+  como vorpal-sword, instrumentos, figurines, bag-of-tricks) quedan sin
+  slot — el sistema los trata como "freely equippable".
+- "armor": 12 items category="Armor" sin "shield" en id/name.
+- "shield": 7 escudos (Animated Shield, Sentinel Shield, Shield +1/+2/+3...).
+- "other": 11 items sí equipables que no encajan en slots concretos
+  (capas dobles, herramientas mágicas equipables, etc.).
+
+CONTAINERS EXTRADIMENSIONALES: 4 marcados con `isContainer: true`:
+  - bag-of-holding (ya estaba)
+  - handy-haversack (ya estaba)
+  - portable-hole (ya estaba)
+  - efficient-quiver (NUEVO — su description dice "Each of the quiver's
+    three compartments connects to an extradimensional space [...] never
+    weighing more than 2 pounds", encaja con la regla).
+  - bag-of-tricks NO se marca como container (saca animales, no almacena).
+
+DECISIÓN DE DISEÑO confirmada en este merge:
+- Containers (bag-of-holding, etc.) NO necesitan `slot`. Solo importa
+  `isContainer: true` para que su contenido se excluya del peso.
+- No hay regla PHB de "1 Bag of Holding equipada a la vez" — un PJ puede
+  llevar varias (extradimensional + extradimensional = portal al Astral
+  Plane, pero eso es responsabilidad del usuario, no del sistema).
+
+AJUSTE DE TEST:
+- src/utils/equipSlots.test.ts: el test "Bag of Holding → other" se
+  reescribió a "Bag of Holding → sin slot, isContainer true" para
+  reflejar el modelo conservador (más correcto). El otro test (Cloak of
+  Protection → cloak, Ring of Protection → ring) sigue intacto.
+
+ARCHIVOS:
+- src/data/dnd5e/magic-items.ts (anotaciones manuales + 1 container nuevo)
+- src/utils/equipSlots.test.ts (ajuste de un test)
+
+TESTS: 890/890 OK. Build: OK. TS strict: OK.
+
+NOTA DE PROCESO: el archivo entrante eliminó los JSDoc comments largos
+del schema; se restauraron en el merge (sin cambio funcional, mantienen
+referencia al #123 para futuras refactorizaciones).
+
+────────────────────────────────────────
+2026-05-23 11:24 · #123 — Inventario en 3 bloques + slots + carpeta de PJs
+────────────────────────────────────────
+Cambio amplio en la gestión de inventario y encumbrance, agrupado en 4 bloques:
+
+A) Modelo: campos nuevos en InventoryItem y MagicItem.
+B) Encumbrance + PDF: stored excluido del cómputo, desglose por bloque.
+C) UI: 3 bloques visuales en EquipmentManager + selector slot custom.
+D) Carpeta de personajes compartidos (public/characters/).
+
+────── A) Modelo y catálogo ──────
+
+InventoryItem (src/stores/character.ts) gana:
+  - stored?: boolean — item dentro de container mágico extradimensional.
+    Mutuamente excluyente con equipped. Su peso NO cuenta para encumbrance.
+  - selectedSlot?: SlotType — slot declarado para custom items
+    ('armor' | 'shield' | 'boots' | 'gloves' | 'belt' | 'cloak' | 'head' |
+     'neck' | 'ring' | 'other').
+  - isMagicalContainer?: boolean — flag para custom items que son containers
+    extradimensionales (Bag of Holding homebrew, etc.).
+
+MagicItem (src/data/dnd5e/magic-items.ts) gana:
+  - slot?: MagicItemSlot — slot del catálogo. Opcional: items sin slot se
+    tratan como freely equippable (sin reglas de unicidad).
+  - isContainer?: boolean — marca containers extradimensionales del catálogo.
+
+CATÁLOGO ANOTADO (cobertura pragmática del 80% de casos comunes):
+- 73 items del catálogo anotados con slot por patrón de id (scripts/
+  annotate-magic-item-slots.ts, ejecutado una vez, idempotente):
+    · 22 rings (ring-of-*)
+    · 14 neck items (amulet-of-*, periapt-of-*, talisman-of-*)
+    · 13 cloaks (cloak-of-*, mantle-of-*, robe-of-*)
+    · 8 head (helm-of-*, circlet-of-*, headband-of-*, hat-of-*)
+    · 7 boots (boots-of-*, slippers-of-*, winged-boots)
+    · 4 gloves (gauntlets-of-*, gloves-of-*)
+    · 2 belts (belt-of-*)
+    · 3 containers (bag-of-holding, handy-haversack, portable-hole)
+- Items sin patrón claro (potions, wands, staffs, weapons concretos) quedan
+  sin slot — sistema los trata como "freely equippable".
+
+────── A) Helpers puros ──────
+
+src/utils/equipSlots.ts (NUEVO):
+  - resolveSlot(item): SlotType | undefined — lookup catálogo, luego custom,
+    luego undefined.
+  - isMagicalContainer(item): boolean.
+  - isRing(item): boolean.
+  - equipItem(inv, slotId): { updates, notice? } — equipa el item; si el
+    slot está ocupado, auto-desequipa el anterior y devuelve notice; si
+    estaba stored, sale del container.
+  - attuneItem(inv, slotId): { updates, notice? } — atunea con cascada:
+      · Anillos: máx 2 atunados. Tercer ring atunado → desatúa el más antiguo.
+      · Total: máx 3 atunados. Cuarto attune → desatúa el más antiguo.
+      · "Más antiguo" = primer item en el orden del array (FIFO simple).
+  - getEquippedConflicts(char) — diagnóstico de slots con MÁS items
+    equipados de lo permitido (PJ importado con datos inconsistentes).
+  - getAttunementSummary(char) — conteo total + rings + flags exceedsTotal/
+    exceedsRings.
+
+src/utils/equipSlots.test.ts (NUEVO, 29 tests).
+
+────── B) Encumbrance + PDF ──────
+
+src/utils/carryingLoad.ts:
+  - CarryingLoadResult amplía: equippedLbs, carriedLbs, storedLbs.
+  - computeCurrentLoad ahora clasifica cada item según equipped/stored/none:
+      · stored → storedLbs (NO cuenta en total).
+      · equipped → equippedLbs (cuenta).
+      · resto → carriedLbs (cuenta).
+  - total = equippedLbs + carriedLbs.
+  - Si por error un item está stored+equipped (PJ importado inconsistente),
+    prioriza stored (más conservador para encumbrance).
+
+src/utils/carryingLoad.test.ts: +3 tests (#123) sobre stored y desglose.
+
+src/utils/pdfAppendix.ts — drawCarryingCapacity amplía con 3 líneas extra:
+    Equipped: X lbs
+    Carried: Y lbs
+    In magical containers: Z lbs (does not count)
+    Current Load: X+Y lbs (kg)
+    Capacity used: N%
+    Status: ...
+
+src/utils/pdfFieldMapping.ts — campo Inventory de hoja 1 ahora se agrupa
+en 3 cabeceras (Equipped / Carried / In Magical Containers), con sangría
+y separador en blanco entre bloques. char.equipment (texto libre) y
+treasure van bajo "Carried" por defecto.
+
+VERIFICACIÓN MANUAL CON SALUSA (Bard Glamour lv.10, STR 8):
+- Inventario sin clasificar: 53 lbs → Encumbered (53 > 40 = STR×5).
+- Misma Salusa con bedroll, rope, violín y potions dentro de la Bag of
+  Holding: equipped 14 + carried 20 = 34 lbs (stored = 19 lbs) →
+  Unencumbered. Coherente con regla PHB 2024.
+
+────── C) UI ──────
+
+src/components/shared/InventoryItemRow.vue (NUEVO):
+  - Componente extraído del listado plano del EquipmentManager.
+  - Props: item, block ('equipped' | 'carried' | 'stored'), hasContainer,
+    canEquip, needsAttune.
+  - Botones contextuales:
+      · equipped:  [✓ Equipped] (toggle) + [▶ Store] (si hay container)
+      · carried:   [○ Equip] (si canEquip) + [○ Attune] (si needsAttune)
+                   + [▶ Store] (si hay container)
+      · stored:    [◀ Take out]
+  - Emits: toggle-equip, toggle-attune, toggle-stored, remove,
+    qty-decrement, qty-increment.
+
+src/components/shared/EquipmentManager.vue:
+  - Listado plano → 3 secciones (Equipped, Carried, In Magical Containers).
+  - "In Magical Containers" solo visible si el PJ tiene algún container
+    mágico en el inventario.
+  - Selector de slot + checkbox "Magical container" en el form de custom
+    items (10 opciones de slot).
+  - toggleEquip refactorizado para usar equipItem() de equipSlots.ts con
+    auto-desplazamiento y notice visible. Conserva el fallback legacy
+    (slotsToUnequip del #118) para items genéricos sin slot detectable.
+  - toggleAttuned NUEVO — atunear vía attuneItem() con cascada (rings + total).
+  - toggleStored NUEVO — mover items entre carried/stored; al guardar
+    automáticamente desequipa si estaba equipado.
+
+────── D) Carpeta de personajes compartidos ──────
+
+public/characters/ (NUEVA):
+  - README.md con instrucciones (cómo añadir un PJ, regenerar índice,
+    desplegar a GitHub Pages).
+  - index.json autogenerado (lista [{file, name, className?, level?, race?}]
+    leída del propio JSON de cada PJ).
+  - salusa-bard-lv10.json incluido como ejemplo (datos reales del PJ del
+    usuario).
+
+scripts/rebuild-characters-index.ts (NUEVO):
+  - Escanea public/characters/*.json (excluye index.json).
+  - Lee name/className/level/race de cada JSON para mostrar metadata en UI.
+  - Tolerante a JSONs inválidos: los incluye sin enriquecer en vez de
+    descartarlos (no esconder archivos al usuario).
+  - Idempotente.
+
+package.json:
+  - Nuevo script: "rebuild-characters": "tsx scripts/rebuild-characters-index.ts"
+  - Uso: npm run rebuild-characters.
+
+src/components/shared/SharedCharacters.vue (NUEVO):
+  - Carga public/characters/index.json en mount.
+  - Sección colapsable "Shared Characters" con lista de PJs (name, class,
+    level, race).
+  - Botón "Load" por cada PJ: hace fetch del JSON, llama a importJson()
+    del store, y salta a Step9 Review si lv >= 2.
+  - Mensaje de éxito/error con autohide a 3s.
+  - Si index.json no existe (carpeta vacía o no desplegada), no muestra
+    nada al usuario (degrada en silencio).
+
+src/components/steps/Step1Variant.vue:
+  - Embebe <SharedCharacters /> antes del selector de variante. Es la
+    pantalla de entrada al builder; si tienes PJs compartidos, los ves al
+    abrir la app.
+
+WORKFLOW DE PUBLICACIÓN (documentado en public/characters/README.md):
+  1. Exporta JSON del PJ.
+  2. Copia a public/characters/.
+  3. npm run rebuild-characters
+  4. npm run build
+  5. git add -A && git commit -m "Add character: X" && git push
+  GitHub Pages sirve docs/ → la web actualizada incluye el nuevo PJ.
+
+────── Archivos ──────
+- src/stores/character.ts (stored, selectedSlot, isMagicalContainer + SlotType)
+- src/data/dnd5e/magic-items.ts (slot, isContainer + 73 anotaciones)
+- src/utils/equipSlots.ts (NUEVO)
+- src/utils/equipSlots.test.ts (NUEVO, 29 tests)
+- src/utils/carryingLoad.ts (desglose por bloque)
+- src/utils/carryingLoad.test.ts (+3 tests)
+- src/utils/pdfAppendix.ts (drawCarryingCapacity con 3 líneas extra)
+- src/utils/pdfFieldMapping.ts (Inventory en 3 cabeceras)
+- src/components/shared/EquipmentManager.vue (3 bloques + handlers)
+- src/components/shared/InventoryItemRow.vue (NUEVO)
+- src/components/shared/SharedCharacters.vue (NUEVO)
+- src/components/steps/Step1Variant.vue (embebe SharedCharacters)
+- public/characters/README.md (NUEVO)
+- public/characters/index.json (NUEVO, autogenerado)
+- public/characters/salusa-bard-lv10.json (NUEVO, ejemplo)
+- scripts/annotate-magic-item-slots.ts (NUEVO)
+- scripts/rebuild-characters-index.ts (NUEVO)
+- package.json (script rebuild-characters)
+
+TESTS: 890/890 OK (858 previos + 32 nuevos: 29 equipSlots + 3 carryingLoad).
+Build production: OK. TS strict: OK.
+
+────────────────────────────────────────
 2026-05-23 10:16 · #122 — PDF: persistir el fix de fuente en la plantilla base
 ────────────────────────────────────────
 SÍNTOMA: tras #120, "Vicious Mockery" en la fila 2 de CANTRIPS & PREPARED

@@ -928,6 +928,7 @@ function drawSpellSlots(state: DrawState, char: CharacterData): void {
 function drawCarryingCapacity(state: DrawState, char: CharacterData): void {
   const c = computeCarryingCapacity(char)
   // #121 — Current Load real basada en char.inventory[]
+  // #123 — desglose por bloque (Equipped / Carried / In magical containers)
   const load = computeCurrentLoad(char)
 
   drawSectionHeader(state, 'Carrying Capacity')
@@ -937,7 +938,10 @@ function drawCarryingCapacity(state: DrawState, char: CharacterData): void {
     `Push, Drag, or Lift: ${c.pushDragLiftLbs} lbs (${c.pushDragLiftKg} kg) — 2x capacity`,
     `Encumbered: more than ${c.encumberedAtLbs} lbs (${c.encumberedAtKg} kg) — STR x 5`,
     `Heavily Encumbered: more than ${c.heavilyEncumberedAtLbs} lbs (${c.heavilyEncumberedAtKg} kg) — STR x 10`,
-    // #121 — 3 filas con la carga real, calculada del inventario.
+    // #123 — desglose por bloque (3 líneas) seguido del total y status.
+    `Equipped: ${load.equippedLbs} lbs`,
+    `Carried: ${load.carriedLbs} lbs`,
+    `In magical containers: ${load.storedLbs} lbs (does not count)`,
     `Current Load: ${load.total} lbs (${load.totalKg} kg)`,
     `Capacity used: ${load.capacityUsedPct}%`,
     `Status: ${load.status}`,

@@ -718,19 +718,49 @@ export function getDnd2024FieldMapping(char: CharacterData): Record<string, stri
   // char.equipment es el listado clásico (texto libre); char.inventory es
   // donde están los magic items con kind, qty, attuned. Antes solo se metía
   // char.equipment, así que los magic items (ej: Winged Boots) no aparecían.
+  //
+  // #123 — los items con equipped/stored se agrupan en 3 cabeceras
+  // (Equipped / Carried / In Magical Containers). char.equipment (texto
+  // libre clásico) y treasure van en "Carried" por defecto al no tener
+  // metadatos de bloque.
   const inventoryLines: string[] = []
-  // Items mundanos del array clásico, si los hay.
-  const equipmentText = char.equipment.join(', ')
-  if (equipmentText) inventoryLines.push(equipmentText)
-  // Items del inventory[] estructurado (armas, armadura, magic, custom).
-  for (const item of char.inventory ?? []) {
+
+  function renderItem(item: NonNullable<CharacterData['inventory']>[number]): string {
     let line = item.name
     if (item.qty > 1) line = `${item.name} (×${item.qty})`
     if (item.kind === 'magic' && item.attuned) line += ' [attuned]'
     if (item.notes) line += ` — ${item.notes}`
-    inventoryLines.push(line)
+    return line
   }
-  if (char.treasure) inventoryLines.push(`\nTreasure: ${char.treasure}`)
+
+  const inv = char.inventory ?? []
+  const equippedItems = inv.filter(i => i.equipped && !i.stored)
+  const storedItems = inv.filter(i => i.stored)
+  const carriedItems = inv.filter(i => !i.equipped && !i.stored)
+
+  if (equippedItems.length > 0) {
+    inventoryLines.push('Equipped:')
+    for (const item of equippedItems) inventoryLines.push(`  ${renderItem(item)}`)
+  }
+
+  // "Carried" agrupa items sin marca + equipment libre + treasure.
+  const carriedLines: string[] = []
+  for (const item of carriedItems) carriedLines.push(`  ${renderItem(item)}`)
+  const equipmentText = char.equipment.join(', ')
+  if (equipmentText) carriedLines.push(`  ${equipmentText}`)
+  if (char.treasure) carriedLines.push(`  Treasure: ${char.treasure}`)
+  if (carriedLines.length > 0) {
+    if (inventoryLines.length > 0) inventoryLines.push('')
+    inventoryLines.push('Carried:')
+    inventoryLines.push(...carriedLines)
+  }
+
+  if (storedItems.length > 0) {
+    if (inventoryLines.length > 0) inventoryLines.push('')
+    inventoryLines.push('In Magical Containers:')
+    for (const item of storedItems) inventoryLines.push(`  ${renderItem(item)}`)
+  }
+
   fields['Inventory'] = inventoryLines.join('\n')
 
   fields['Languages'] = (char.languages ?? []).join(', ')

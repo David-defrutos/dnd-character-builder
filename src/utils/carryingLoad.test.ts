@@ -112,4 +112,60 @@ describe('carryingLoad', () => {
   it('rounds pounds to kilograms', () => {
     expect(lbsToKg(17)).toBe(8)
   })
+
+  // #123 — stored items NO cuentan; desglose por bloque
+  it('#123 — items con stored:true no cuentan en total ni status', () => {
+    const load = computeCurrentLoad(baseChar({
+      abilityScores: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+      inventory: [
+        { slotId: 'a', kind: 'custom', itemId: '', name: 'Carried', qty: 1, weight: 30 },
+        { slotId: 'b', kind: 'custom', itemId: '', name: 'In Bag', qty: 1, weight: 80, stored: true },
+      ],
+    }))
+    expect(load.total).toBe(30)
+    expect(load.storedLbs).toBe(80)
+    expect(load.carriedLbs).toBe(30)
+    expect(load.equippedLbs).toBe(0)
+    expect(load.status).toBe('Unencumbered')
+  })
+
+  it('#123 — desglose por bloques (equipped + carried + stored)', () => {
+    const load = computeCurrentLoad(baseChar({
+      inventory: [
+        { slotId: 'a', kind: 'custom', itemId: '', name: 'Armor', qty: 1, weight: 20, equipped: true },
+        { slotId: 'b', kind: 'custom', itemId: '', name: 'Sword', qty: 1, weight: 6, equipped: true },
+        { slotId: 'c', kind: 'custom', itemId: '', name: 'Rations', qty: 5, weight: 2 },
+        { slotId: 'd', kind: 'custom', itemId: '', name: 'Bedroll', qty: 1, weight: 7, stored: true },
+      ],
+    }))
+    expect(load.equippedLbs).toBe(26)
+    expect(load.carriedLbs).toBe(10)
+    expect(load.storedLbs).toBe(7)
+    expect(load.total).toBe(36)  // 26 + 10
+  })
+
+  it('#123 — Salusa con todo en BoH baja de Encumbered a Unencumbered', () => {
+    // STR 8 → cap 120; encumbered > 40.
+    // Sin stored: 13 + 4 + 15 + 1 + 1 + 1 + 7 + 10 + 1 = 53 → Encumbered.
+    // Con bedroll, rope, healing potions y violín dentro de BoH: queda 13+4+15+1+1 = 34 → Unencumbered.
+    const inventory: CharacterData['inventory'] = [
+      { slotId: 'armor', kind: 'custom', itemId: '', name: 'Studded Leather', qty: 1, weight: 13, equipped: true },
+      { slotId: 'dagger', kind: 'custom', itemId: '', name: 'Dagger x4', qty: 4, weight: 1 },
+      { slotId: 'boh', kind: 'custom', itemId: '', name: 'Bag of Holding', qty: 1, weight: 15 },
+      { slotId: 'cloak', kind: 'custom', itemId: '', name: 'Cloak of Protection', qty: 1, weight: 1, equipped: true },
+      { slotId: 'tools', kind: 'custom', itemId: '', name: "Thieves' Tools", qty: 1, weight: 1 },
+      { slotId: 'violin', kind: 'custom', itemId: '', name: 'Violin', qty: 1, weight: 1, stored: true },
+      { slotId: 'bedroll', kind: 'custom', itemId: '', name: 'Bedroll', qty: 1, weight: 7, stored: true },
+      { slotId: 'rope', kind: 'custom', itemId: '', name: 'Rope', qty: 1, weight: 10, stored: true },
+      { slotId: 'potion', kind: 'custom', itemId: '', name: 'Healing Potion', qty: 2, weight: 0.5, stored: true },
+    ]
+    const load = computeCurrentLoad(baseChar({
+      abilityScores: { str: 8, dex: 13, con: 10, int: 15, wis: 12, cha: 15 },
+      inventory,
+    }))
+    // 13 (armor eq) + 1 (cloak eq) + 4 (4 daggers) + 15 (BoH) + 1 (tools) = 34
+    expect(load.total).toBe(34)
+    expect(load.storedLbs).toBe(1 + 7 + 10 + 1)  // 19 lbs en la bolsa
+    expect(load.status).toBe('Unencumbered')
+  })
 })

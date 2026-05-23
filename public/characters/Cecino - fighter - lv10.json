@@ -1,0 +1,450 @@
+{
+  "id": "45cf0901-c679-4580-ba48-d1f1031e4d7e",
+  "variant": "dnd5e",
+  "name": "Cecino",
+  "playerName": "Frutos",
+  "race": "gnome",
+  "subrace": "forest-gnome",
+  "className": "fighter",
+  "subclass": "echo-knight",
+  "level": 10,
+  "background": "guide",
+  "alignment": "ng",
+  "experiencePoints": 0,
+  "abilityScores": {
+    "str": 12,
+    "dex": 15,
+    "con": 14,
+    "int": 10,
+    "wis": 13,
+    "cha": 8
+  },
+  "speciesBonuses": {},
+  "speciesChoices": {},
+  "backgroundBonuses": {
+    "dex": 2,
+    "con": 1
+  },
+  "asiBonuses": {
+    "dex": 2,
+    "wis": 1
+  },
+  "skillProficiencies": [
+    "stealth",
+    "survival",
+    "perception",
+    "athletics"
+  ],
+  "skillExpertise": [],
+  "savingThrowProficiencies": [
+    "str",
+    "con",
+    "wis",
+    "dex"
+  ],
+  "languages": [
+    "Common",
+    "Common Sign Language",
+    "Gnomish"
+  ],
+  "proficienciesOther": [],
+  "weapons": [],
+  "armor": "",
+  "shield": false,
+  "equipment": [],
+  "coins": {
+    "cp": 0,
+    "sp": 0,
+    "ep": 0,
+    "gp": 0,
+    "pp": 0
+  },
+  "personalityTraits": "",
+  "ideals": "",
+  "bonds": "",
+  "flaws": "",
+  "featuresTraits": [
+    "Origin Feat: Magic Initiate",
+    "Action Surge",
+    "Tactical Mind",
+    "Fighter Subclass",
+    "Ability Score Improvement",
+    "Extra Attack",
+    "Tactical Shift",
+    "Echo Avatar",
+    "Indomitable",
+    "Tactical Master",
+    "Shadow Martyr",
+    "ASI Feat: Crossbow Expert (lv.4)",
+    "ASI Feat: Resilient (lv.6)",
+    "ASI Feat: Resilient (lv.8)"
+  ],
+  "backstory": "",
+  "age": "15",
+  "height": "90 cm",
+  "weight": "16 kg",
+  "eyes": "Green",
+  "hair": "None",
+  "skin": "Red",
+  "allies": "",
+  "treasure": "",
+  "spellcastingClass": "",
+  "spellcastingAbility": "",
+  "cantrips": [],
+  "spellsKnown": [],
+  "spellsPrepared": [],
+  "hitDie": 10,
+  "maxHp": 84,
+  "currentHp": 84,
+  "tempHp": 0,
+  "speed": 30,
+  "sessionNotes": "",
+  "classes": [],
+  "asiChoices": [
+    {
+      "level": 4,
+      "type": "feat",
+      "featId": "crossbow-expert",
+      "featAbility": "dex",
+      "featChoices": {}
+    },
+    {
+      "level": 6,
+      "type": "feat",
+      "featId": "resilient",
+      "featAbility": "wis",
+      "featChoices": {}
+    },
+    {
+      "level": 8,
+      "type": "feat",
+      "featId": "resilient",
+      "featAbility": "dex",
+      "featChoices": {}
+    }
+  ],
+  "classArmorProficiencies": [
+    "light",
+    "medium",
+    "heavy",
+    "shields"
+  ],
+  "classWeaponProficiencies": [
+    "simple",
+    "martial"
+  ],
+  "classToolProficiencies": [],
+  "classSkillProficiencies": [
+    "perception",
+    "athletics"
+  ],
+  "fightingStyleFeat": "archery",
+  "backgroundSkillProficiencies": [
+    "stealth",
+    "survival"
+  ],
+  "originFeatId": "magic-initiate",
+  "weaponMasteries": [
+    "Dagger",
+    "Hand Crossbow",
+    "Rapier",
+    "Heavy Crossbow",
+    "Scimitar"
+  ],
+  "magicInitiateChoices": [
+    {
+      "source": "origin",
+      "spellList": "cleric",
+      "cantrips": [
+        "guidance",
+        "resistance"
+      ],
+      "levelOneSpell": "1-bless"
+    }
+  ],
+  "inventory": [
+    {
+      "slotId": "a1a4e2e2-9990-45c1-b9d5-aed98acebe11",
+      "kind": "magic",
+      "itemId": "hand crossbow-plus1",
+      "name": "Hand Crossbow +1",
+      "qty": 1,
+      "attuned": false
+    },
+    {
+      "slotId": "3316f954-d1d1-4a81-a0ef-b769e371a771",
+      "kind": "weapon",
+      "itemId": "Rapier",
+      "name": "Rapier",
+      "qty": 1
+    },
+    {
+      "slotId": "f6b539a4-2a8d-48fe-9218-3420c17573a4",
+      "kind": "weapon",
+      "itemId": "Dagger",
+      "name": "Dagger",
+      "qty": 1
+    },
+    {
+      "slotId": "b2a78577-a062-4454-95b1-2b63ce024b2e",
+      "kind": "armor",
+      "itemId": "Studded Leather Armor",
+      "name": "Studded Leather Armor",
+      "qty": 1,
+      "equipped": true
+    },
+    {
+      "slotId": "5fb20838-329e-48b8-b038-83b03c4863ab",
+      "kind": "magic",
+      "itemId": "winged-boots",
+      "name": "Winged Boots",
+      "qty": 1,
+      "attuned": true
+    }
+  ],
+  "speciesGrantedCantrips": [
+    "minor-illusion"
+  ],
+  "speciesGrantedSpells": [
+    "1-speak-with-animals"
+  ],
+  "toughHpBonus": 0,
+  "featAddedSavingThrows": [
+    "wis",
+    "dex"
+  ],
+  "featSpeedBonus": 0,
+  "featInitiativeProf": false,
+  "featDefenseACBonus": false,
+  "featAddedProficiencies": [],
+  "featAddedSkillProficiencies": [],
+  "featAddedExpertise": [],
+  "levelHistory": [
+    {
+      "level": 10,
+      "snapshotAt": "2026-05-23T08:15:52.259Z",
+      "snapshot": {
+        "id": "45cf0901-c679-4580-ba48-d1f1031e4d7e",
+        "variant": "dnd5e",
+        "name": "Cecino",
+        "playerName": "Frutos",
+        "race": "gnome",
+        "subrace": "forest-gnome",
+        "className": "fighter",
+        "subclass": "echo-knight",
+        "level": 10,
+        "background": "guide",
+        "alignment": "ng",
+        "experiencePoints": 0,
+        "abilityScores": {
+          "str": 12,
+          "dex": 15,
+          "con": 14,
+          "int": 10,
+          "wis": 13,
+          "cha": 8
+        },
+        "speciesBonuses": {},
+        "speciesChoices": {},
+        "backgroundBonuses": {
+          "dex": 2,
+          "con": 1
+        },
+        "asiBonuses": {
+          "dex": 2,
+          "wis": 1
+        },
+        "skillProficiencies": [
+          "stealth",
+          "survival",
+          "perception",
+          "athletics"
+        ],
+        "skillExpertise": [],
+        "savingThrowProficiencies": [
+          "str",
+          "con",
+          "wis",
+          "dex"
+        ],
+        "languages": [
+          "Common",
+          "Common Sign Language",
+          "Gnomish"
+        ],
+        "proficienciesOther": [],
+        "weapons": [],
+        "armor": "",
+        "shield": false,
+        "equipment": [],
+        "coins": {
+          "cp": 0,
+          "sp": 0,
+          "ep": 0,
+          "gp": 0,
+          "pp": 0
+        },
+        "personalityTraits": "",
+        "ideals": "",
+        "bonds": "",
+        "flaws": "",
+        "featuresTraits": [
+          "Origin Feat: Magic Initiate",
+          "Action Surge",
+          "Tactical Mind",
+          "Fighter Subclass",
+          "Ability Score Improvement",
+          "Extra Attack",
+          "Tactical Shift",
+          "Echo Avatar",
+          "Indomitable",
+          "Tactical Master",
+          "Shadow Martyr",
+          "ASI Feat: Crossbow Expert (lv.4)",
+          "ASI Feat: Resilient (lv.6)",
+          "ASI Feat: Resilient (lv.8)"
+        ],
+        "backstory": "",
+        "age": "15",
+        "height": "90 cm",
+        "weight": "16 kg",
+        "eyes": "Green",
+        "hair": "None",
+        "skin": "Red",
+        "allies": "",
+        "treasure": "",
+        "spellcastingClass": "",
+        "spellcastingAbility": "",
+        "cantrips": [],
+        "spellsKnown": [],
+        "spellsPrepared": [],
+        "hitDie": 10,
+        "maxHp": 84,
+        "currentHp": 84,
+        "tempHp": 0,
+        "speed": 30,
+        "sessionNotes": "",
+        "classes": [],
+        "asiChoices": [
+          {
+            "level": 4,
+            "type": "feat",
+            "featId": "crossbow-expert",
+            "featAbility": "dex",
+            "featChoices": {}
+          },
+          {
+            "level": 6,
+            "type": "feat",
+            "featId": "resilient",
+            "featAbility": "wis",
+            "featChoices": {}
+          },
+          {
+            "level": 8,
+            "type": "feat",
+            "featId": "resilient",
+            "featAbility": "dex",
+            "featChoices": {}
+          }
+        ],
+        "classArmorProficiencies": [
+          "light",
+          "medium",
+          "heavy",
+          "shields"
+        ],
+        "classWeaponProficiencies": [
+          "simple",
+          "martial"
+        ],
+        "classToolProficiencies": [],
+        "classSkillProficiencies": [
+          "perception",
+          "athletics"
+        ],
+        "fightingStyleFeat": "archery",
+        "backgroundSkillProficiencies": [
+          "stealth",
+          "survival"
+        ],
+        "originFeatId": "magic-initiate",
+        "weaponMasteries": [
+          "Dagger",
+          "Hand Crossbow",
+          "Rapier",
+          "Heavy Crossbow",
+          "Scimitar"
+        ],
+        "magicInitiateChoices": [
+          {
+            "source": "origin",
+            "spellList": "cleric",
+            "cantrips": [
+              "guidance",
+              "resistance"
+            ],
+            "levelOneSpell": "1-bless"
+          }
+        ],
+        "inventory": [
+          {
+            "slotId": "a1a4e2e2-9990-45c1-b9d5-aed98acebe11",
+            "kind": "magic",
+            "itemId": "hand crossbow-plus1",
+            "name": "Hand Crossbow +1",
+            "qty": 1,
+            "attuned": false
+          },
+          {
+            "slotId": "3316f954-d1d1-4a81-a0ef-b769e371a771",
+            "kind": "weapon",
+            "itemId": "Rapier",
+            "name": "Rapier",
+            "qty": 1
+          },
+          {
+            "slotId": "f6b539a4-2a8d-48fe-9218-3420c17573a4",
+            "kind": "weapon",
+            "itemId": "Dagger",
+            "name": "Dagger",
+            "qty": 1
+          },
+          {
+            "slotId": "b2a78577-a062-4454-95b1-2b63ce024b2e",
+            "kind": "armor",
+            "itemId": "Studded Leather Armor",
+            "name": "Studded Leather Armor",
+            "qty": 1,
+            "equipped": true
+          },
+          {
+            "slotId": "5fb20838-329e-48b8-b038-83b03c4863ab",
+            "kind": "magic",
+            "itemId": "winged-boots",
+            "name": "Winged Boots",
+            "qty": 1,
+            "attuned": true
+          }
+        ],
+        "speciesGrantedCantrips": [
+          "minor-illusion"
+        ],
+        "speciesGrantedSpells": [
+          "1-speak-with-animals"
+        ],
+        "toughHpBonus": 0,
+        "featAddedSavingThrows": [
+          "wis",
+          "dex"
+        ],
+        "featSpeedBonus": 0,
+        "featInitiativeProf": false,
+        "featDefenseACBonus": false,
+        "featAddedProficiencies": [],
+        "featAddedSkillProficiencies": [],
+        "featAddedExpertise": []
+      }
+    }
+  ]
+}
