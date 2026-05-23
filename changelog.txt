@@ -7,6 +7,152 @@ Convenciones:
 - # = referencia al bug/feature en la memoria de trabajo.
 
 ────────────────────────────────────────
+2026-05-23 13:10 · #127 — Nuevo kind 'gear' para objetos oficiales del catálogo
+────────────────────────────────────────
+CONTEXTO: hasta ahora, cuando un PJ añadía un objeto oficial PHB 2024
+desde el catálogo "Gear" (Bedroll, Pouch, Rope, Thieves' Tools, etc.),
+se guardaba como `kind: 'custom'` con `itemId: ''`. Esto era un atajo
+histórico que confundía "fuente custom" con "categoría custom": un Bedroll
+oficial PHB y "El sombrero de mi tío" se guardaban exactamente igual.
+
+REFACTOR: introducido `kind: 'gear'` como categoría propia.
+
+Cambios:
+
+1. Catálogo (src/data/dnd5e/equipment.ts):
+   - `GearItem` ahora tiene `id: string` obligatorio.
+   - 50+ entradas de `adventuringGear` anotadas con id en kebab-case.
+   - 4 nuevas entradas: Viol (viol), Thieves' Tools (thieves-tools),
+     Gaming Set (gaming-set), Entertainer's Pack (entertainers-pack).
+   - IDs forzosos: bedroll, pouch, travelers-clothes, rope,
+     potion-of-healing (más los 4 nuevos).
+   - Nueva función `getGearById(id): GearItem | undefined`.
+   - (Trabajo hecho por sesión paralela; archivo verificado: 9 ids
+     forzosos correctos, 4 nuevos añadidos, sin duplicados.)
+
+2. Modelo (src/stores/character.ts):
+   - `InventoryItem.kind` extendido: ahora acepta 'gear' además de los
+     4 anteriores ('weapon' | 'armor' | 'magic' | 'gear' | 'custom').
+   - JSDoc completo explicando qué hace cada kind y dónde se hace el
+     lookup (weapon/armor por name, magic/gear por id, custom sin lookup).
+   - `importJson` añade 'gear' al Set `validKinds` y al cast del map.
+
+3. Encumbrance (src/utils/carryingLoad.ts):
+   - `itemUnitWeight` añade caso `'gear'`: lookup por id en
+     adventuringGear vía getGearById; si el id no existe (gear obsoleto
+     o desconocido), devuelve 0 sin romper.
+   - Import añadido: getGearById.
+
+4. UI catálogo (src/components/shared/EquipmentManager.vue):
+   - Botón "Add gear" pasa de generar `kind: 'custom'` con `weight: g.weight`
+     a generar `kind: 'gear'` con `itemId: g.id`. El peso ya no se duplica
+     en el inventario; se resuelve por id desde el catálogo en cada lectura.
+   - Key del v-for cambia de `g.name` a `g.id` (más estable, no se rompe
+     si se renombra un item).
+
+5. UI fila inventario (src/components/shared/InventoryItemRow.vue):
+   - Badge color para 'gear': bg-green-900/text-green-300 (verde, para
+     distinguirlo claramente de weapon/armor/magic/custom).
+
+6. Reglas de slot (src/utils/equipSlots.ts):
+   - `resolveSlot` añade caso explícito `if (item.kind === 'gear') return undefined`.
+   - Justificación: items gear (bedroll, antorcha, cuerda...) no tienen
+     "slot único"; puedes llevar tantos como quieras sin conflicto.
+
+7. PDF (src/utils/pdfFieldMapping.ts):
+   - Sin cambios. El render usa solo `item.name`, así que gear se ve
+     igual que cualquier otro item en la hoja del PJ.
+
+8. Tests:
+   - carryingLoad.test.ts: +2 tests (#127 — weight de gear por id;
+     gear con id desconocido devuelve 0).
+   - character.test.ts: +1 test (#127 — importJson acepta kind:gear).
+
+ARCHIVOS:
+- src/data/dnd5e/equipment.ts (catálogo con ids + 4 nuevos)
+- src/stores/character.ts (kind extendido + importJson)
+- src/utils/carryingLoad.ts (caso gear)
+- src/components/shared/EquipmentManager.vue (Add gear → kind:gear)
+- src/components/shared/InventoryItemRow.vue (badge color)
+- src/utils/equipSlots.ts (resolveSlot ignora gear)
+- src/utils/carryingLoad.test.ts (+2 tests)
+- src/stores/character.test.ts (+1 test)
+
+MIGRACIÓN DE PJs EXISTENTES (manual, no programática):
+- El usuario tiene solo 2 PJs en JSON; los edita a mano. Los items custom
+  que correspondan a items oficiales PHB pasan de:
+    { "kind": "custom", "itemId": "", "name": "Bedroll", "qty": 1 }
+  A:
+    { "kind": "gear", "itemId": "bedroll", "name": "Bedroll", "qty": 1 }
+- Caso especial Salusa: "Violin" no existe en PHB → cambiar a "Viol" con
+  itemId "viol".
+- No se ha hecho script de migración automática porque solo hay 2 PJs.
+
+DECISIÓN: compatibilidad hacia atrás NO se conserva. PJs antiguos seguirán
+funcionando (los items custom se mantienen como custom), pero los nuevos
+items añadidos desde el catálogo usarán kind:gear. PJs existentes con
+items custom oficiales seguirán contando para encumbrance vía
+`item.weight` declarado por el usuario; si no lo tienen, peso = 0 (igual
+que antes).
+
+TESTS: 895/895 OK (antes 892). Build: OK. TS strict: OK.
+
+────────────────────────────────────────
+2026-05-23 12:40 · #126 — BUG: containers podían meterse a sí mismos (Store)
+────────────────────────────────────────
+SÍNTOMA reportado: al cargar Salusa (Bard Glamour lv.10) desde la web, la
+Bag of Holding aparecía en el bloque "Carried" con el botón "▶ Store"
+disponible. Al pulsarlo, la bolsa se marcaba `stored: true` y aparecía
+DENTRO de sí misma en el bloque "In Magical Containers".
+
+CAUSA: la UI mostraba el botón Store para CUALQUIER item del PJ siempre
+que el PJ tuviera al menos un container mágico (`hasContainer === true`).
+No comprobaba que el propio item NO fuera el container. La lógica
+también permitía que `toggleStored` aceptara la operación.
+
+FIX (defensa en 4 capas):
+
+1. UI (InventoryItemRow.vue):
+   - Nuevo prop `isContainer: boolean` por item.
+   - Botón "▶ Store" oculto si el item es container.
+   - Badge visual nuevo "📦 Container" junto al nombre del item, para
+     que el usuario identifique al instante qué item es una bolsa
+     mágica (Bag of Holding, Handy Haversack, etc.).
+
+2. EquipmentManager.vue:
+   - Pasa `:isContainer="isMagicalContainer(item)"` en los 3 bloques
+     (equipped, carried, stored).
+   - toggleStored() rechaza la operación si el item es container y aún
+     no estaba stored, mostrando toast: "X is a container — it can't be
+     stored inside another container." (regla PHB 2024: BoH dentro de
+     BoH abre portal al Astral Plane y destruye ambas).
+
+3. importJson() (character.ts):
+   - Saneador post-map: si llega un container con `stored: true` (PJ
+     viejo, JSON manipulado, edge case), se silencia a `stored: false`.
+   - Detección: kind='magic' con MagicItem.isContainer===true, o
+     kind='custom' con isMagicalContainer===true.
+   - Import de getMagicItemById desde @/data/dnd5e/magic-items.
+
+4. Tests (character.test.ts): +2 tests de regresión.
+   - "sanea stored:true en magic containers (Bag of Holding)".
+   - "sanea stored:true en custom containers (isMagicalContainer)".
+
+ARCHIVOS:
+- src/components/shared/InventoryItemRow.vue (prop isContainer + badge)
+- src/components/shared/EquipmentManager.vue (paso del prop + guarda toggleStored)
+- src/stores/character.ts (saneador en importJson + import getMagicItemById)
+- src/stores/character.test.ts (+2 tests)
+
+TESTS: 892/892 OK (antes 890). Build: OK. TS strict: OK.
+
+NOTA UX: la Bag of Holding sigue apareciendo en el bloque "Carried" (es
+el comportamiento correcto: la bolsa misma es un objeto físico que el PJ
+lleva encima; el bloque "In Magical Containers" lista lo que está DENTRO
+de la bolsa, no la bolsa). El badge "📦 Container" hace evidente la
+distinción.
+
+────────────────────────────────────────
 2026-05-23 12:13 · #125 — Equipment Manager en 2 pestañas: My Equipment / Add New
 ────────────────────────────────────────
 Separación visual del EquipmentManager en dos secciones de propósito

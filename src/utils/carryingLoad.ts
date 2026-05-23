@@ -11,7 +11,7 @@
  * (el Detailed Reference del PDF anexo usa los mismos cálculos).
  */
 import type { CharacterData, InventoryItem } from '@/stores/character'
-import { getArmorByName, getWeaponByName } from '@/data/dnd5e/equipment'
+import { getArmorByName, getWeaponByName, getGearById } from '@/data/dnd5e/equipment'
 import { getMagicItemById } from '@/data/dnd5e/magic-items'
 import { lbsToKg, computeCarryingCapacity, totalAbilityScore } from './detailedReferenceCalc'
 
@@ -61,6 +61,9 @@ function itemUnitWeight(item: InventoryItem): number {
   if (item.kind === 'weapon') return getWeaponByName(item.itemId)?.weight ?? 0
   if (item.kind === 'armor') return getArmorByName(item.itemId)?.weight ?? 0
   if (item.kind === 'magic') return getMagicItemById(item.itemId)?.weight ?? 0
+  // #127: gear oficial → lookup en adventuringGear por id.
+  if (item.kind === 'gear') return getGearById(item.itemId)?.weight ?? 0
+  // custom: peso declarado por el usuario.
   return item.weight ?? 0
 }
 

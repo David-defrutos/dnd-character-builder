@@ -324,6 +324,48 @@ describe('useCharacterStore', () => {
       expect(data.inventory![1]!.weight).toBeUndefined()
     })
 
+    // #126 — un container nunca debe quedar marcado stored: true al importar
+    it('#126 — sanea stored:true en magic containers (Bag of Holding)', () => {
+      const store = useCharacterStore()
+      const json = JSON.stringify(makeMinimalCharacter({
+        inventory: [
+          // Caso erróneo: BoH marcada como stored (datos inconsistentes)
+          { slotId: 'a', kind: 'magic', itemId: 'bag-of-holding', name: 'Bag of Holding', qty: 1, stored: true },
+        ],
+      }))
+      const { data } = store.importJson(json)
+      expect(data.inventory).toHaveLength(1)
+      expect(data.inventory![0]!.stored).toBe(false)
+    })
+
+    it('#126 — sanea stored:true en custom containers (isMagicalContainer)', () => {
+      const store = useCharacterStore()
+      const json = JSON.stringify(makeMinimalCharacter({
+        inventory: [
+          { slotId: 'a', kind: 'custom', itemId: '', name: 'Homebrew Bag', qty: 1, stored: true, isMagicalContainer: true },
+        ],
+      }))
+      const { data } = store.importJson(json)
+      expect(data.inventory).toHaveLength(1)
+      expect(data.inventory![0]!.stored).toBe(false)
+    })
+
+    // #127 — importJson acepta el nuevo kind 'gear' (items oficiales del catálogo)
+    it('#127 — importJson acepta kind:gear con itemId del catálogo', () => {
+      const store = useCharacterStore()
+      const json = JSON.stringify(makeMinimalCharacter({
+        inventory: [
+          { slotId: 'a', kind: 'gear', itemId: 'bedroll', name: 'Bedroll', qty: 1 },
+          { slotId: 'b', kind: 'gear', itemId: 'rope', name: 'Rope', qty: 2 },
+        ],
+      }))
+      const { data } = store.importJson(json)
+      expect(data.inventory).toHaveLength(2)
+      expect(data.inventory![0]!.kind).toBe('gear')
+      expect(data.inventory![0]!.itemId).toBe('bedroll')
+      expect(data.inventory![1]!.qty).toBe(2)
+    })
+
     it('regenera slotId si falta', () => {
       const store = useCharacterStore()
       const json = JSON.stringify(makeMinimalCharacter({

@@ -131,6 +131,14 @@ function toggleStored(slotId: string) {
   const inv = characterStore.character.inventory!
   const item = inv.find(i => i.slotId === slotId)
   if (!item) return
+  // #126 — Defensa en profundidad: un container no puede meterse a sí mismo
+  // (ni dentro de otro container, por la regla PHB del portal al Astral
+  // Plane). La UI ya oculta el botón Store en containers, pero blindamos
+  // aquí por si alguien dispara el handler por otra vía.
+  if (isMagicalContainer(item) && !item.stored) {
+    showToast(`⚠ ${item.name} is a container — it can't be stored inside another container.`)
+    return
+  }
   if (item.stored) {
     item.stored = false
     showToast(`◀ ${item.name} taken out`)
@@ -405,6 +413,7 @@ function rarityBg(rarity: string): string {
               :hasContainer="hasMagicalContainer"
               :canEquip="canBeEquipped(item)"
               :needsAttune="item.kind === 'magic' && (magicItems.find(m => m.id === item.itemId)?.attunement ?? false)"
+              :isContainer="isMagicalContainer(item)"
               @toggle-equip="toggleEquip"
               @toggle-attune="toggleAttuned"
               @toggle-stored="toggleStored"
@@ -428,6 +437,7 @@ function rarityBg(rarity: string): string {
               :hasContainer="hasMagicalContainer"
               :canEquip="canBeEquipped(item)"
               :needsAttune="item.kind === 'magic' && (magicItems.find(m => m.id === item.itemId)?.attunement ?? false)"
+              :isContainer="isMagicalContainer(item)"
               @toggle-equip="toggleEquip"
               @toggle-attune="toggleAttuned"
               @toggle-stored="toggleStored"
@@ -455,6 +465,7 @@ function rarityBg(rarity: string): string {
               :hasContainer="hasMagicalContainer"
               :canEquip="canBeEquipped(item)"
               :needsAttune="item.kind === 'magic' && (magicItems.find(m => m.id === item.itemId)?.attunement ?? false)"
+              :isContainer="isMagicalContainer(item)"
               @toggle-equip="toggleEquip"
               @toggle-attune="toggleAttuned"
               @toggle-stored="toggleStored"
@@ -674,8 +685,8 @@ function rarityBg(rarity: string): string {
       <p class="text-xs text-stone-500 mb-2">{{ filteredGear.length }} items — click to add to inventory</p>
 
       <div class="space-y-1 max-h-80 overflow-y-auto pr-1">
-        <button v-for="g in filteredGear" :key="g.name"
-          @click="addItem({ kind: 'custom', itemId: '', name: g.name, qty: 1, notes: g.description, weight: g.weight })"
+        <button v-for="g in filteredGear" :key="g.id"
+          @click="addItem({ kind: 'gear', itemId: g.id, name: g.name, qty: 1, notes: g.description })"
           class="w-full flex items-start gap-3 px-3 py-2 rounded transition-colors cursor-pointer text-left bg-stone-800 hover:bg-stone-700">
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2 flex-wrap">

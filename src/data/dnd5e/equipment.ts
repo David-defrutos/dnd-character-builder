@@ -1,4 +1,4 @@
-// Documento generado el 2026-05-19-2115
+// Documento generado el 2026-05-23-1258
 // D&D 2024 (SRD 5.2.1) — Weapons, armor and equipment packs.
 //
 // Changes vs 2014 SRD:
@@ -46,6 +46,7 @@ export interface EquipmentPack {
 
 /** Pieza de equipo general (adventuring gear) — no es arma ni armadura. */
 export interface GearItem {
+  id: string
   name: string
   /** Categoría para agrupar/filtrar en la UI. */
   category: 'container' | 'light' | 'tool' | 'consumable' | 'utility' | 'survival' | 'clothing'
@@ -156,80 +157,84 @@ export const armor: readonly ArmorData[] = [
 
 export const adventuringGear: readonly GearItem[] = [
   // ─── Containers ─────────────────────────────────────────────────────────
-  { name: 'Backpack',          category: 'container',  weight: 5,   costCp: 200,   costLabel: '2 GP',  description: 'Holds 1 cubic foot or 30 pounds.' },
-  { name: 'Pouch',             category: 'container',  weight: 1,   costCp: 50,    costLabel: '5 SP',  description: 'Holds 1/5 cubic foot or 6 pounds.' },
-  { name: 'Sack',              category: 'container',  weight: 0.5, costCp: 1,     costLabel: '1 CP',  description: 'Holds 1 cubic foot or 30 pounds.' },
-  { name: 'Chest',             category: 'container',  weight: 25,  costCp: 500,   costLabel: '5 GP',  description: 'Holds 12 cubic feet or 300 pounds.' },
-  { name: 'Vial',              category: 'container',  weight: 0,   costCp: 100,   costLabel: '1 GP',  description: 'Holds 4 ounces of liquid.' },
-  { name: 'Flask',             category: 'container',  weight: 1,   costCp: 2,     costLabel: '2 CP',  description: 'Holds 1 pint of liquid.' },
-  { name: 'Waterskin',         category: 'container',  weight: 5,   costCp: 20,    costLabel: '2 SP',  description: 'Holds 4 pints of liquid (full).' },
+  { id: 'backpack', name: 'Backpack',          category: 'container',  weight: 5,   costCp: 200,   costLabel: '2 GP',  description: 'Holds 1 cubic foot or 30 pounds.' },
+  { id: 'entertainers-pack', name: "Entertainer's Pack", category: 'container',  weight: 58.5,costCp: 4000,  costLabel: '40 GP', description: 'Backpack, bedroll, bell, bullseye lantern, costumes, mirror, oil, rations, tinderbox, and waterskin.' },
+  { id: 'pouch', name: 'Pouch',             category: 'container',  weight: 1,   costCp: 50,    costLabel: '5 SP',  description: 'Holds 1/5 cubic foot or 6 pounds.' },
+  { id: 'sack', name: 'Sack',              category: 'container',  weight: 0.5, costCp: 1,     costLabel: '1 CP',  description: 'Holds 1 cubic foot or 30 pounds.' },
+  { id: 'chest', name: 'Chest',             category: 'container',  weight: 25,  costCp: 500,   costLabel: '5 GP',  description: 'Holds 12 cubic feet or 300 pounds.' },
+  { id: 'vial', name: 'Vial',              category: 'container',  weight: 0,   costCp: 100,   costLabel: '1 GP',  description: 'Holds 4 ounces of liquid.' },
+  { id: 'flask', name: 'Flask',             category: 'container',  weight: 1,   costCp: 2,     costLabel: '2 CP',  description: 'Holds 1 pint of liquid.' },
+  { id: 'waterskin', name: 'Waterskin',         category: 'container',  weight: 5,   costCp: 20,    costLabel: '2 SP',  description: 'Holds 4 pints of liquid (full).' },
 
   // ─── Light sources ──────────────────────────────────────────────────────
-  { name: 'Torch',             category: 'light',      weight: 1,   costCp: 1,     costLabel: '1 CP',  description: 'Burns 1 hour. Bright light 20 ft, dim 20 more.' },
-  { name: 'Candle',            category: 'light',      weight: 0,   costCp: 1,     costLabel: '1 CP',  description: 'Burns 1 hour. Bright light 5 ft, dim 5 more.' },
-  { name: 'Lantern, Hooded',   category: 'light',      weight: 2,   costCp: 500,   costLabel: '5 GP',  description: 'Burns 1 hour on 1 flask of oil. Bright 30 ft, dim 30 more. Can be hooded to dim 5 ft.' },
-  { name: 'Lantern, Bullseye', category: 'light',      weight: 2,   costCp: 1000,  costLabel: '10 GP', description: 'Burns 1 hour on 1 flask of oil. Bright 60-ft cone, dim 60 more.' },
-  { name: 'Oil, Flask',        category: 'light',      weight: 1,   costCp: 10,    costLabel: '1 SP',  description: 'Fuels a lantern for 6 hours. Splash for fire damage when ignited.' },
-  { name: 'Tinderbox',         category: 'light',      weight: 1,   costCp: 50,    costLabel: '5 SP',  description: 'Lights a torch in 1 action, or starts a fire in 1 minute.' },
+  { id: 'torch', name: 'Torch',             category: 'light',      weight: 1,   costCp: 1,     costLabel: '1 CP',  description: 'Burns 1 hour. Bright light 20 ft, dim 20 more.' },
+  { id: 'candle', name: 'Candle',            category: 'light',      weight: 0,   costCp: 1,     costLabel: '1 CP',  description: 'Burns 1 hour. Bright light 5 ft, dim 5 more.' },
+  { id: 'lantern-hooded', name: 'Lantern, Hooded',   category: 'light',      weight: 2,   costCp: 500,   costLabel: '5 GP',  description: 'Burns 1 hour on 1 flask of oil. Bright 30 ft, dim 30 more. Can be hooded to dim 5 ft.' },
+  { id: 'lantern-bullseye', name: 'Lantern, Bullseye', category: 'light',      weight: 2,   costCp: 1000,  costLabel: '10 GP', description: 'Burns 1 hour on 1 flask of oil. Bright 60-ft cone, dim 60 more.' },
+  { id: 'oil-flask', name: 'Oil, Flask',        category: 'light',      weight: 1,   costCp: 10,    costLabel: '1 SP',  description: 'Fuels a lantern for 6 hours. Splash for fire damage when ignited.' },
+  { id: 'tinderbox', name: 'Tinderbox',         category: 'light',      weight: 1,   costCp: 50,    costLabel: '5 SP',  description: 'Lights a torch in 1 action, or starts a fire in 1 minute.' },
 
   // ─── Tools (non-tool-proficiency items) ─────────────────────────────────
-  { name: 'Crowbar',           category: 'tool',       weight: 5,   costCp: 200,   costLabel: '2 GP',  description: 'Advantage on STR checks where leverage helps.' },
-  { name: 'Hammer',            category: 'tool',       weight: 3,   costCp: 100,   costLabel: '1 GP' },
-  { name: 'Hammer, Sledge',    category: 'tool',       weight: 10,  costCp: 200,   costLabel: '2 GP' },
-  { name: 'Piton',             category: 'tool',       weight: 0.25,costCp: 5,     costLabel: '5 CP' },
-  { name: 'Shovel',            category: 'tool',       weight: 5,   costCp: 200,   costLabel: '2 GP' },
-  { name: 'Manacles',          category: 'tool',       weight: 6,   costCp: 200,   costLabel: '2 GP',  description: 'DC 20 STR check to break; DC 20 Sleight of Hand check to pick.' },
-  { name: 'Spyglass',          category: 'tool',       weight: 1,   costCp: 100000,costLabel: '1,000 GP', description: 'Objects viewed appear twice as large.' },
-  { name: 'Magnifying Glass',  category: 'tool',       weight: 0,   costCp: 10000, costLabel: '100 GP', description: 'Can substitute for flint and steel to start fires.' },
-  { name: 'Hourglass',         category: 'tool',       weight: 1,   costCp: 2500,  costLabel: '25 GP' },
+  { id: 'viol', name: 'Viol',              category: 'tool',       weight: 1,   costCp: 3000,  costLabel: '30 GP' },
+  { id: 'thieves-tools', name: "Thieves' Tools",    category: 'tool',       weight: 1,   costCp: 2500,  costLabel: '25 GP' },
+  { id: 'gaming-set', name: 'Gaming Set',        category: 'tool',       weight: 0,   costCp: 100,   costLabel: '1 GP' },
+  { id: 'crowbar', name: 'Crowbar',           category: 'tool',       weight: 5,   costCp: 200,   costLabel: '2 GP',  description: 'Advantage on STR checks where leverage helps.' },
+  { id: 'hammer', name: 'Hammer',            category: 'tool',       weight: 3,   costCp: 100,   costLabel: '1 GP' },
+  { id: 'hammer-sledge', name: 'Hammer, Sledge',    category: 'tool',       weight: 10,  costCp: 200,   costLabel: '2 GP' },
+  { id: 'piton', name: 'Piton',             category: 'tool',       weight: 0.25,costCp: 5,     costLabel: '5 CP' },
+  { id: 'shovel', name: 'Shovel',            category: 'tool',       weight: 5,   costCp: 200,   costLabel: '2 GP' },
+  { id: 'manacles', name: 'Manacles',          category: 'tool',       weight: 6,   costCp: 200,   costLabel: '2 GP',  description: 'DC 20 STR check to break; DC 20 Sleight of Hand check to pick.' },
+  { id: 'spyglass', name: 'Spyglass',          category: 'tool',       weight: 1,   costCp: 100000,costLabel: '1,000 GP', description: 'Objects viewed appear twice as large.' },
+  { id: 'magnifying-glass', name: 'Magnifying Glass',  category: 'tool',       weight: 0,   costCp: 10000, costLabel: '100 GP', description: 'Can substitute for flint and steel to start fires.' },
+  { id: 'hourglass', name: 'Hourglass',         category: 'tool',       weight: 1,   costCp: 2500,  costLabel: '25 GP' },
 
   // ─── Consumables / supplies ─────────────────────────────────────────────
-  { name: 'Rations (1 day)',   category: 'consumable', weight: 2,   costCp: 50,    costLabel: '5 SP',  description: 'Travel-ready food.' },
-  { name: 'Potion of Healing', category: 'consumable', weight: 0.5, costCp: 5000,  costLabel: '50 GP', description: 'Drink (Bonus Action): regain 2d4 + 2 HP.' },
-  { name: 'Acid (Vial)',       category: 'consumable', weight: 1,   costCp: 2500,  costLabel: '25 GP', description: 'Action: throw at one creature, ranged attack, hit = 2d6 acid damage.' },
-  { name: 'Alchemist’s Fire',  category: 'consumable', weight: 1,   costCp: 5000,  costLabel: '50 GP', description: 'Action: thrown improvised weapon, hit ignites target for 1d4 fire damage each turn.' },
-  { name: 'Antitoxin',         category: 'consumable', weight: 0,   costCp: 5000,  costLabel: '50 GP', description: 'Drink: advantage on saves vs Poison for 1 hour.' },
-  { name: 'Holy Water (Flask)',category: 'consumable', weight: 1,   costCp: 2500,  costLabel: '25 GP', description: 'Improvised weapon vs Fiends/Undead, 2d6 radiant damage.' },
-  { name: 'Caltrops, Bag of 20',category: 'consumable',weight: 2,   costCp: 100,   costLabel: '1 GP',  description: 'Cover 5-ft square. Creatures save or take 1 piercing and Speed halved.' },
-  { name: 'Ball Bearings, Bag of 1,000', category: 'consumable', weight: 2, costCp: 100, costLabel: '1 GP', description: 'Cover 10-ft square. Creatures save or fall Prone.' },
+  { id: 'rations', name: 'Rations (1 day)',   category: 'consumable', weight: 2,   costCp: 50,    costLabel: '5 SP',  description: 'Travel-ready food.' },
+  { id: 'potion-of-healing', name: 'Potion of Healing', category: 'consumable', weight: 0.5, costCp: 5000,  costLabel: '50 GP', description: 'Drink (Bonus Action): regain 2d4 + 2 HP.' },
+  { id: 'acid-vial', name: 'Acid (Vial)',       category: 'consumable', weight: 1,   costCp: 2500,  costLabel: '25 GP', description: 'Action: throw at one creature, ranged attack, hit = 2d6 acid damage.' },
+  { id: 'alchemists-fire', name: 'Alchemist’s Fire',  category: 'consumable', weight: 1,   costCp: 5000,  costLabel: '50 GP', description: 'Action: thrown improvised weapon, hit ignites target for 1d4 fire damage each turn.' },
+  { id: 'antitoxin', name: 'Antitoxin',         category: 'consumable', weight: 0,   costCp: 5000,  costLabel: '50 GP', description: 'Drink: advantage on saves vs Poison for 1 hour.' },
+  { id: 'holy-water', name: 'Holy Water (Flask)',category: 'consumable', weight: 1,   costCp: 2500,  costLabel: '25 GP', description: 'Improvised weapon vs Fiends/Undead, 2d6 radiant damage.' },
+  { id: 'caltrops', name: 'Caltrops, Bag of 20',category: 'consumable',weight: 2,   costCp: 100,   costLabel: '1 GP',  description: 'Cover 5-ft square. Creatures save or take 1 piercing and Speed halved.' },
+  { id: 'ball-bearings', name: 'Ball Bearings, Bag of 1,000', category: 'consumable', weight: 2, costCp: 100, costLabel: '1 GP', description: 'Cover 10-ft square. Creatures save or fall Prone.' },
 
   // ─── Utility / general ──────────────────────────────────────────────────
-  { name: 'Rope, Hempen (50 ft)',  category: 'utility', weight: 10, costCp: 100,  costLabel: '1 GP',   description: 'AC 11, 5 HP, can be burst with DC 17 STR check.' },
-  { name: 'Rope, Silk (50 ft)',    category: 'utility', weight: 5,  costCp: 1000, costLabel: '10 GP',  description: 'AC 11, 5 HP, can be burst with DC 17 STR check.' },
-  { name: 'Chain (10 ft)',         category: 'utility', weight: 10, costCp: 500,  costLabel: '5 GP',   description: 'AC 19, 10 HP. DC 20 STR check to break.' },
-  { name: 'Grappling Hook',        category: 'utility', weight: 4,  costCp: 200,  costLabel: '2 GP' },
-  { name: 'Ladder (10-foot)',      category: 'utility', weight: 25, costCp: 10,   costLabel: '1 SP' },
-  { name: 'Bell',                  category: 'utility', weight: 0,  costCp: 100,  costLabel: '1 GP' },
-  { name: 'Whistle, Signal',       category: 'utility', weight: 0,  costCp: 5,    costLabel: '5 CP' },
-  { name: 'Mirror, Steel',         category: 'utility', weight: 0.5,costCp: 500,  costLabel: '5 GP' },
-  { name: 'Lock',                  category: 'utility', weight: 1,  costCp: 1000, costLabel: '10 GP',  description: 'DC 15 Sleight of Hand check to pick.' },
-  { name: 'Ink (1-oz bottle)',     category: 'utility', weight: 0,  costCp: 1000, costLabel: '10 GP' },
-  { name: 'Ink Pen',               category: 'utility', weight: 0,  costCp: 2,    costLabel: '2 CP' },
-  { name: 'Parchment (1 sheet)',   category: 'utility', weight: 0,  costCp: 10,   costLabel: '1 SP' },
-  { name: 'Paper (1 sheet)',       category: 'utility', weight: 0,  costCp: 20,   costLabel: '2 SP' },
-  { name: 'Sealing Wax',           category: 'utility', weight: 0,  costCp: 50,   costLabel: '5 SP' },
-  { name: 'Soap',                  category: 'utility', weight: 0,  costCp: 2,    costLabel: '2 CP' },
-  { name: 'Perfume (Vial)',        category: 'utility', weight: 0,  costCp: 500,  costLabel: '5 GP' },
-  { name: 'Signet Ring',           category: 'utility', weight: 0,  costCp: 500,  costLabel: '5 GP' },
-  { name: 'Component Pouch',       category: 'utility', weight: 2,  costCp: 2500, costLabel: '25 GP',  description: 'Holds material spell components without specified cost.' },
+  { id: 'rope', name: 'Rope, Hempen (50 ft)',  category: 'utility', weight: 10, costCp: 100,  costLabel: '1 GP',   description: 'AC 11, 5 HP, can be burst with DC 17 STR check.' },
+  { id: 'rope-silk', name: 'Rope, Silk (50 ft)',    category: 'utility', weight: 5,  costCp: 1000, costLabel: '10 GP',  description: 'AC 11, 5 HP, can be burst with DC 17 STR check.' },
+  { id: 'chain', name: 'Chain (10 ft)',         category: 'utility', weight: 10, costCp: 500,  costLabel: '5 GP',   description: 'AC 19, 10 HP. DC 20 STR check to break.' },
+  { id: 'grappling-hook', name: 'Grappling Hook',        category: 'utility', weight: 4,  costCp: 200,  costLabel: '2 GP' },
+  { id: 'ladder', name: 'Ladder (10-foot)',      category: 'utility', weight: 25, costCp: 10,   costLabel: '1 SP' },
+  { id: 'bell', name: 'Bell',                  category: 'utility', weight: 0,  costCp: 100,  costLabel: '1 GP' },
+  { id: 'whistle-signal', name: 'Whistle, Signal',       category: 'utility', weight: 0,  costCp: 5,    costLabel: '5 CP' },
+  { id: 'mirror-steel', name: 'Mirror, Steel',         category: 'utility', weight: 0.5,costCp: 500,  costLabel: '5 GP' },
+  { id: 'lock', name: 'Lock',                  category: 'utility', weight: 1,  costCp: 1000, costLabel: '10 GP',  description: 'DC 15 Sleight of Hand check to pick.' },
+  { id: 'ink', name: 'Ink (1-oz bottle)',     category: 'utility', weight: 0,  costCp: 1000, costLabel: '10 GP' },
+  { id: 'ink-pen', name: 'Ink Pen',               category: 'utility', weight: 0,  costCp: 2,    costLabel: '2 CP' },
+  { id: 'parchment', name: 'Parchment (1 sheet)',   category: 'utility', weight: 0,  costCp: 10,   costLabel: '1 SP' },
+  { id: 'paper', name: 'Paper (1 sheet)',       category: 'utility', weight: 0,  costCp: 20,   costLabel: '2 SP' },
+  { id: 'sealing-wax', name: 'Sealing Wax',           category: 'utility', weight: 0,  costCp: 50,   costLabel: '5 SP' },
+  { id: 'soap', name: 'Soap',                  category: 'utility', weight: 0,  costCp: 2,    costLabel: '2 CP' },
+  { id: 'perfume', name: 'Perfume (Vial)',        category: 'utility', weight: 0,  costCp: 500,  costLabel: '5 GP' },
+  { id: 'signet-ring', name: 'Signet Ring',           category: 'utility', weight: 0,  costCp: 500,  costLabel: '5 GP' },
+  { id: 'component-pouch', name: 'Component Pouch',       category: 'utility', weight: 2,  costCp: 2500, costLabel: '25 GP',  description: 'Holds material spell components without specified cost.' },
 
   // ─── Survival / outdoor ─────────────────────────────────────────────────
-  { name: 'Bedroll',               category: 'survival', weight: 7, costCp: 100,  costLabel: '1 GP' },
-  { name: 'Blanket',               category: 'survival', weight: 3, costCp: 50,   costLabel: '5 SP' },
-  { name: 'Mess Kit',              category: 'survival', weight: 1, costCp: 20,   costLabel: '2 SP' },
-  { name: 'Tent, 2-person',        category: 'survival', weight: 20,costCp: 200,  costLabel: '2 GP' },
-  { name: 'Climber’s Kit',         category: 'survival', weight: 12,costCp: 2500, costLabel: '25 GP',  description: 'Pitons, boots, gloves, harness. Anchored, max 25 ft fall.' },
-  { name: 'Healer’s Kit',          category: 'survival', weight: 3, costCp: 500,  costLabel: '5 GP',   description: '10 uses. Action: stabilize a creature at 0 HP without a Medicine check.' },
-  { name: 'Hunting Trap',          category: 'survival', weight: 25,costCp: 500,  costLabel: '5 GP',   description: 'When stepped on: DC 13 DEX save or take 1d4 piercing and Speed 0 until freed.' },
-  { name: 'Fishing Tackle',        category: 'survival', weight: 4, costCp: 100,  costLabel: '1 GP' },
-  { name: 'Hunting Bow String',    category: 'survival', weight: 0, costCp: 50,   costLabel: '5 SP' },
+  { id: 'bedroll', name: 'Bedroll',               category: 'survival', weight: 7, costCp: 100,  costLabel: '1 GP' },
+  { id: 'blanket', name: 'Blanket',               category: 'survival', weight: 3, costCp: 50,   costLabel: '5 SP' },
+  { id: 'mess-kit', name: 'Mess Kit',              category: 'survival', weight: 1, costCp: 20,   costLabel: '2 SP' },
+  { id: 'tent', name: 'Tent, 2-person',        category: 'survival', weight: 20,costCp: 200,  costLabel: '2 GP' },
+  { id: 'climbers-kit', name: 'Climber’s Kit',         category: 'survival', weight: 12,costCp: 2500, costLabel: '25 GP',  description: 'Pitons, boots, gloves, harness. Anchored, max 25 ft fall.' },
+  { id: 'healers-kit', name: 'Healer’s Kit',          category: 'survival', weight: 3, costCp: 500,  costLabel: '5 GP',   description: '10 uses. Action: stabilize a creature at 0 HP without a Medicine check.' },
+  { id: 'hunting-trap', name: 'Hunting Trap',          category: 'survival', weight: 25,costCp: 500,  costLabel: '5 GP',   description: 'When stepped on: DC 13 DEX save or take 1d4 piercing and Speed 0 until freed.' },
+  { id: 'fishing-tackle', name: 'Fishing Tackle',        category: 'survival', weight: 4, costCp: 100,  costLabel: '1 GP' },
+  { id: 'hunting-bow-string', name: 'Hunting Bow String',    category: 'survival', weight: 0, costCp: 50,   costLabel: '5 SP' },
 
   // ─── Clothing ───────────────────────────────────────────────────────────
-  { name: 'Clothes, Common',       category: 'clothing', weight: 3, costCp: 50,   costLabel: '5 SP' },
-  { name: 'Clothes, Fine',         category: 'clothing', weight: 6, costCp: 1500, costLabel: '15 GP' },
-  { name: 'Clothes, Traveler’s',   category: 'clothing', weight: 4, costCp: 200,  costLabel: '2 GP' },
-  { name: 'Clothes, Costume',      category: 'clothing', weight: 4, costCp: 500,  costLabel: '5 GP' },
-  { name: 'Robes',                 category: 'clothing', weight: 4, costCp: 100,  costLabel: '1 GP' },
+  { id: 'clothes-common', name: 'Clothes, Common',       category: 'clothing', weight: 3, costCp: 50,   costLabel: '5 SP' },
+  { id: 'clothes-fine', name: 'Clothes, Fine',         category: 'clothing', weight: 6, costCp: 1500, costLabel: '15 GP' },
+  { id: 'travelers-clothes', name: 'Clothes, Traveler’s',   category: 'clothing', weight: 4, costCp: 200,  costLabel: '2 GP' },
+  { id: 'clothes-costume', name: 'Clothes, Costume',      category: 'clothing', weight: 4, costCp: 500,  costLabel: '5 GP' },
+  { id: 'robes', name: 'Robes',                 category: 'clothing', weight: 4, costCp: 100,  costLabel: '1 GP' },
 ] as const
 
 // ─── Equipment Packs (2024) ──────────────────────────────────────────────────
@@ -285,4 +290,8 @@ export function getWeaponsByMastery(mastery: MasteryProperty): WeaponData[] {
 
 export function getGearByName(name: string): GearItem | undefined {
   return adventuringGear.find(g => g.name.toLowerCase() === name.toLowerCase())
+}
+
+export function getGearById(id: string): GearItem | undefined {
+  return adventuringGear.find(g => g.id === id)
 }

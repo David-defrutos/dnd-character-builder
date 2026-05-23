@@ -25,6 +25,9 @@ defineProps<{
   canEquip: boolean
   /** True si requires attunement según el catálogo. */
   needsAttune: boolean
+  /** #126 — True si ESTE item es un container mágico. Un container no
+   *  puede meterse a sí mismo, así que el botón "Store" no debe aparecer. */
+  isContainer: boolean
 }>()
 
 const emit = defineEmits<{
@@ -74,6 +77,7 @@ function rarityBg(rarity: MagicItemRarity): string {
         'bg-red-900 text-red-300': item.kind === 'weapon',
         'bg-blue-900 text-blue-300': item.kind === 'armor',
         'bg-purple-900 text-purple-300': item.kind === 'magic',
+        'bg-green-900 text-green-300': item.kind === 'gear',
         'bg-stone-700 text-stone-300': item.kind === 'custom',
       }">
       {{ item.kind }}
@@ -83,6 +87,11 @@ function rarityBg(rarity: MagicItemRarity): string {
     <div class="flex-1 min-w-0">
       <div class="flex items-center gap-2 flex-wrap">
         <span class="font-medium text-stone-100 text-sm">{{ item.name }}</span>
+        <!-- #126 — Badge Container: deja claro que ESTE item es el container -->
+        <span v-if="isContainer" class="text-xs px-1.5 py-0.5 rounded bg-purple-900/60 text-purple-200"
+          title="Magical container — its contents don't count for encumbrance">
+          📦 Container
+        </span>
         <!-- Rarity for magic items -->
         <span v-if="item.kind === 'magic'" class="text-xs"
           :class="rarityColor(magicItems.find(m => m.id === item.itemId)?.rarity ?? 'Common')">
@@ -112,8 +121,8 @@ function rarityBg(rarity: MagicItemRarity): string {
           ✓ Equipped
         </button>
 
-        <!-- Store / Take out (solo si hay container) -->
-        <button v-if="hasContainer && block !== 'stored'"
+        <!-- Store / Take out (solo si hay container Y el propio item NO es container) -->
+        <button v-if="hasContainer && !isContainer && block !== 'stored'"
           @click="emit('toggle-stored', item.slotId)"
           class="text-xs px-1.5 py-0.5 rounded cursor-pointer transition-colors bg-stone-700 text-purple-300 hover:bg-purple-900/50"
           title="Move to magical container">

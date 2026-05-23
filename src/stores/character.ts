@@ -7,6 +7,7 @@ import { recomputeSpeciesGrants } from '@/utils/speciesSpells'
 import { commitLevelSnapshot } from '@/utils/levelHistory'
 import { computeAcBreakdown } from '@/utils/armorClassBreakdown'
 import { getMaxLevel, getClasses, getEquipment } from '@/data'
+import { getMagicItemById } from '@/data/dnd5e/magic-items'
 
 export interface AbilityScores {
   str: number
@@ -63,8 +64,13 @@ export interface ASIChoice {
 export interface InventoryItem {
   /** Unique slot id for this inventory entry (crypto.randomUUID). */
   slotId: string
-  /** Source kind: 'weapon' | 'armor' | 'magic' | 'custom'. */
-  kind: 'weapon' | 'armor' | 'magic' | 'custom'
+  /** Source kind:
+   *  - 'weapon' → lookup en simpleWeapons/martialWeapons por itemId=name
+   *  - 'armor'  → lookup en armor[] por itemId=name
+   *  - 'magic'  → lookup en magicItems por itemId=id
+   *  - 'gear'   → lookup en adventuringGear por itemId=id (#127)
+   *  - 'custom' → texto libre del usuario, sin lookup */
+  kind: 'weapon' | 'armor' | 'magic' | 'gear' | 'custom'
   /** For kind='magic': id from magic-items.ts. For 'weapon'/'armor': weapon/armor name. */
   itemId: string
   /** Display name (copied at add-time so renames don't break history). */
@@ -786,7 +792,9 @@ export const useCharacterStore = defineStore('character', () => {
 
     // Validate inventory contents (#82). Item shape: { slotId, kind, itemId, name, qty }.
     // Si falta slotId (export antiguo) lo regeneramos para no perder el item.
-    const validKinds = new Set(['weapon', 'armor', 'magic', 'custom'])
+    // #127: añadido 'gear' como kind reconocido (items oficiales del catálogo
+    // adventuringGear; resolución por itemId=id en el catálogo).
+    const validKinds = new Set(['weapon', 'armor', 'magic', 'gear', 'custom'])
     if (Array.isArray(safeRaw.inventory)) {
       safeRaw.inventory = (safeRaw.inventory as unknown[])
         .filter((i): i is Record<string, unknown> =>
@@ -797,7 +805,7 @@ export const useCharacterStore = defineStore('character', () => {
         )
         .map(i => ({
           slotId: typeof i.slotId === 'string' && i.slotId.length > 0 ? i.slotId : crypto.randomUUID(),
-          kind: i.kind as 'weapon' | 'armor' | 'magic' | 'custom',
+          kind: i.kind as 'weapon' | 'armor' | 'magic' | 'gear' | 'custom',
           itemId: typeof i.itemId === 'string' ? i.itemId : '',
           name: (i.name as string).slice(0, 200),
           qty: typeof i.qty === 'number' && i.qty > 0 ? Math.min(i.qty, 999) : 1,
@@ -819,6 +827,23 @@ export const useCharacterStore = defineStore('character', () => {
             ? i.customAcBonus
             : undefined,
         }))
+      // #126 — Defensa: un container mágico nunca puede estar "stored"
+      // (no se mete a sí mismo). Si llega así en el JSON importado, lo
+      // limpiamos silenciosamente. Detectamos por catálogo (kind='magic'
+      // con MagicItem.isContainer) o por flag custom (isMagicalContainer).
+      const inventoryItems = safeRaw.inventory as Array<Record<string, unknown>>
+      for (const item of inventoryItems) {
+        let isContainer = false
+        if (item.kind === 'magic' && typeof item.itemId === 'string') {
+          const mi = getMagicItemById(item.itemId)
+          isContainer = !!mi?.isContainer
+        } else if (item.kind === 'custom') {
+          isContainer = item.isMagicalContainer === true
+        }
+        if (isContainer && item.stored === true) {
+          item.stored = false
+        }
+      }
     }
 
     // Truncate long strings to prevent abuse

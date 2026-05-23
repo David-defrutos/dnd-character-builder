@@ -168,4 +168,27 @@ describe('carryingLoad', () => {
     expect(load.storedLbs).toBe(1 + 7 + 10 + 1)  // 19 lbs en la bolsa
     expect(load.status).toBe('Unencumbered')
   })
+
+  // #127 — kind 'gear' resuelve weight desde adventuringGear por id
+  it('#127 — items kind:gear resuelven weight desde el catálogo por id', () => {
+    const load = computeCurrentLoad(baseChar({
+      inventory: [
+        // Bedroll (7 lb) + Rope Hempen (10 lb) + Viol (1 lb) + Thieves' Tools (1 lb)
+        { slotId: 'a', kind: 'gear', itemId: 'bedroll', name: 'Bedroll', qty: 1 },
+        { slotId: 'b', kind: 'gear', itemId: 'rope', name: 'Rope, Hempen (50 ft)', qty: 1 },
+        { slotId: 'c', kind: 'gear', itemId: 'viol', name: 'Viol', qty: 1 },
+        { slotId: 'd', kind: 'gear', itemId: 'thieves-tools', name: "Thieves' Tools", qty: 1 },
+      ],
+    }))
+    expect(load.total).toBe(7 + 10 + 1 + 1)  // 19 lb
+  })
+
+  it('#127 — gear con itemId desconocido devuelve weight 0 (no rompe)', () => {
+    const load = computeCurrentLoad(baseChar({
+      inventory: [
+        { slotId: 'a', kind: 'gear', itemId: 'item-que-no-existe', name: 'Unknown', qty: 1 },
+      ],
+    }))
+    expect(load.total).toBe(0)
+  })
 })

@@ -29,6 +29,10 @@ export function resolveSlot(item: InventoryItem): SlotType | undefined {
     const mi = getMagicItemById(item.itemId)
     return mi?.slot
   }
+  // #127: gear oficial → no se equipa con reglas slot (bedroll, rope...).
+  // Estos items no tienen "slot único" porque puedes llevar tantos como
+  // quieras (3 cuerdas, 5 antorchas) sin conflicto.
+  if (item.kind === 'gear') return undefined
   // custom
   return item.selectedSlot
 }
