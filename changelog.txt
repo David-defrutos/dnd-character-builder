@@ -7,6 +7,63 @@ Convenciones:
 - # = referencia al bug/feature en la memoria de trabajo.
 
 ────────────────────────────────────────
+2026-05-23 14:39 · #129 — PDF Inventory: tablas por bloque + cabeceras en negrita
+────────────────────────────────────────
+Refactor visual de la sección "Inventory" del Detailed Reference. La
+versión #128 listaba los items como texto plano agrupado con cabeceras
+"Equipped:", "Carried:", "In Magical Containers:" y los pesos
+inline ("Bedroll - 7 lbs (3 kg)"). Funcionaba pero quedaba "todo
+junto" sin distinguir bien los grupos.
+
+CAMBIO:
+- Cada bloque se renderiza ahora como una TABLA con 3 columnas:
+    Item | Lbs | Kg
+- Cabecera de cada bloque vía drawSubheader (negrita), separando
+  visualmente los grupos.
+- Anchos de columna fijos (340/60/60 puntos); lbs y kg alineados a la
+  derecha para que los números se escaneen y sumen mentalmente bien.
+- Usa el helper pdfTable existente (consistencia visual con Class
+  Features, Feats, Weapon Attacks).
+- Pequeño gap (4 pt) entre bloques.
+
+EJEMPLO DE SALIDA (Salusa lv.10):
+
+  Inventory
+  Equipped                                          [drawSubheader, negrita]
+  Item                                  Lbs    Kg   [cabecera tabla, negrita]
+  Studded Leather Armor                  13     6
+  Cloak of Protection [attuned]           1     0
+  Ring of Speak Languages                 0     0
+  Ring of Swimming                        0     0
+  Goggles of Intentions (homebrew)        0     0
+
+  Carried                                           [drawSubheader, negrita]
+  Item                                  Lbs    Kg
+  Dagger ×4                               4     2
+  Bag of Holding                         15     7
+
+  In Magical Containers (does not...)               [drawSubheader, negrita]
+  Item                                  Lbs    Kg
+  Viol                                    1     0
+  Thieves' Tools                          1     0
+  Bedroll                                 7     3
+  Entertainer's Pack                   58.5    27
+  Gaming Set                              0     0
+  Pouch                                   1     0
+  Clothes, Traveler's                     4     2
+  Rope, Hempen (50 ft)                   10     5
+  Potion of Healing                     0.5     0
+
+Bloque omitido si está vacío (PJ sin items equipados → no aparece la
+tabla "Equipped").
+
+ARCHIVOS:
+- src/utils/pdfAppendix.ts (drawInventory reescrita; usa drawTable +
+  drawSubheader + TableColumn/TableRow del pdfTable common helper).
+
+TESTS: 895/895 OK. Build: OK. TS strict: OK.
+
+────────────────────────────────────────
 2026-05-23 13:50 · #128 — Inventario detallado en PDF + peso en filas UI
 ────────────────────────────────────────
 CONTEXTO: las 3 líneas de desglose Equipped/Carried/In Magical Containers

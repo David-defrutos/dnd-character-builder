@@ -951,10 +951,17 @@ function drawCarryingCapacity(state: DrawState, char: CharacterData): void {
  *  Containers). El bloque "In Magical Containers" muestra el peso real
  *  pero indica que no cuenta para encumbrance. Si un item del catálogo
  *  no tiene peso declarado se muestra "0 lbs (0 kg)" igual que cualquier
- *  otro item de peso 0. */
+ *  otro item de peso 0.
+ *
+ *  #129 — refactor visual: cada bloque se renderiza como una tabla con
+ *  3 columnas (Item / Lbs / Kg) precedida de un drawSubheader en negrita
+ *  para que los 3 grupos se distingan visualmente. Usa el helper pdfTable
+ *  común al resto del PDF (consistencia con Class Features, Feats,
+ *  Weapon Attacks).
+ */
 function drawInventory(state: DrawState, char: CharacterData): void {
   const inv = char.inventory ?? []
-  if (inv.length === 0) return  // PJ sin inventario: no añadir sección.
+  if (inv.length === 0) return
 
   drawSectionHeader(state, 'Inventory')
 
@@ -962,32 +969,40 @@ function drawInventory(state: DrawState, char: CharacterData): void {
   const stored = inv.filter(i => i.stored)
   const carried = inv.filter(i => !i.equipped && !i.stored)
 
-  function renderItem(item: NonNullable<CharacterData['inventory']>[number]): string {
+  // Anchos de columna fijos: el nombre toma la mayor parte; lbs y kg
+  // alineados a la derecha para que los números se escaneen bien.
+  const columns: TableColumn[] = [
+    { header: 'Item', width: 340, align: 'left' },
+    { header: 'Lbs',  width: 60,  align: 'right' },
+    { header: 'Kg',   width: 60,  align: 'right' },
+  ]
+
+  function itemRow(item: NonNullable<CharacterData['inventory']>[number]): TableRow {
     const qty = Math.max(1, Number.isFinite(item.qty) ? item.qty : 1)
     const unitLbs = Math.max(0, itemUnitWeight(item))
     const totalLbs = unitLbs * qty
     const totalKg = lbsToKg(totalLbs)
     const qtySuffix = qty > 1 ? ` ×${qty}` : ''
     const attunedSuffix = item.kind === 'magic' && item.attuned ? ' [attuned]' : ''
-    return `  ${item.name}${qtySuffix}${attunedSuffix} — ${totalLbs} lbs (${totalKg} kg)`
+    return {
+      cells: [
+        `${item.name}${qtySuffix}${attunedSuffix}`,
+        String(totalLbs),
+        String(totalKg),
+      ],
+    }
   }
 
-  const sections: string[] = []
-  if (equipped.length > 0) {
-    sections.push('Equipped:')
-    sections.push(...equipped.map(renderItem))
+  function renderBlock(label: string, items: typeof equipped): void {
+    if (items.length === 0) return
+    drawSubheader(state, label)
+    drawTable(state, columns, items.map(itemRow))
+    state.y -= 4  // pequeño aire entre bloques
   }
-  if (carried.length > 0) {
-    if (sections.length > 0) sections.push('')
-    sections.push('Carried:')
-    sections.push(...carried.map(renderItem))
-  }
-  if (stored.length > 0) {
-    if (sections.length > 0) sections.push('')
-    sections.push('In Magical Containers (does not count for encumbrance):')
-    sections.push(...stored.map(renderItem))
-  }
-  drawBody(state, sections.join('\n'))
+
+  renderBlock('Equipped', equipped)
+  renderBlock('Carried', carried)
+  renderBlock('In Magical Containers (does not count for encumbrance)', stored)
 }
 
 // ─── Public entry point ───────────────────────────────────────────────────

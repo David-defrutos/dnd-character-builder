@@ -12,5 +12,12 @@
     "className": "bard",
     "level": 10,
     "race": "aasimar"
+  },
+  {
+    "file": "salusa-bard-lv10.json",
+    "name": "Salusa Secundus",
+    "className": "bard",
+    "level": 10,
+    "race": "aasimar"
   }
 ]
