@@ -7,6 +7,64 @@ Convenciones:
 - # = referencia al bug/feature en la memoria de trabajo.
 
 ────────────────────────────────────────
+2026-05-23 16:28 · #130 — BUG: la mayoría de magic items no podían equiparse
+────────────────────────────────────────
+SÍNTOMA reportado: en la UI, los Goggles of True Insight (Wondrous Item
+sin slot declarado) aparecían en "Carried" sin botón "Equip".
+
+DIAGNÓSTICO: `canBeEquipped` en EquipmentManager.vue usaba aún
+`categorizeForEquip` del #118, que solo devolvía algo distinto de 'other'
+para nombres que matcheaban /shield/, /cloak|cape|mantle/ o /\bring\b/.
+Esto significaba que NINGÚN item con nombre fuera de esos patrones era
+considerado equipable, aunque el sistema #123 lo tuviera bien clasificado
+en su catálogo (boots, belts, amulets, helmets, gauntlets, eyes,
+goggles, brooches, periapts...).
+
+Bug latente desde #123. Solo se había notado por accidente porque la
+mayoría del playtest había usado cloaks y rings.
+
+FIX en 2 capas:
+
+1. canBeEquipped reescrito (EquipmentManager.vue):
+   - kind 'magic'  → siempre equipable (todos los magic items pueden
+     llevarse equipados). La unicidad de slot la enforcea equipItem()
+     del #123 leyendo MagicItem.slot del catálogo.
+   - kind 'armor'  → equipable.
+   - kind 'weapon' → false (las armas se "empuñan", no se "equipan").
+   - kind 'gear'   → false (bedroll, rope, raciones... no son equipo).
+   - kind 'custom' → equipable solo si tiene selectedSlot declarado.
+
+2. Import de categorizeForEquip eliminado de EquipmentManager.vue
+   (solo se usa internamente en slotsToUnequip legacy del fallback).
+
+3. Magic items SIN slot declarado (wands, scrolls, instrumentos sin
+   uniqueness, Eyes of *) ahora se pueden llevar equipados MÚLTIPLES a
+   la vez sin desplazarse mutuamente (el resolveSlot del #123 ya
+   devolvía undefined, así que equipItem ya no aplicaba la regla de
+   desplazamiento — el cambio aquí solo libera el botón "Equip" en UI).
+
+4. Tests:
+   - Suite #123 — equipItem: +1 test "varios magic items sin slot
+     coexisten equipados sin conflicto" (#130).
+
+IMPACTO: items que ANTES no se podían equipar en la UI y AHORA sí:
+- Boots of *, Belt of *, Amulet of *, Helmet of *, Gauntlets of *,
+  Goggles of *, Eyes of *, Brooch of *, Periapt of *.
+- Todos los magic items en general (wands, scrolls, etc.) — opcional
+  para el usuario, no obliga a equiparlos.
+
+NO IMPACTA: weapons y gear siguen sin botón Equip (no son equipables
+por reglas PHB; weapons usan la mecánica de "mano principal/secundaria"
+aparte del sistema de slots).
+
+ARCHIVOS:
+- src/components/shared/EquipmentManager.vue (canBeEquipped reescrito,
+  import limpiado)
+- src/utils/equipSlots.test.ts (+1 test #130)
+
+TESTS: 896/896 OK (antes 895). Build: OK. TS strict: OK.
+
+────────────────────────────────────────
 2026-05-23 14:39 · #129 — PDF Inventory: tablas por bloque + cabeceras en negrita
 ────────────────────────────────────────
 Refactor visual de la sección "Inventory" del Detailed Reference. La

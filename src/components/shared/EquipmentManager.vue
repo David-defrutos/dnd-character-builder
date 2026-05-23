@@ -6,7 +6,7 @@ import type { InventoryItem } from '@/stores/character'
 import { simpleWeapons, martialWeapons, armor, adventuringGear } from '@/data/dnd5e/equipment'
 import { allMagicItems as magicItems, weaponPlusItems, armorPlusItems } from '@/data/dnd5e/magic-items'
 import type { MagicItemCategory, MagicItemRarity } from '@/data/dnd5e/magic-items'
-import { slotsToUnequip, categorizeForEquip } from '@/utils/armorClassBreakdown'
+import { slotsToUnequip } from '@/utils/armorClassBreakdown'
 // #123 — equipItem y attuneItem con reglas extendidas (slot, rings, attunement total)
 import { equipItem, attuneItem, isMagicalContainer } from '@/utils/equipSlots'
 import InventoryItemRow from './InventoryItemRow.vue'
@@ -149,9 +149,30 @@ function toggleStored(slotId: string) {
   }
 }
 
-/** Devuelve true si el item es candidato a equiparse (no es "other"). */
+/** Devuelve true si el item puede equiparse.
+ *  #130 — Usa resolveSlot del #123 (consulta catálogo) en vez de
+ *  categorizeForEquip del #118 (regex sobre nombre), que dejaba sin
+ *  botón "Equip" a items con slot declarado pero nombre que no
+ *  matcheaba con cloak/cape/mantle/ring (boots, belts, amulets, helmets,
+ *  gauntlets...).
+ *
+ *  Reglas:
+ *  - Item con slot declarado en catálogo → equipable.
+ *  - Item custom con selectedSlot → equipable.
+ *  - Magic item SIN slot declarado (Eyes of Charming, Goggles of...) →
+ *    también equipable (slot "libre", sin reglas de unicidad). Cualquier
+ *    cosa que haya sido catalogada como magic item se asume "lleva
+ *    equipado" porque PHB no enforza unicidad para muchos items.
+ *  - Weapon/armor/gear → ya gestionados por su kind.
+ *  - Custom sin selectedSlot → NO equipable (es texto libre genérico).
+ */
 function canBeEquipped(item: InventoryItem): boolean {
-  return categorizeForEquip(item) !== 'other'
+  if (item.kind === 'magic') return true   // todos los magic items son equipables
+  if (item.kind === 'armor') return true
+  if (item.kind === 'weapon') return false  // armas se "empuñan", no se "equipan"
+  if (item.kind === 'gear') return false    // gear no se equipa (bedroll, rope...)
+  // custom
+  return item.selectedSlot !== undefined
 }
 
 const inventoryItems = computed(() => characterStore.character.inventory ?? [])

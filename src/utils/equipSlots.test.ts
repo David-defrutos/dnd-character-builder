@@ -170,6 +170,21 @@ describe('#123 — equipItem', () => {
     const r = equipItem(inv, 'b')
     expect(r.updates).toEqual([{ slotId: 'b', equipped: true }])
   })
+
+  // #130 — magic items sin slot declarado (wands, scrolls, instrumentos
+  // sin uniqueness en catálogo) se pueden equipar varios a la vez sin
+  // desplazarse entre sí. Items que SÍ tienen slot (head, neck...)
+  // mantienen sus reglas de unicidad.
+  it('#130 — varios magic items sin slot coexisten equipados sin conflicto', () => {
+    const inv: InventoryItem[] = [
+      makeItem({ slotId: 'a', kind: 'magic', itemId: 'wand-of-magic-missiles', name: 'Wand 1', equipped: true }),
+      makeItem({ slotId: 'b', kind: 'magic', itemId: 'wand-of-fireballs', name: 'Wand 2' }),
+    ]
+    const r = equipItem(inv, 'b')
+    expect(r.updates).toEqual([{ slotId: 'b', equipped: true }])
+    // Crítico: el primer wand NO se desequipa (ninguno tiene slot único).
+    expect(r.updates.find(u => u.slotId === 'a')).toBeUndefined()
+  })
 })
 
 describe('#123 — attuneItem', () => {
