@@ -355,6 +355,62 @@ async function shareCharacter() {
 
 const pendingDecisions = computed(() => pendingLevelDecisions(char.value))
 const isMaxLevel = computed(() => char.value.level >= getMaxLevel(char.value.variant))
+
+// ─── Bug B: Picker inline para cantrips/spells pendientes en Review ──────
+// Cuando un PJ caster llega a Step 9 con cantrips o spells incompletos (por
+// import de JSON antiguo, o por subida de nivel que sumó cantrips/spells y
+// el wizard ya no se muestra por #116), aquí hay un selector para resolverlo.
+// La lista se filtra al spell-list de la clase y al nivel máximo de slot.
+
+const hasPendingCantrips = computed(() =>
+  pendingDecisions.value.some(p => p.key === 'cantrips')
+)
+const hasPendingSpells = computed(() =>
+  pendingDecisions.value.some(p => p.key === 'spells-known' || p.key === 'spells-prepared')
+)
+
+const allSpellsForCharacter = computed(() => {
+  // Lista plana de spells del catálogo activo, filtrada por las clases caster
+  // que tiene el PJ y por el nivel máximo de slot disponible.
+  const variant = char.value.variant
+  const spells = getSpells(variant)
+  const classIds: string[] = char.value.classes?.length
+    ? char.value.classes.map(c => c.classId)
+    : [char.value.className]
+  const maxLv = char.value.classes?.length
+    ? Math.max(0, ...char.value.classes.map(e => getMaxSpellLevel(e.classId, e.level)))
+    : getMaxSpellLevel(char.value.className, char.value.level)
+  return spells.filter(s => {
+    if (!classIds.some(cls => s.classes.includes(cls))) return false
+    if (s.level > 0 && s.level > maxLv) return false
+    return true
+  })
+})
+
+const pickerCantripsAvailable = computed(() =>
+  allSpellsForCharacter.value
+    .filter(s => s.level === 0 && !(char.value.cantrips ?? []).includes(s.id))
+    .sort((a, b) => a.name.localeCompare(b.name))
+)
+const pickerSpellsAvailable = computed(() =>
+  allSpellsForCharacter.value
+    .filter(s => s.level > 0 && !(char.value.spellsKnown ?? []).includes(s.id))
+    .sort((a, b) => a.level - b.level || a.name.localeCompare(b.name))
+)
+
+function addCantripFromPicker(spellId: string): void {
+  if (!char.value.cantrips) char.value.cantrips = []
+  if (!char.value.cantrips.includes(spellId)) {
+    char.value.cantrips.push(spellId)
+  }
+}
+function addSpellFromPicker(spellId: string): void {
+  if (!char.value.spellsKnown) char.value.spellsKnown = []
+  if (!char.value.spellsKnown.includes(spellId)) {
+    char.value.spellsKnown.push(spellId)
+  }
+}
+
 const canLevelUp = computed(() => !isMaxLevel.value && pendingDecisions.value.length === 0)
 const levelUpBlockedReason = computed(() => {
   if (isMaxLevel.value) return t('characters.maxLevel')
@@ -765,6 +821,36 @@ function handleImport(event: Event) {
       <ul class="list-disc list-inside space-y-0.5 text-xs">
         <li v-for="d in pendingDecisions" :key="d.key">{{ d.message }}</li>
       </ul>
+
+      <!-- Bug B: picker inline para resolver cantrips faltantes -->
+      <div v-if="hasPendingCantrips" class="mt-3 pt-3 border-t border-amber-700/40">
+        <p class="text-xs text-amber-300 mb-2 font-medium">{{ t('spells.cantrips') }}:</p>
+        <div class="flex flex-wrap gap-1.5" role="group" :aria-label="t('spells.cantrips')">
+          <button
+            v-for="s in pickerCantripsAvailable"
+            :key="s.id"
+            @click="addCantripFromPicker(s.id)"
+            class="px-2.5 py-1 text-xs bg-stone-700 hover:bg-amber-700 text-stone-200 hover:text-amber-100 rounded transition-colors cursor-pointer"
+          >
+            {{ gt.spell(s.name) }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Bug B: picker inline para resolver spells faltantes -->
+      <div v-if="hasPendingSpells" class="mt-3 pt-3 border-t border-amber-700/40">
+        <p class="text-xs text-amber-300 mb-2 font-medium">{{ t('spells.knownSpells') }}:</p>
+        <div class="flex flex-wrap gap-1.5" role="group" :aria-label="t('spells.knownSpells')">
+          <button
+            v-for="s in pickerSpellsAvailable"
+            :key="s.id"
+            @click="addSpellFromPicker(s.id)"
+            class="px-2.5 py-1 text-xs bg-stone-700 hover:bg-amber-700 text-stone-200 hover:text-amber-100 rounded transition-colors cursor-pointer"
+          >
+            <span class="text-stone-400">{{ s.level }}</span> {{ gt.spell(s.name) }}
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Level Up feedback -->

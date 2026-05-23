@@ -6,6 +6,7 @@ import type { InventoryItem } from '@/stores/character'
 import { simpleWeapons, martialWeapons, armor, adventuringGear } from '@/data/dnd5e/equipment'
 import { allMagicItems as magicItems, weaponPlusItems, armorPlusItems } from '@/data/dnd5e/magic-items'
 import type { MagicItemCategory, MagicItemRarity } from '@/data/dnd5e/magic-items'
+import { slotsToUnequip, categorizeForEquip } from '@/utils/armorClassBreakdown'
 
 const characterStore = useCharacterStore()
 
@@ -48,6 +49,36 @@ function updateItem(slotId: string, patch: Partial<InventoryItem>) {
   ensureInventory()
   const item = characterStore.character.inventory!.find(i => i.slotId === slotId)
   if (item) Object.assign(item, patch)
+}
+
+// #118 — Togglear equipped en un item. Si va a equiparse, aplica las reglas
+// de unicidad: desequipa la armor anterior, el shield anterior, el cloak
+// anterior, o el anillo más antiguo (si ya hay 2 puestos).
+function toggleEquip(slotId: string) {
+  ensureInventory()
+  const inv = characterStore.character.inventory!
+  const item = inv.find(i => i.slotId === slotId)
+  if (!item) return
+
+  if (item.equipped) {
+    // Desequipar es siempre seguro
+    item.equipped = false
+    return
+  }
+
+  // Equipar: aplicar reglas de unicidad
+  const toUnequip = slotsToUnequip(inv, item)
+  for (const sid of toUnequip) {
+    const other = inv.find(i => i.slotId === sid)
+    if (other) other.equipped = false
+  }
+  item.equipped = true
+  showToast(`✓ ${item.name} equipped`)
+}
+
+/** Devuelve true si el item es candidato a equiparse (no es "other"). */
+function canBeEquipped(item: InventoryItem): boolean {
+  return categorizeForEquip(item) !== 'other'
 }
 
 const inventoryItems = computed(() => characterStore.character.inventory ?? [])
@@ -274,6 +305,15 @@ function rarityBg(rarity: string): string {
                 :class="item.attuned ? 'bg-amber-700 text-amber-100' : 'bg-stone-700 text-stone-400 hover:bg-stone-600'"
                 :title="item.attuned ? 'Attuned — click to remove' : 'Not attuned — click to attune'">
                 {{ item.attuned ? '✦ Attuned' : '○ Attune' }}
+              </button>
+              <!-- #118: Equip/Unequip toggle. Solo aparece para items con
+                   categoría conocida (armor, shield, cloak, ring). -->
+              <button v-if="canBeEquipped(item)"
+                @click="toggleEquip(item.slotId)"
+                class="text-xs px-1.5 py-0.5 rounded cursor-pointer transition-colors"
+                :class="item.equipped ? 'bg-emerald-700 text-emerald-100' : 'bg-stone-700 text-stone-400 hover:bg-stone-600'"
+                :title="item.equipped ? 'Equipped — click to unequip' : 'Not equipped — click to equip'">
+                {{ item.equipped ? '✓ Equipped' : '○ Equip' }}
               </button>
             </div>
             <!-- Notes (editable) -->

@@ -8,6 +8,7 @@ import { getClassById } from '@/data/dnd5e/classes'
 import { hasFightingStyleFeature } from '@/utils/fightingStyle'
 import { hasMartialCasterAlt } from '@/utils/martialCasterAlt'
 import { getActiveExpertiseFeatures } from '@/utils/expertiseFeatures'
+import { pendingLevelDecisions } from '@/utils/levelUpGating'
 import StepNavigation from '@/components/layout/StepNavigation.vue'
 import { devLog } from '@/utils/devLog'
 
@@ -99,17 +100,49 @@ function classStepValidationError(): string | null {
   return null
 }
 
+/** Bug A: devuelve mensaje específico si el PJ tiene species choices pendientes
+ *  (ej. Dragonborn → Draconic Ancestry). El wizard ya no debe dejar pasar el
+ *  Step 2 (Race) sin haberlas resuelto, porque la única UI para escogerlas
+ *  vive en ese paso. Reusa pendingLevelDecisions filtrando por key. */
+function raceStepValidationError(): string | null {
+  const char = characterStore.character
+  if (!char.race) return t('validation.selectRace')
+  const speciesPending = pendingLevelDecisions(char).filter(p =>
+    p.key.startsWith('species-choice-')
+  )
+  if (speciesPending.length > 0) {
+    return speciesPending[0]!.message
+  }
+  return null
+}
+
+/** Bug A: devuelve mensaje específico si quedan cantrips/spells pendientes
+ *  para el nivel actual. Si el PJ no es caster (cls.spellcasting === null),
+ *  pendingLevelDecisions no emite estas keys y la validación pasa.
+ *  Resuelve el caso original: wizard dejaba pasar Step 7 con 0/3 cantrips,
+ *  luego al subir de nivel el PJ quedaba atrapado en Review (#116 + Bug B). */
+function spellsStepValidationError(): string | null {
+  const char = characterStore.character
+  const pending = pendingLevelDecisions(char).filter(p =>
+    p.key === 'cantrips' || p.key === 'spells-known' || p.key === 'spells-prepared'
+  )
+  if (pending.length > 0) {
+    return pending[0]!.message
+  }
+  return null
+}
+
 /** Returns whether the current step has all required data filled in */
 const isCurrentStepValid = computed((): boolean => {
   const char = characterStore.character
   switch (appStore.currentStep) {
     case 0: return !!char.variant             // Variant selected
-    case 1: return !!char.race                // Race selected
+    case 1: return raceStepValidationError() === null  // Bug A: + species choices
     case 2: return classStepValidationError() === null  // #93
     case 3: return true                       // Abilities always valid (defaults)
     case 4: return !!char.background          // Background selected
     case 5: return true                       // Equipment optional
-    case 6: return true                       // Spells optional (non-casters skip)
+    case 6: return spellsStepValidationError() === null  // Bug A: cantrips/spells
     case 7: return true                       // Details optional
     default: return true
   }
@@ -127,10 +160,16 @@ function validationKey(step: number): string {
 
 async function tryNextStep() {
   if (!isCurrentStepValid.value) {
-    // #93: para Step 2, usar el mensaje específico de classStepValidationError
-    // (más informativo que el genérico "selectClass").
-    if (appStore.currentStep === 2) {
+    // Mensajes específicos por step. Más informativos que el genérico.
+    if (appStore.currentStep === 1) {
+      // Bug A: Step 2 Race puede fallar por race vacío o por species choice.
+      validationMessage.value = raceStepValidationError() ?? t(validationKey(1))
+    } else if (appStore.currentStep === 2) {
+      // #93
       validationMessage.value = classStepValidationError() ?? t(validationKey(2))
+    } else if (appStore.currentStep === 6) {
+      // Bug A: Step 7 Spells — mensaje directo de pendingLevelDecisions.
+      validationMessage.value = spellsStepValidationError() ?? t(validationKey(6))
     } else {
       validationMessage.value = t(validationKey(appStore.currentStep))
     }

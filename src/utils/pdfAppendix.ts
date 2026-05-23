@@ -22,12 +22,13 @@ import { computeWeaponAttack } from './weaponCalc'
 import { getLimitedResources } from './resourceUsage'
 import { getScalingLevels } from './featureScaling'
 import { sanitizeMasteries, getMasteryFor } from './weaponMastery'
-import { masteryDescriptions } from '@/data/dnd5e/equipment'
+import { masteryDescriptions, armor as dnd5eArmorCatalogue } from '@/data/dnd5e/equipment'
 import {
   drawTableHeader, drawTableRow, estimateRowLines,
   type TableColumn, type TableRow, type TableLayout,
 } from './pdfTable'
 import { computeAbilityBreakdown } from './abilityScoreBreakdown'
+import { computeAcBreakdown } from './armorClassBreakdown'
 import {
   describeAsiFeatChoice, describeOriginFeatChoice, describeFightingStyle,
 } from './featChoiceDescription'
@@ -261,6 +262,51 @@ function drawAbilityBreakdown(state: DrawState, char: CharacterData): void {
       .join(', ')
     return { cells: [b.ability.toUpperCase(), String(b.total), sources] }
   })
+
+  drawTable(state, columns, rows)
+}
+
+// ─── Armor Class breakdown (#118) ────────────────────────────────────────
+
+/**
+ * #118 — Tabla con el desglose del AC por fuente. Solo se dibuja si el PJ
+ * tiene items equipped en el inventario (sistema nuevo). Si usa el sistema
+ * legacy (char.armor string), no se muestra esta tabla.
+ *
+ * Columnas: Source | Contribution
+ *   "Studded Leather Armor (base)"       12
+ *   "DEX modifier"                       +2
+ *   "Cloak of Protection"                +1
+ *   ────────────────────
+ *   Total                                15
+ */
+function drawArmorClass(state: DrawState, char: CharacterData): void {
+  // Calcular dex mod manualmente (el módulo necesita un número, no el char)
+  const dexBase = char.abilityScores?.dex ?? 10
+  const dexTotal = dexBase
+    + (char.speciesBonuses?.dex ?? 0)
+    + (char.backgroundBonuses?.dex ?? 0)
+    + (char.asiBonuses?.dex ?? 0)
+  const dexMod = Math.floor((dexTotal - 10) / 2)
+
+  const breakdown = computeAcBreakdown(char, dexMod, dnd5eArmorCatalogue)
+  if (!breakdown) return  // PJ usa sistema legacy
+
+  drawSectionHeader(state, 'Armor Class')
+
+  const w = contentWidth()
+  const colSource = w - 80
+  const colValue = 80
+
+  const columns: readonly TableColumn[] = [
+    { header: 'Source',       width: colSource },
+    { header: 'Contribution', width: colValue, align: 'center' },
+  ]
+  const rows: TableRow[] = breakdown.sources.map(s => ({
+    cells: [s.label, s.value >= 0 ? `+${s.value}` : String(s.value)],
+  }))
+  // Fila total (con tipografía algo distinta — la marcamos prefijando "Total")
+  rows.push({ cells: ['Total', String(breakdown.total)] })
 
   drawTable(state, columns, rows)
 }
@@ -805,6 +851,7 @@ export async function appendCharacterAppendix(
   state.y -= 22
 
   drawAbilityBreakdown(state, char)
+  drawArmorClass(state, char)
   drawSpeciesTraits(state, char)
   drawMagicInitiate(state, char)     // "Origin: <background>" — sube aquí
   drawClassFeatures(state, char)

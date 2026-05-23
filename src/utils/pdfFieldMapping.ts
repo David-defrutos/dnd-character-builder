@@ -4,6 +4,7 @@ import { getClassById } from '@/data/dnd5e/classes'
 import { getRaceById } from '@/data/dnd5e/races'
 import { getFeatById } from '@/data/dnd5e/feats'
 import { armor as dnd5eArmorCatalogue } from '@/data/dnd5e/equipment'
+import { computeAcBreakdown } from './armorClassBreakdown'
 import { computeWeaponAttack } from './weaponCalc'
 
 /** Capitalize a class ID for English display (e.g., "barbarian" → "Barbarian") */
@@ -14,9 +15,16 @@ function capitalizeId(id: string): string {
 /**
  * Compute the character's AC for the PDF mapping. Mirrors the store logic:
  * uses char.armor or the first armor in char.inventory[]; respects char.shield.
+ * #118: prefiere computeAcBreakdown si hay items equipped.
  */
 function pdfArmorClass(char: CharacterData): number {
   const dexMod = modifier((char.abilityScores?.dex ?? 10) + (char.speciesBonuses?.dex ?? 0) + (char.backgroundBonuses?.dex ?? 0) + (char.asiBonuses?.dex ?? 0))
+
+  // #118: nuevo sistema con equipped items
+  const breakdown = computeAcBreakdown(char, dexMod, dnd5eArmorCatalogue)
+  if (breakdown) return breakdown.total
+
+  // Legacy fallback
   let armorName = char.armor || ''
   let hasShield = !!char.shield
   if (!armorName && Array.isArray(char.inventory)) {

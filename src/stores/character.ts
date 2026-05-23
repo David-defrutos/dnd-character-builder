@@ -5,6 +5,7 @@ import { modifier, proficiencyBonus, hpPerLevel, computeArmorClass } from '@/uti
 import { recomputeMaxHp } from '@/utils/recomputeHp'
 import { recomputeSpeciesGrants } from '@/utils/speciesSpells'
 import { commitLevelSnapshot } from '@/utils/levelHistory'
+import { computeAcBreakdown } from '@/utils/armorClassBreakdown'
 import { getMaxLevel, getClasses, getEquipment } from '@/data'
 
 export interface AbilityScores {
@@ -74,6 +75,15 @@ export interface InventoryItem {
   notes?: string
   /** Quantity (default 1). */
   qty: number
+  /** #118 — Item equipped on the character (worn/wielded right now).
+   *  Multiple items can be equipped; uniqueness rules (1 armor, 1 shield,
+   *  1 cloak, max 2 rings) are enforced by the equip helper, not the data. */
+  equipped?: boolean
+  /** #118 — For homebrew items: AC bonus that this item grants while
+   *  equipped (and attuned, if attuned is also required). Canonical items
+   *  use a hardcoded lookup in armorClassBreakdown; this field lets users
+   *  declare a bonus for items not in the catalogue. */
+  customAcBonus?: number
 }
 
 export interface CharacterData {
@@ -324,12 +334,19 @@ export const useCharacterStore = defineStore('character', () => {
   const profBonus = computed(() => proficiencyBonus(character.value.level))
 
   const armorClass = computed(() => {
-    // AC considera la armadura equipada y el escudo.
+    // #118: si hay items equipped en inventory, usar armorClassBreakdown
+    // (sistema nuevo, sources + total). Si no, fallback al sistema legacy
+    // (char.armor string + primer armor del inventory).
+    const char = character.value
+    const equip = getEquipment(char.variant)
+
+    const breakdown = computeAcBreakdown(char, abilityModifiers.value.dex, equip.armor)
+    if (breakdown) return breakdown.total
+
+    // Legacy path: AC considera la armadura equipada (string) y el escudo.
     // char.armor = nombre de la armadura (texto); char.shield = booleano.
     // Si char.armor está vacío, intentamos detectar la primera armadura del
     // inventory[] estructurado (kind='armor'). Si no hay nada, unarmored.
-    const char = character.value
-    const equip = getEquipment(char.variant)
     let armorName = char.armor || ''
     let hasShield = !!char.shield
 
@@ -765,6 +782,11 @@ export const useCharacterStore = defineStore('character', () => {
           qty: typeof i.qty === 'number' && i.qty > 0 ? Math.min(i.qty, 999) : 1,
           attuned: typeof i.attuned === 'boolean' ? i.attuned : undefined,
           notes: typeof i.notes === 'string' ? (i.notes as string).slice(0, 500) : undefined,
+          // #118: campos nuevos. Boolean strict para evitar truthy raros.
+          equipped: typeof i.equipped === 'boolean' ? i.equipped : undefined,
+          customAcBonus: typeof i.customAcBonus === 'number' && i.customAcBonus >= -10 && i.customAcBonus <= 10
+            ? i.customAcBonus
+            : undefined,
         }))
     }
 

@@ -7,6 +7,181 @@ Convenciones:
 - # = referencia al bug/feature en la memoria de trabajo.
 
 ────────────────────────────────────────
+2026-05-23 00:30 · #118 — Sistema de items equipados + AC con desglose
+────────────────────────────────────────
+NUEVA FUNCIONALIDAD: cualquier item del inventory ahora puede equiparse.
+El AC se calcula sumando las contribuciones de TODOS los items equipados:
+armadura base, DEX modifier según tipo de armor, escudo, Cloak/Ring of
+Protection (si attuned), Bracers of Defense (si NO hay armor), magic
+armor +N (parseado del nombre), Defense Fighting Style, y customAcBonus
+para items homebrew.
+
+MODELO:
+- src/stores/character.ts:
+    · InventoryItem nuevos campos opcionales: equipped?: boolean,
+      customAcBonus?: number.
+    · importer: ambos campos en allowlist, validación defensiva.
+
+LÓGICA:
+- src/utils/armorClassBreakdown.ts (nuevo):
+    · computeAcBreakdown(char, dexMod, armorCat) → AcBreakdown | null.
+      Devuelve null si no hay items equipped (caller hace fallback).
+    · categorizeForEquip(item) → 'armor' | 'shield' | 'cloak' | 'ring' |
+      'other'. Clasificación para las reglas de unicidad.
+    · slotsToUnequip(inventory, target) → string[]. Calcula qué slotIds
+      hay que desequipar al equipar uno nuevo según reglas:
+        - 1 armor, 1 shield, 1 cloak máximo
+        - 2 rings máximo (el más antiguo se desequipa al meter el 3º)
+        - "other" sin límite
+
+REGLAS DE BONUS:
+    · Cloak of Protection: +1 AC (requiere attuned).
+    · Ring of Protection: +1 AC (requiere attuned).
+    · Bracers of Defense: +2 AC (requiere attuned, IGNORADO si hay armor).
+    · Magic armor/shield "+N" parseado del sufijo del nombre.
+    · customAcBonus: aplicado si está equipped (homebrew, sin chequeo
+      attuned — el usuario decide).
+
+INTEGRACIÓN:
+- src/stores/character.ts (computed armorClass): intenta breakdown
+  primero. Si null (no equipped items) cae al sistema legacy
+  (char.armor string + fallback al inventory por kind='armor').
+- src/utils/pdfFieldMapping.ts (pdfArmorClass): mismo flujo.
+
+UI:
+- src/components/shared/EquipmentManager.vue:
+    · Nueva función toggleEquip(slotId): aplica reglas de unicidad.
+    · canBeEquipped(item) chequea categoría != 'other'.
+    · Botón "○ Equip" / "✓ Equipped" en cada item con categoría
+      conocida, junto al de Attune. Verde cuando equipped.
+
+PDF Detailed Reference:
+- src/utils/pdfAppendix.ts:
+    · drawArmorClass(char): nueva sección "Armor Class" justo después
+      de "Ability Scores". Tabla 2 columnas (Source | Contribution).
+      Cada item equipado aparece como fila. Última fila "Total" con
+      el AC final.
+    · Solo se dibuja si computeAcBreakdown devuelve algo (PJ con
+      sistema nuevo). Si usa legacy, no se muestra.
+    · Pipeline: ABILITY SCORES → ARMOR CLASS → SPECIES TRAITS → ...
+
+ARCHIVOS:
+- src/utils/armorClassBreakdown.ts (nuevo)
+- src/utils/armorClassBreakdown.test.ts (nuevo, 19 tests)
+- src/stores/character.ts (InventoryItem, armorClass computed, importer)
+- src/utils/pdfFieldMapping.ts (pdfArmorClass)
+- src/utils/pdfAppendix.ts (drawArmorClass + pipeline)
+- src/components/shared/EquipmentManager.vue (toggleEquip + botón UI)
+
+TESTS: 772/772 pasando (753 previos + 19 nuevos de armorClassBreakdown).
+npm run build OK.
+
+────────────────────────────────────────
+2026-05-23 00:35 · Catálogo de hechizos: limpiar tablas HTML y marcas markdown
+────────────────────────────────────────
+CAUSA: las descripciones del catálogo de hechizos (heredadas del PHB
+2024 con su markdown ligero) contenían tags HTML <table> en 14 spells
+y marcas _xxx_ (cursiva markdown) en 162 spells. Ni la UI ni el PDF
+parseaban estas marcas; se mostraban como texto literal con underscores
+y HTML bruto.
+
+FIX:
+- src/data/dnd5e/spells.ts y spells-4-9.ts: procesados con script
+  Python que convierte:
+    · Tablas HTML → texto plano en columnas alineadas con espacios
+      (formato B: "1d10   Behavior").
+    · Marcas markdown _xxx_ → texto plano sin underscores.
+
+Spells con tabla afectados (14): Augury, Find Steed, Confusion, Giant
+Insect, Animate Objects, Creation, Reincarnate, Scrying, Summon Dragon,
+Divine Word, Prismatic Spray, Teleport, Control Weather, Prismatic Wall.
+
+ARCHIVOS:
+- src/data/dnd5e/spells.ts (procesado)
+- src/data/dnd5e/spells-4-9.ts (procesado)
+
+TESTS: 772/772 pasando. Las descripciones siguen siendo legibles y
+los regex de milestone8.test.ts no se rompen porque ya estaban
+ajustados para texto plano.
+
+────────────────────────────────────────
+2026-05-22 22:30 · Bug Cantrips/Spells pendientes en Review (Bug A + B)
+────────────────────────────────────────
+CAUSA: cuando un caster llegaba al Step 9 Review con cantrips o spells
+incompletos (típicamente: import de JSON antiguo, o subida de nivel que
+sumó cantrips/spells donde la regla 2024 pide más), el aviso "Resolve
+before leveling up: Choose N more cantrip(s)" aparecía pero NO había
+forma de elegirlos desde Review. El picker vive en Step 7 Spells, que
+desde #116 ya no es accesible en lv.2+. PJ atrapado.
+
+Además, el wizard de creación dejaba pasar Step 7 sin validar: un
+Cleric podía avanzar con 0/3 cantrips, llegar a Review, guardarse a
+lv.1 con pendientes y al primer level-up quedar igualmente atrapado.
+
+FIX EN DOS FRENTES:
+
+Bug A — Validación en el wizard (preventivo)
+============================================
+- src/views/BuilderView.vue:
+    · Import: pendingLevelDecisions.
+    · Nuevo raceStepValidationError(): además de exigir char.race, exige
+      resolver todas las species choices (Dragonborn → Draconic Ancestry,
+      etc.). Reusa pendingLevelDecisions filtrando por species-choice-*.
+    · Nuevo spellsStepValidationError(): exige resolver pendientes con
+      key cantrips, spells-known o spells-prepared. Non-casters no
+      generan estos keys, así que pasan transparentemente.
+    · isCurrentStepValid: case 1 ahora usa raceStepValidationError;
+      case 6 usa spellsStepValidationError. Resto sin cambios.
+    · tryNextStep: mensajes específicos por step. Mensaje viene
+      directamente de pendingLevelDecisions ("Choose 1 more cantrip.")
+      para que el usuario sepa exactamente qué falta.
+
+Bug B — Picker inline en Review (curativo)
+==========================================
+- src/components/steps/Step9Review.vue:
+    · Computeds: hasPendingCantrips, hasPendingSpells (chequean
+      pendingDecisions por key).
+    · Computed allSpellsForCharacter: lista filtrada por las clases
+      caster del PJ y el nivel máximo de slot disponible (igual
+      lógica que Step7).
+    · Computeds pickerCantripsAvailable / pickerSpellsAvailable: lo
+      anterior + filtrar los ya elegidos + ordenar (cantrips alfabético;
+      spells por nivel ASC y luego alfabético).
+    · Handlers addCantripFromPicker / addSpellFromPicker: añaden el
+      hechizo al array correspondiente. No validan el límite máximo
+      porque pendingLevelDecisions ya gobierna el aviso: el usuario
+      puede pasarse del límite si quiere (no es lo habitual; si quita
+      uno luego, queda en su sitio).
+    · Template: dentro del bloque "Resolve before leveling up", debajo
+      del listado de pendientes, dos secciones colapsables que solo
+      aparecen si hay pendientes del tipo correspondiente. Botones
+      tipo pastilla (mismo estilo que el resto del bloque) con el
+      nombre del hechizo. Para spells de nivel >0, prefijo gris con
+      el número de nivel para que se identifique de un vistazo.
+    · Uso gt.spell() para mostrar el nombre traducido (cuando el
+      catálogo lo soporte).
+
+CASOS CUBIERTOS:
+- Nuevo Cleric desde cero: no puede saltarse Step 7 sin elegir 3
+  cantrips + sus spells. Mensaje claro al pulsar Next.
+- Nuevo Dragonborn desde cero: no puede saltarse Step 2 sin elegir
+  Draconic Ancestry.
+- Cleric importado a lv.4 con 3/4 cantrips: aparece picker en Review
+  con el cantrip que falta, lo elige y desbloquea level-up.
+- Cleric ya a lv.4 que sube a lv.5 (gana 1 cantrip más): same picker.
+- Cleric ya a lv.4 que sube a lv.5 (gana 2 spells de nivel 3): picker
+  de spells aparece automáticamente.
+
+ARCHIVOS:
+- src/views/BuilderView.vue (Bug A)
+- src/components/steps/Step9Review.vue (Bug B)
+
+TESTS: 753/753 pasando, npm run build OK. No se añaden tests
+específicos porque los componentes Vue no tienen tests en el proyecto;
+pendingLevelDecisions (núcleo del fix) sí tiene cobertura en
+src/utils/levelUpGating.test.ts.
+
+────────────────────────────────────────
 2026-05-22 18:55 · #117 — FEATURE Historial de niveles (snapshot + reset)
 ────────────────────────────────────────
 NUEVA FUNCIONALIDAD pedida por el usuario:
