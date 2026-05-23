@@ -20,7 +20,6 @@ npm run audit:sci    # Run SCI carbon intensity benchmark
 - **Client-only**: no backend, no API calls, no tracking
 - **PWA**: offline-capable with Workbox service worker
 - **Hosted**: GitHub Pages (static, CDN-served)
-- **Three game variants**: `dnd5e`, `brancalonia`, `apocalisse`
 
 ## Key Paths
 
@@ -29,7 +28,7 @@ npm run audit:sci    # Run SCI carbon intensity benchmark
 | Entry point | `src/main.ts` |
 | Router | `src/router/index.ts` |
 | Stores | `src/stores/app.ts`, `src/stores/character.ts` |
-| Game data | `src/data/{dnd5e,brancalonia,apocalisse}/` |
+| Game data | `src/data/dnd5e/` |
 | Data loader | `src/data/index.ts` |
 | PDF mapping | `src/utils/pdfFieldMapping.ts` |
 | PDF templates | `public/pdf/` |
@@ -96,4 +95,3 @@ This project follows the [W3C Web Sustainability Guidelines 1.0](https://www.w3.
 - `unsafe-eval` in CSP required for vue-i18n runtime compilation
 - GitHub Pages: SPA routing via 404.html redirect hack
 - Pinia "getActivePinia()" warnings in dev mode are HMR artifacts (safe to ignore)
-- Apocalisse variant uses D&D 5e PDF template (Apocalisse PDFs are not fillable AcroForms)

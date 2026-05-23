@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import HelpPanel from '@/components/shared/HelpPanel.vue'
+import VersionBadge from '@/components/layout/VersionBadge.vue'
 import { useTheme } from '@/composables/useTheme'
 
 const { t } = useI18n()
@@ -59,5 +60,7 @@ function acceptGdpr() {
         </button>
       </div>
     </div>
+    <!-- Version badge (build date + hash) — pinned to bottom-right corner -->
+    <VersionBadge />
   </div>
 </template>

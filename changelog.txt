@@ -1,6 +1,189 @@
 D&D 2024 Character Builder — Changelog
 ═══════════════════════════════════════
 
+────────────────────────────────────────
+2026-05-23 21:00 · #135 — #81 BUG: Random character bloqueado por "Resolve before leveling up"
+────────────────────────────────────────
+SÍNTOMA: tras pulsar "Random" en la home, el PJ llegaba a Step9 Review con
+avisos "Resolve before leveling up" y no podía subir de nivel hasta que el
+usuario resolvía a mano subclase, ASI/feats, hechizos, Draconic Ancestry y
+otras decisiones obligatorias del nivel actual.
+
+CAUSA: generateRandomCharacter() rellenaba clase, raza, subclase y hechizos,
+pero no tocaba speciesChoices, asiChoices ni magicInitiateChoices. El gating
+de pendingLevelDecisions (utils/levelUpGating.ts) detectaba esas decisiones
+sin resolver y bloqueaba la review.
+
+FIX en src/utils/randomCharacter.ts: tras calcular el equipo y antes del
+return se añaden 3 bloques de resolución.
+
+1. Species choices (Dragonborn → Draconic Ancestry, etc.):
+   if (race.choices?.length) → por cada choice, pick random de options.
+   Se almacena en char.speciesChoices[choice.id].
+
+2. ASI/Feat checkpoints. Para cada nivel devuelto por getAsiLevels(cls.id,
+   level) se inserta una ASIChoice con:
+     type: 'asi'
+     asiMode: '2'
+     asiAbilities: [cls.primaryAbility[0] ?? 'con']
+   Se opta por ASI sobre feat para no abrir la rama de feats con
+   requiresChoices anidados (Skilled, Crafter, Skill Expert), que añadirían
+   complejidad sin valor de cara al gating.
+
+3. Magic Initiate del origin feat del background: si bg.originFeat existe y
+   getFeatById(bg.originFeat).grantsMagicInitiate es true, se rellena
+   char.originFeatId y char.magicInitiateChoices con:
+     source: 'origin'
+     spellList: pick de ['cleric','druid','wizard']
+     cantrips: 2 cantrips random de esa lista
+     levelOneSpell: 1 spell nivel 1 random de esa lista
+
+TESTS NUEVOS (src/utils/randomCharacter.test.ts, +6 tests):
+- 30 iters de PJ random lv.1 → pendingLevelDecisions vacío
+- 30 iters lv.5 (subclase desbloqueada) → vacío
+- 30 iters lv.10 (ASI lv.4 y lv.8) → vacío
+- Dragonborn (cuando sale en sorteo) tiene draconic-ancestry resuelto
+- A lv.12, asiChoices incluye lv.4, 8, 12 con type='asi' y abilities pobladas
+- Razas sin choices → speciesChoices === {} (no crash)
+
+ARCHIVOS:
+- src/utils/randomCharacter.ts (+imports getAsiLevels/getFeatById/ASIChoice,
+  +bloque de resolución 3-en-1, +4 campos en el objeto devuelto)
+- src/utils/randomCharacter.test.ts (nuevo, 6 tests)
+
+TESTS: 902/902 OK (antes 896). Build: OK. TS strict: OK.
+
+────────────────────────────────────────
+2026-05-23 21:00 · #134 — #75 Limpieza completa Brancalonia/Apocalisse
+────────────────────────────────────────
+Barrido sistemático para eliminar todas las referencias residuales a las
+variantes Brancalonia y Apocalisse del proyecto. Tras la limpieza, grep
+de "brancalonia|Brancalonia|apocalisse|Apocalisse|Lilith|Morgant" sobre
+src/, public/, CLAUDE.md y README.md retorna CERO matches.
+
+Cambios mayores:
+
+1. src/i18n/gameTerms.ts: reescrito como stub. El archivo original tenía
+   1433 líneas con 17 diccionarios *NamesIt → italiano (weapons, armor,
+   spells, classes, races, etc.), incluidos brancaloniaClassNamesIt y
+   apocalisseClassNamesIt. La función translateGameTerm ya retornaba
+   name tal cual si locale !== 'it', y como i18n/index.ts fija locale
+   'en' y no carga 'it', TODOS los diccionarios eran código muerto.
+   Stub final: 45 líneas que conservan la API pública (translateGameTerm
+   y GameTermCategory) para no romper los 9 archivos que usan
+   useGameTerms.
+
+2. src/utils/pdfFieldMapping.ts: eliminada función huérfana
+   getBrancaloniaFieldMapping (113 líneas, nunca llamada). 793 → 681 lns.
+
+3. public/sitemap.xml: reescrito por completo. El original tenía 351
+   líneas indexando rutas /blog/* (eliminadas en #133). El nuevo tiene
+   23 líneas con solo /, /builder, /characters, /privacy.
+
+4. public/og-image.svg: las 3 badges de variante reducidas a 1 sola
+   (D&D 5.5 Edition), centrada.
+
+5. src/data/personalityArchetypes.ts: comentario "The Brancalonia
+   Scoundrel" renombrado a "The Hungry Scoundrel". El arquetipo en sí
+   (personality/ideals/bonds/flaws) era genérico y se conserva.
+
+Cambios menores (comentarios y strings):
+- src/views/CharacterListView.vue (2 comentarios fuera)
+- src/views/HomeView.vue (2 ternarias simplificadas)
+- src/i18n/locales/en.json (MISSING_VARIANT simplificado, entradas
+  brancalonia/apocalisse del bloque variant fuera, 3 claves
+  randomDnd5e/randomBrancalonia/randomApocalisse huérfanas fuera)
+- src/composables/useGameTerms.ts (7 menciones a italiano + 2 a
+  variantes fuera de JSDoc)
+- src/composables/usePdfExport.ts (comentario obsoleto)
+- src/data/dnd5e/backgrounds.ts (comentario referenciando variantes)
+- src/data/dnd5e/races.ts (comentario en nameOriginal)
+- src/data/index.ts (separador huérfano fuera)
+- src/components/steps/Step9Review.vue (comentario residual)
+- public/sci-report.json (2 entradas data-load-* fuera)
+- CLAUDE.md (3 menciones fuera: "Three game variants", path table,
+  nota técnica de Apocalisse PDF)
+
+NOTA: el archivo src/data/dnd5e/missing-backgrounds.ts contiene
+backgrounds extra de Open5e (a5e, o5e, toh, taldorei). El comentario
+original sugería que era "para Brancalonia/Apocalisse" pero el contenido
+no tiene relación. Se conserva intacto.
+
+ARCHIVOS TOCADOS: 16. TESTS: 902/902 OK. Build: OK. TS strict: OK.
+
+────────────────────────────────────────
+2026-05-23 21:00 · #133 — #80 Eliminar Pre-Made Characters legacy (5e 2014)
+────────────────────────────────────────
+Los 23 PJs de muestra (lo que la UI llamaba "Pre-Made Characters" o
+"Templates", accesibles vía el menú /blog) eran personajes D&D 5e 2014:
+usaban subraces de elfo (wood-elf, high-elf), backgrounds 2014
+(outlander, folk-hero) y subclases del 2014 (hunter ranger). No
+válidos para D&D 5.5 / 2024.
+
+BORRADO COMPLETO:
+
+1. src/data/blog/ entera (24 archivos):
+   - characters.ts (registro)
+   - 23 archivos en blog/dnd5e/: elara-nightwhisper, grokk-ironfang,
+     lyra-silvertongue, thordin-stoneheart, rowan-ashwood,
+     bera-battlehammer, kael-windwalker, varek-brightscale,
+     pip-shadowfoot, zara-hellfire, vex-nightpact, aldric-spellweaver,
+     fizzle-gearspark, bram-thickfoot, thistle-mossheart,
+     arael-dawnwhisper, nyx-shadowcloak, ser-roland-the-bold,
+     cassara-starbloom, morthos-grimsoul, fern-wildbloom,
+     skar-flamerage, marco-fortunato.
+
+2. src/views/BlogListView.vue y BlogCharacterView.vue.
+
+3. Rutas /blog y /blog/:slug del router.
+
+4. Enlaces "Templates" del header (desktop + mobile nav).
+
+5. i18n: clave nav.blog + bloque blog completo (800 líneas de en.json
+   con metadata, descripciones y traits de los 23 PJs).
+
+6. Comentario huérfano en gameTerms.ts que referenciaba "blog character
+   data" para los racial traits de Morgant.
+
+ARCHIVOS: 28 borrados, 4 modificados (router, AppHeader, en.json,
+gameTerms.ts). TESTS: 902/902 OK. Build: OK. TS strict: OK.
+
+────────────────────────────────────────
+2026-05-23 21:00 · #132 — BUG: no se podían cambiar hechizos al llenar slots en Review
+────────────────────────────────────────
+SÍNTOMA: en Step9 Review, una vez seleccionados todos los hechizos
+preparados hasta el máximo de la clase, el bloque entero de "Spells"
+desaparecía. El jugador no tenía manera de desmarcar un hechizo
+puesto por error: el bloque solo reaparecía al subir de nivel (cuando
+maxSpellsReview aumentaba y volvían a quedar slots libres).
+
+CAUSA: en src/components/steps/Step9Review.vue el bloque tenía
+v-if="spellSlotsAvailable" donde spellSlotsAvailable se definía como
+"hay slots libres" (length < max). Al llenar, false → bloque oculto.
+Las píldoras con ✕ para borrar uno individual estaban DENTRO del mismo
+bloque, así que también desaparecían.
+
+FIX:
+1. Cambiar v-if a "la clase puede preparar hechizos" (maxSpellsReview > 0).
+   El bloque permanece visible mientras el caster tenga slots, llenos o no.
+2. Eliminado el computed huérfano spellSlotsAvailable.
+3. La prop :disabled de SpellRow afinada defensivamente para que sea
+   explícita: "no seleccionado AND length >= max". Aunque SpellRow ya
+   tiene la guarda interna disabled && !selected (los seleccionados
+   siempre se pueden quitar), hacerlo explícito en el call-site evita
+   regresiones si alguien refactoriza SpellRow.
+
+Mismo refuerzo defensivo en Step7Spells.vue para los dos call-sites
+(cantrips y leveled spells), aunque allí no había v-if que escondiera
+el selector.
+
+ARCHIVOS:
+- src/components/steps/Step9Review.vue (v-if cambiado, computed
+  eliminado, disabled refinado)
+- src/components/steps/Step7Spells.vue (disabled refinado en 2 sitios)
+
+TESTS: 902/902 OK. Build: OK. TS strict: OK.
+
 Convenciones:
 - Fechas en formato AAAA-MM-DD HH:MM (UTC+2). Antes del 2026-05-19 son aproximadas
   (reconstruidas a partir de la memoria de Claude, sin marca de tiempo exacta).

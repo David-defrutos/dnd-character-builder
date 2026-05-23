@@ -110,7 +110,7 @@ export const personalityArchetypes: readonly PersonalityArchetype[] = [
     bonds: 'I serve an organization that works in the shadows for the greater good.',
     flaws: 'I overthink everything and sometimes miss the obvious solution.',
   },
-  // ─── The Brancalonia Scoundrel ───────────────────────────────────
+  // ─── The Hungry Scoundrel ───────────────────────────────────────
   {
     personalityTraits: 'I never pass up a chance for a good meal or a good fight. Honor is for fools with full bellies.',
     ideals: 'Survival. In this world, you eat or you get eaten.',

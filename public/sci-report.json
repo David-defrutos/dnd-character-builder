@@ -18,20 +18,6 @@
       "sciMgCO2eq": 24.915
     },
     {
-      "service": "data-load-brancalonia",
-      "wallTimeMs": 5,
-      "inputBytes": 0,
-      "outputBytes": 0,
-      "sciMgCO2eq": 8.856
-    },
-    {
-      "service": "data-load-apocalisse",
-      "wallTimeMs": 6,
-      "inputBytes": 0,
-      "outputBytes": 0,
-      "sciMgCO2eq": 10.254
-    },
-    {
       "service": "calculations-1000x",
       "wallTimeMs": 2,
       "inputBytes": 0,

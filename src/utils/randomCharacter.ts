@@ -1,4 +1,4 @@
-import type { CharacterData, AbilityScores, Weapon } from '@/stores/character'
+import type { CharacterData, AbilityScores, Weapon, ASIChoice } from '@/stores/character'
 import type { GameVariant } from '@/stores/app'
 import type { AbilityKey, CharacterClass } from '@/data/dnd5e/classes'
 import { getRaces, getClasses, getBackgrounds, getSpells, getSpellSlots, getCantripsKnown, getSpellsKnownCount, getAvailableLanguages, getMaxLevel } from '@/data'
@@ -6,6 +6,8 @@ import { simpleWeapons, martialWeapons, armor as armorData } from '@/data/dnd5e/
 import { rollAbilityScores } from './diceRoller'
 import { modifier, totalHp, proficiencyBonus } from './calculations'
 import { pickRandomArchetype } from '@/data/personalityArchetypes'
+import { getAsiLevels } from '@/data/dnd5e/asi'
+import { getFeatById } from '@/data/dnd5e/feats'
 
 function pick<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]!
@@ -252,6 +254,60 @@ export function generateRandomCharacter(variant: GameVariant, forcedLevel?: numb
   const name = pick(FANTASY_NAMES)
   const archetype = pickRandomArchetype()
 
+  // ─── #81: Resolve all level-up gating decisions for the chosen level. ─────
+  // Sin esto el PJ random aparece con avisos "Resolve before leveling up" en
+  // Step9 (subclase ya se resuelve arriba, faltan species choices, ASIs y
+  // Magic Initiate del origin feat).
+
+  // Species choices (e.g. Dragonborn → Draconic Ancestry).
+  const speciesChoices: Record<string, string> = {}
+  if (race.choices?.length) {
+    for (const choice of race.choices) {
+      if (choice.options.length > 0) {
+        speciesChoices[choice.id] = pick(choice.options).id
+      }
+    }
+  }
+
+  // ASI/Feat checkpoints. Para simplificar y NUNCA bloquear la review, todos
+  // los slots se resuelven como ASI '+2' a una habilidad primaria de la clase
+  // (cap a 20 lo enforcea Step9 cuando el usuario edita; aquí no lo aplicamos
+  // porque el cálculo final lo hace la store al sumar bonuses).
+  const asiChoices: ASIChoice[] = []
+  for (const lvl of getAsiLevels(cls.id, level)) {
+    const targetAbility = cls.primaryAbility[0] ?? 'con'
+    asiChoices.push({
+      level: lvl,
+      type: 'asi',
+      asiMode: '2',
+      asiAbilities: [targetAbility],
+    })
+  }
+
+  // Magic Initiate del origin feat (background): si el background trae como
+  // origin feat Magic Initiate, hay que poblar magicInitiateChoices['origin']
+  // con spell list + 2 cantrips + 1 hechizo nivel 1. Si no, la gating salta.
+  const originFeatId = bg.originFeat ?? ''
+  const magicInitiateChoices: CharacterData['magicInitiateChoices'] = []
+  if (originFeatId) {
+    const originFeat = getFeatById(originFeatId)
+    if (originFeat?.grantsMagicInitiate) {
+      const spellList = pick(['cleric', 'druid', 'wizard'] as const)
+      const allSpells = getSpells(variant)
+      const listSpells = allSpells.filter(s => s.classes.includes(spellList))
+      const listCantrips = listSpells.filter(s => s.level === 0)
+      const listLv1 = listSpells.filter(s => s.level === 1)
+      const miCantrips = pickN(listCantrips, Math.min(2, listCantrips.length)).map(s => s.id)
+      const miLv1 = listLv1.length > 0 ? pick(listLv1).id : ''
+      magicInitiateChoices.push({
+        source: 'origin',
+        spellList,
+        cantrips: miCantrips,
+        levelOneSpell: miLv1,
+      })
+    }
+  }
+
   return {
     id: crypto.randomUUID(),
     variant,
@@ -305,6 +361,10 @@ export function generateRandomCharacter(variant: GameVariant, forcedLevel?: numb
     speed: race.speed,
                       sessionNotes: '',
     classes: [],
+    speciesChoices,
+    asiChoices,
+    originFeatId,
+    magicInitiateChoices,
   }
 }
 

@@ -78,7 +78,7 @@ export interface RaceChoiceOption {
 export interface Race {
   id: string
   name: string
-  /** Original name in the setting's language (e.g. Italian for Brancalonia) */
+  /** Original name in the setting's language, if different from the English form */
   nameOriginal?: string
   description?: string
   /** Kept for legacy SRD 5.1 compatibility; empty in 2024 species. */

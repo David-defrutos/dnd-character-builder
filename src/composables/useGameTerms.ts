@@ -43,18 +43,18 @@ export function useGameTerms() {
   }
 
   /**
-   * Translate a class name. For variant-specific names (Brancalonia/Apocalisse),
-   * pass the variant to get the correct Italian name.
-   * Accepts both English names ("Barbarian") and class IDs ("barbarian").
+   * Translate a class name. Accepts both English names ("Barbarian") and class
+   * IDs ("barbarian"). The `variant` parameter is kept for API compatibility
+   * with legacy call-sites and is currently unused.
    * @param name - English class name or class ID
-   * @param variant - Game variant for variant-specific overrides
+   * @param variant - Reserved for future variant-specific overrides
    */
   function className(name: string, variant?: string): string {
     return translate(name, 'class', variant)
   }
 
   /**
-   * Translate a race name to Italian.
+   * Translate a race name.
    * @param name - English race name (e.g., "Dwarf", "Gifted")
    */
   function raceName(name: string): string {
@@ -62,7 +62,7 @@ export function useGameTerms() {
   }
 
   /**
-   * Translate a subrace name to Italian.
+   * Translate a subrace name.
    * @param name - English subrace name (e.g., "Hill Dwarf", "Child of the Old World")
    */
   function subraceName(name: string): string {
@@ -70,7 +70,7 @@ export function useGameTerms() {
   }
 
   /**
-   * Translate a skill name to Italian.
+   * Translate a skill name.
    * @param name - English skill name (e.g., "Acrobatics", "Stealth")
    */
   function skill(name: string): string {
@@ -78,7 +78,7 @@ export function useGameTerms() {
   }
 
   /**
-   * Translate an armor/weapon proficiency label to Italian.
+   * Translate an armor/weapon proficiency label.
    * @param name - English proficiency label (e.g., "light", "martial", "shields")
    */
   function proficiency(name: string): string {
@@ -86,7 +86,7 @@ export function useGameTerms() {
   }
 
   /**
-   * Translate a class feature name to Italian.
+   * Translate a class feature name.
    * @param name - English feature name (e.g., "Rage", "Sneak Attack")
    */
   function feature(name: string): string {
@@ -94,8 +94,8 @@ export function useGameTerms() {
   }
 
   /**
-   * Translate a racial trait to Italian.
-   * Accepts kebab-case IDs (D&D 5e/Brancalonia) or full sentences (Apocalisse).
+   * Translate a racial trait string.
+   * Accepts kebab-case IDs or full sentences as defined in race data.
    * @param name - Trait string exactly as defined in race data
    */
   function trait(name: string): string {
@@ -103,7 +103,7 @@ export function useGameTerms() {
   }
 
   /**
-   * Translate a language name to Italian.
+   * Translate a language name.
    * @param name - English language name (e.g., "Common", "Elvish")
    */
   function language(name: string): string {
@@ -111,7 +111,7 @@ export function useGameTerms() {
   }
 
   /**
-   * Translate a subclass name to Italian.
+   * Translate a subclass name.
    * @param name - Subclass ID (e.g., "berserker", "school-of-evocation")
    */
   function subclassName(name: string): string {
@@ -119,7 +119,7 @@ export function useGameTerms() {
   }
 
   /**
-   * Translate an equipment item name to Italian.
+   * Translate an equipment item name.
    * @param name - Equipment item string (e.g., "Longsword", "Explorer's Pack")
    */
   function equipment(name: string): string {

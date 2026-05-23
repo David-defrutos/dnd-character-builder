@@ -248,8 +248,6 @@ export function getClasses(variant: GameVariant): readonly CharacterClass[] {
   }
 }
 
-// ─── Subclasses (Brancalonia-specific) ──────────────────────────────────────
-
 // ─── Backgrounds ────────────────────────────────────────────────────────────
 
 export function getBackgrounds(variant: GameVariant): readonly Background[] {

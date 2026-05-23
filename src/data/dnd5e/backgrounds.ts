@@ -4,8 +4,7 @@
 //   • abilityScores: three abilities; player picks +2/+1 or 1/1/1
 //   • feat:         an Origin Feat (see ./feats.ts)
 //   • equipmentChoice: choose between an item package and 50 GP
-// All three are marked optional so legacy 2014 backgrounds in missing-backgrounds.ts
-// (used by Brancalonia / Apocalisse variants) keep working unchanged.
+// All three are marked optional for forward-compatibility with legacy entries.
 //
 // PHB 2024 base set: Acolyte, Criminal, Sage, Soldier.
 

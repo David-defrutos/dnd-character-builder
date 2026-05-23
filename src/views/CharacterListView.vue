@@ -18,8 +18,6 @@ const gt = useGameTerms()
 
 const variantSections: { id: GameVariant; emoji: string; color: string; border: string }[] = [
   { id: 'dnd5e', emoji: '\uD83D\uDC09', color: 'amber', border: 'border-amber-600/40' },
-  // { id: 'brancalonia', emoji: '\uD83C\uDF72', color: 'emerald', border: 'border-emerald-600/40' },
-  // { id: 'apocalisse', emoji: '\uD83D\uDD25', color: 'red', border: 'border-red-600/40' },
 ]
 
 const groupedCharacters = computed(() => {

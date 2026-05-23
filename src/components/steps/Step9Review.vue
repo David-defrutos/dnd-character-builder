@@ -111,9 +111,6 @@ const subclassMissingReview = computed(() =>
 const maxSpellsReview = computed(() =>
   getSpellsKnownCount(char.value.className, char.value.level, characterStore.abilityModifiers)
 )
-const spellSlotsAvailable = computed(() =>
-  maxSpellsReview.value > 0 && char.value.spellsKnown.length < maxSpellsReview.value
-)
 const spellSearchReview = ref('')
 const spellLevelFilterReview = ref<number | null>(null)
 
@@ -234,7 +231,7 @@ const featureTraitsDisplay = computed<string[]>(() => {
 })
 
 
-// Apocalisse display helpers
+// Display helpers
 
 /**
  * Given a featuresTraits string like "ASI Feat: Resilient (WIS, lv.6)" or
@@ -677,8 +674,11 @@ function handleImport(event: Event) {
     <!-- H5: Expertise (Bard lv.2, lv.10) -->
     <ExpertisePicker class="mb-4" />
 
-    <!-- Selector de hechizos (#41) — visible cuando hay slots sin usar -->
-    <div v-if="spellSlotsAvailable" class="bg-stone-800/50 border border-blue-700/30 rounded-lg p-4 mb-4">
+    <!-- Selector de hechizos (#41) — visible siempre que la clase pueda preparar.
+         Antes solo se mostraba con slots libres, pero al llenarlos se ocultaba
+         el bloque entero (incluidas las píldoras con ✕) y el jugador no podía
+         corregir un error. Ahora permanece visible para permitir desmarcar. -->
+    <div v-if="maxSpellsReview > 0" class="bg-stone-800/50 border border-blue-700/30 rounded-lg p-4 mb-4">
       <h3 class="text-lg font-bold text-blue-400 mb-1">
         Spells
         <span class="text-stone-500 text-xs font-normal ml-2">
@@ -716,7 +716,7 @@ function handleImport(event: Event) {
           :key="spell.id"
           :spell="spell"
           :selected="char.spellsKnown.includes(spell.id)"
-          :disabled="char.spellsKnown.length >= maxSpellsReview"
+          :disabled="!char.spellsKnown.includes(spell.id) && char.spellsKnown.length >= maxSpellsReview"
           @toggle="toggleSpellReview(spell.id)"
         />
       </div>

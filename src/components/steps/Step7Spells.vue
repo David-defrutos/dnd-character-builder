@@ -233,7 +233,7 @@ function toggleSpell(spellId: string) {
             :key="spell.id"
             :spell="spell"
             :selected="characterStore.character.cantrips.includes(spell.id)"
-            :disabled="characterStore.character.cantrips.length >= maxCantrips"
+            :disabled="!characterStore.character.cantrips.includes(spell.id) && characterStore.character.cantrips.length >= maxCantrips"
             compact
             @toggle="toggleCantrip(spell.id)"
           />
@@ -252,7 +252,7 @@ function toggleSpell(spellId: string) {
             :key="spell.id"
             :spell="spell"
             :selected="characterStore.character.spellsKnown.includes(spell.id)"
-            :disabled="characterStore.character.spellsKnown.length >= maxSpellsKnown"
+            :disabled="!characterStore.character.spellsKnown.includes(spell.id) && characterStore.character.spellsKnown.length >= maxSpellsKnown"
             @toggle="toggleSpell(spell.id)"
           />
         </div>

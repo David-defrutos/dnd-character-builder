@@ -167,9 +167,7 @@ const variants: { id: GameVariant; emoji: string; color: string; border: string 
               @click="startNew(v.id)"
               :class="[
                 'w-full px-4 py-2.5 font-semibold rounded-lg transition-colors cursor-pointer text-sm',
-                v.id === 'dnd5e' ? 'bg-amber-600 hover:bg-amber-500 text-stone-900' :
-                v.id === 'brancalonia' ? 'bg-emerald-600 hover:bg-emerald-500 text-stone-900' :
-                'bg-red-600 hover:bg-red-500 text-stone-100'
+                'bg-amber-600 hover:bg-amber-500 text-stone-900'
               ]"
             >
               <span aria-hidden="true">✨</span> {{ t('home.newFrom') }}
@@ -221,9 +219,7 @@ const variants: { id: GameVariant; emoji: string; color: string; border: string 
               <span
                 :class="[
                   'text-xs uppercase px-2 py-0.5 rounded shrink-0 ml-2',
-                  char.variant === 'dnd5e' ? 'bg-amber-900/40 text-amber-400' :
-                  char.variant === 'brancalonia' ? 'bg-emerald-900/40 text-emerald-400' :
-                  'bg-red-900/40 text-red-400'
+                  'bg-amber-900/40 text-amber-400'
                 ]"
               >{{ char.variant }}</span>
             </button>

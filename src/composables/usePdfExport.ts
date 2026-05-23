@@ -27,8 +27,7 @@ export function usePdfExport() {
     exporting.value = true
 
     try {
-      // Brancalonia uses its own (Italian) sheet; everything else uses the
-      // official 2024 D&D 5.5 form-fillable sheet.
+      // Uses the official 2024 D&D 5.5 form-fillable sheet.
       const base = import.meta.env.BASE_URL
       const pdfUrl = `${base}pdf/dnd-2024-sheet.pdf`
 
