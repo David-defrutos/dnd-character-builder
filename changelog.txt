@@ -7,6 +7,115 @@ Convenciones:
 - # = referencia al bug/feature en la memoria de trabajo.
 
 ────────────────────────────────────────
+2026-05-23 07:42 · #119 — Catálogo completo de Limited-Use Resources
+────────────────────────────────────────
+BUG REPORTADO: al exportar la ficha de Salusa Secundus (Bard Glamour lv.10
+con Lucky de origen y Fey-Touched + Inspiring Leader como feats ASI), la
+sección "Limited-Use Resources" del anexo del PDF no aparecía. La función
+getLimitedResources() solo cubría recursos de clase/subclase/raza; los feats
+con usos limitados se ignoraban por completo, y varios recursos de clase
+modelados pero faltantes en el catálogo nunca se listaban. Como Salusa no
+tiene ningún recurso del catálogo previo, la lista quedaba vacía y
+drawResourceTable hacía return sin imprimir la sección.
+
+CAUSA:
+- src/utils/resourceUsage.ts: el catálogo no contemplaba feats. Tampoco
+  modelaba Bardic Inspiration, Lay on Hands, Sorcery Points, Focus Points,
+  Arcane Recovery, Magical Cunning, Divine Intervention, Favored Enemy,
+  Paladin's Smite, Faithful Steed, Uncanny Metabolism, Innate Sorcery, ni
+  Glamour Bard (Mantle of Majesty, Unbreakable Majesty).
+- BUG LATENTE DETECTADO: Wild Shape estaba hardcoded a 2 usos, ignorando la
+  columna `wildShape` de la progresión (Druid lv.6 debería tener 3, lv.17
+  → 4). En lv.20 sigue siendo unlimited (999).
+- BUG LATENTE DETECTADO: Channel Divinity solo se detectaba si la feature
+  tenía id 'channel-divinity' (Cleric). Paladin usa id 'channel-divinity-
+  paladin' y nunca aparecía en la tabla, pese a tener la misma columna
+  `channelDivinity` en su progression.
+
+FIX:
+- src/utils/resourceUsage.ts:
+    · Interfaz ResourceUsage añade campo opcional `unit?: string` para
+      recursos con unidad explícita (Lay on Hands pool: Max = "50 HP").
+    · Importa getFeatById de src/data/dnd5e/feats.
+    · Nuevo bloque "Feat-based resources" que recorre originFeatId y
+      asiChoices[].featId. Switch declarativo por feat:
+        - lucky                  → Luck Points = PB, long rest
+        - magic-initiate         → 1 free cast lv.1, long rest
+        - fey-touched            → 2 filas (Misty Step + lv.1 spell), 1/lr
+        - shadow-touched         → 2 filas (Invisibility + lv.1 spell), 1/lr
+        - ritual-caster          → Quick Ritual 1/long rest
+        - telepathic             → Detect Thoughts 1/long rest
+        - mage-slayer            → Guarded Mind 1/short or long rest
+      Inspiring Leader, Tough, Resilient, Speedy, etc. quedan FUERA por no
+      tener tope de usos en PHB 2024 (decisión confirmada por el usuario).
+    · Bloque "Class-based resources" ampliado:
+        - Bardic Inspiration: uses = max(1, CHA mod). Recharge long rest
+          hasta lv.4, short or long rest desde lv.5 (Font of Inspiration).
+        - Divine Intervention (Cleric lv.10): 1/long rest.
+        - Lay on Hands (Paladin lv.1): pool = 5 × level, unit "HP", lr.
+        - Paladin's Smite (lv.2): 1/long rest.
+        - Faithful Steed (lv.5): 1/long rest.
+        - Monk's Focus Points: lee columna `focusPoints`, short or long.
+        - Uncanny Metabolism (Monk lv.2): 1/long rest.
+        - Sorcery Points: lee columna `sorceryPoints`, long rest.
+        - Innate Sorcery (Sorcerer lv.1): 2/long rest.
+        - Magical Cunning (Warlock lv.2): 1/short rest. NO se duplican los
+          Pact Magic slots (decisión del usuario — ya salen en su sección
+          propia del PDF).
+        - Arcane Recovery (Wizard lv.1): 1/long rest.
+        - Favored Enemy (Ranger): lee columna `favoredEnemy` para mostrar
+          el número de free Hunter's Mark casts disponibles por long rest.
+    · Bloque "Subclass-based resources" ampliado:
+        - Mantle of Majesty (Glamour Bard lv.6): 1/long rest.
+        - Unbreakable Majesty (Glamour Bard lv.14): 1/short or long rest.
+    · FIX Wild Shape: lee progression.wildShape en vez del hardcoded 2.
+      Mantiene el caso especial lv.20 → 999 (unlimited).
+    · FIX Channel Divinity (Paladin): el chequeo busca tanto la feature
+      'channel-divinity' (Cleric) como 'channel-divinity-paladin' (Paladin).
+
+- src/utils/pdfAppendix.ts:
+    · drawResourceTable: la celda Max usa `${uses} ${unit}` cuando el
+      recurso tiene unit (caso Lay on Hands → "50 HP").
+    · Reemplazado el carácter ∞ (U+221E) por la cadena "Unlimited" para
+      el caso uses === 999. Motivo: el font Helvetica de pdf-lib no soporta
+      caracteres fuera de WinAnsi y sanitize() los convertía en "?". El
+      texto "Unlimited" es más legible que "?" o "Inf".
+
+ARCHIVOS:
+- src/utils/resourceUsage.ts (refactor mayor del catálogo)
+- src/utils/pdfAppendix.ts (drawResourceTable.cells y manejo de ∞)
+- src/utils/resourceUsage.test.ts (31 tests nuevos)
+
+TESTS:
+- Tests nuevos en 4 sub-describes:
+    · "#119 — feats con usos limitados" (10 tests): Lucky origen y ASI,
+      Fey-Touched 2 filas, Shadow-Touched 2 filas, Magic Initiate, Ritual
+      Caster, Telepathic, Mage Slayer, Inspiring Leader NO aparece, Tough
+      /Resilient/Speedy NO aparecen, combinación Lucky + Fey-Touched = 3
+      filas.
+    · "#119 — recursos de clase no modelados anteriormente" (16 tests):
+      Bardic Inspiration uses según CHA, recharge según lv., piso = 1;
+      Paladin lv.5 (LoH=25 HP, Smite, Faithful Steed, Channel Divinity),
+      Paladin lv.20 LoH=100; Monk lv.6 Focus Points=6; Sorcerer lv.5 SP=5
+      e Innate=2; Warlock lv.2 Magical Cunning; Wizard lv.1 Arcane
+      Recovery; Cleric lv.10 Divine Intervention (y NO en lv.9); Ranger
+      lv.1/9 Favored Enemy escala 2→4; Wild Shape Druid lv.6=3, lv.17=4,
+      lv.20=999.
+    · "#119 — subclase Glamour Bard" (3 tests): Mantle of Majesty aparece
+      en lv.6 (no antes), Unbreakable Majesty en lv.14.
+    · "#119 — Caso real Salusa Secundus" (1 test): verifica que la lista
+      de Salusa contiene Luck Points (4), Fey-Touched x2 (1 cada), Bardic
+      Inspiration (4, short/long rest), Mantle of Majesty (1); Inspiring
+      Leader NO está.
+- Total tests: 803/803 (antes 772). Build OK.
+
+NOTA: no se modela aún Bardic Inspiration recharge "On Initiative" del lv.18
+(Superior Inspiration: regen pasivo), ni Battle Master Superiority Dice,
+Eldritch Knight, Arcane Trickster, Psi Warrior, etc. — esas features no
+están en el código todavía. Si se modelan en el futuro, se añadirán al
+catálogo.
+
+────────────────────────────────────────
 2026-05-23 00:30 · #118 — Sistema de items equipados + AC con desglose
 ────────────────────────────────────────
 NUEVA FUNCIONALIDAD: cualquier item del inventory ahora puede equiparse.

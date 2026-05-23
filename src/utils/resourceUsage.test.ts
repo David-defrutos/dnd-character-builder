@@ -212,4 +212,349 @@ describe('#78 — resourceUsage', () => {
     const sorted = [...names].sort((a, b) => a.localeCompare(b))
     expect(names).toEqual(sorted)
   })
+
+  // ─── #119 — Catálogo completo de Limited-Use Resources ────────────────
+  describe('#119 — feats con usos limitados', () => {
+    it('Lucky (origin feat): Luck Points = PB, long rest', () => {
+      const char = freshChar()
+      char.className = 'fighter'
+      char.level = 5 // PB = 3
+      char.originFeatId = 'lucky'
+      const r = getLimitedResources(char).find(x => x.name === 'Luck Points')
+      expect(r).toBeDefined()
+      expect(r!.uses).toBe(3)
+      expect(r!.recharge).toBe('long rest')
+      expect(r!.source).toMatch(/Lucky/)
+    })
+
+    it('Lucky en ASI feat (no origin): también aparece', () => {
+      const char = freshChar()
+      char.className = 'fighter'
+      char.level = 9 // PB = 4
+      char.asiChoices = [{ level: 4, type: 'feat', featId: 'lucky' }]
+      const r = getLimitedResources(char).find(x => x.name === 'Luck Points')
+      expect(r?.uses).toBe(4)
+      expect(r?.source).toMatch(/ASI Feat lv\.4/)
+    })
+
+    it('Fey-Touched: 2 filas (Misty Step + lv.1 spell), 1/long rest', () => {
+      const char = freshChar()
+      char.className = 'wizard'
+      char.level = 4
+      char.asiChoices = [{ level: 4, type: 'feat', featId: 'fey-touched' }]
+      const names = getLimitedResources(char).map(r => r.name)
+      expect(names).toContain('Fey-Touched: Misty Step')
+      expect(names).toContain('Fey-Touched: lv.1 spell')
+      const rs = getLimitedResources(char).filter(r => r.name.startsWith('Fey-Touched'))
+      expect(rs).toHaveLength(2)
+      rs.forEach(r => {
+        expect(r.uses).toBe(1)
+        expect(r.recharge).toBe('long rest')
+      })
+    })
+
+    it('Shadow-Touched: 2 filas (Invisibility + lv.1 spell), 1/long rest', () => {
+      const char = freshChar()
+      char.className = 'wizard'
+      char.level = 4
+      char.asiChoices = [{ level: 4, type: 'feat', featId: 'shadow-touched' }]
+      const rs = getLimitedResources(char).filter(r => r.name.startsWith('Shadow-Touched'))
+      expect(rs).toHaveLength(2)
+      rs.forEach(r => {
+        expect(r.uses).toBe(1)
+        expect(r.recharge).toBe('long rest')
+      })
+    })
+
+    it('Magic Initiate: 1 free cast lv.1, long rest', () => {
+      const char = freshChar()
+      char.className = 'fighter'
+      char.level = 1
+      char.originFeatId = 'magic-initiate'
+      const r = getLimitedResources(char).find(x => x.name.includes('Magic Initiate'))
+      expect(r).toBeDefined()
+      expect(r!.uses).toBe(1)
+      expect(r!.recharge).toBe('long rest')
+    })
+
+    it('Ritual Caster: Quick Ritual 1/long rest', () => {
+      const char = freshChar()
+      char.className = 'fighter'
+      char.level = 4
+      char.asiChoices = [{ level: 4, type: 'feat', featId: 'ritual-caster' }]
+      const r = getLimitedResources(char).find(x => x.name === 'Quick Ritual')
+      expect(r?.uses).toBe(1)
+      expect(r?.recharge).toBe('long rest')
+    })
+
+    it('Telepathic: Detect Thoughts 1/long rest', () => {
+      const char = freshChar()
+      char.className = 'fighter'
+      char.level = 4
+      char.asiChoices = [{ level: 4, type: 'feat', featId: 'telepathic' }]
+      const r = getLimitedResources(char).find(x => x.name === 'Telepathic: Detect Thoughts')
+      expect(r?.uses).toBe(1)
+      expect(r?.recharge).toBe('long rest')
+    })
+
+    it('Mage Slayer: Guarded Mind 1/short or long rest', () => {
+      const char = freshChar()
+      char.className = 'fighter'
+      char.level = 4
+      char.asiChoices = [{ level: 4, type: 'feat', featId: 'mage-slayer' }]
+      const r = getLimitedResources(char).find(x => x.name === 'Guarded Mind')
+      expect(r?.uses).toBe(1)
+      expect(r?.recharge).toMatch(/short or long rest/)
+    })
+
+    it('Inspiring Leader NO aparece (no tiene tope de usos)', () => {
+      const char = freshChar()
+      char.className = 'bard'
+      char.level = 4
+      char.asiChoices = [{ level: 4, type: 'feat', featId: 'inspiring-leader' }]
+      const names = getLimitedResources(char).map(r => r.name)
+      expect(names).not.toContain('Inspiring Leader')
+    })
+
+    it('Tough, Resilient, Speedy: NO aparecen (sin contador)', () => {
+      const char = freshChar()
+      char.className = 'fighter'
+      char.level = 12
+      char.originFeatId = 'tough'
+      char.asiChoices = [
+        { level: 4, type: 'feat', featId: 'resilient' },
+        { level: 8, type: 'feat', featId: 'speedy' },
+      ]
+      const names = getLimitedResources(char).map(r => r.name).join('|')
+      expect(names).not.toMatch(/Tough/)
+      expect(names).not.toMatch(/Resilient/)
+      expect(names).not.toMatch(/Speedy/)
+    })
+
+    it('Combinación: Lucky + Fey-Touched suma 3 filas', () => {
+      const char = freshChar()
+      char.className = 'bard'
+      char.level = 8 // PB = 3
+      char.originFeatId = 'lucky'
+      char.asiChoices = [{ level: 4, type: 'feat', featId: 'fey-touched' }]
+      const feats = getLimitedResources(char).filter(r =>
+        r.name === 'Luck Points' || r.name.startsWith('Fey-Touched')
+      )
+      expect(feats).toHaveLength(3)
+    })
+  })
+
+  describe('#119 — recursos de clase no modelados anteriormente', () => {
+    it('Bard lv.1: Bardic Inspiration = max(1, CHA mod), long rest', () => {
+      const char = freshChar()
+      char.className = 'bard'
+      char.level = 1
+      char.abilityScores.cha = 16 // mod +3
+      const r = getLimitedResources(char).find(x => x.name === 'Bardic Inspiration')
+      expect(r).toBeDefined()
+      expect(r!.uses).toBe(3)
+      expect(r!.recharge).toBe('long rest')
+    })
+
+    it('Bard lv.5+: Bardic Inspiration recarga en short or long rest', () => {
+      const char = freshChar()
+      char.className = 'bard'
+      char.level = 5
+      char.abilityScores.cha = 14
+      const r = getLimitedResources(char).find(x => x.name === 'Bardic Inspiration')
+      expect(r?.recharge).toBe('short or long rest')
+    })
+
+    it('Bardic Inspiration: piso = 1 incluso con CHA negativa', () => {
+      const char = freshChar()
+      char.className = 'bard'
+      char.level = 1
+      char.abilityScores.cha = 8 // mod -1
+      const r = getLimitedResources(char).find(x => x.name === 'Bardic Inspiration')
+      expect(r?.uses).toBe(1)
+    })
+
+    it('Paladin lv.5: Lay on Hands (25 HP), Smite, Faithful Steed, Channel Divinity', () => {
+      const char = freshChar()
+      char.className = 'paladin'
+      char.level = 5
+      const rs = getLimitedResources(char)
+      const loh = rs.find(r => r.name.includes('Lay on Hands'))
+      expect(loh?.uses).toBe(25)
+      expect(loh?.unit).toBe('HP')
+      expect(loh?.recharge).toBe('long rest')
+      expect(rs.find(r => r.name === "Paladin's Smite")?.uses).toBe(1)
+      expect(rs.find(r => r.name === 'Faithful Steed')?.uses).toBe(1)
+      expect(rs.find(r => r.name === 'Channel Divinity')).toBeDefined()
+    })
+
+    it('Paladin lv.20: Lay on Hands = 100 HP', () => {
+      const char = freshChar()
+      char.className = 'paladin'
+      char.level = 20
+      const loh = getLimitedResources(char).find(r => r.name.includes('Lay on Hands'))
+      expect(loh?.uses).toBe(100)
+    })
+
+    it('Monk lv.6: Focus Points = 6, Uncanny Metabolism = 1/long rest', () => {
+      const char = freshChar()
+      char.className = 'monk'
+      char.level = 6
+      const rs = getLimitedResources(char)
+      const fp = rs.find(r => r.name === 'Focus Points')
+      expect(fp?.uses).toBe(6)
+      expect(fp?.recharge).toBe('short or long rest')
+      const um = rs.find(r => r.name === 'Uncanny Metabolism')
+      expect(um?.uses).toBe(1)
+      expect(um?.recharge).toBe('long rest')
+    })
+
+    it('Sorcerer lv.5: Sorcery Points = 5, Innate Sorcery = 2/long rest', () => {
+      const char = freshChar()
+      char.className = 'sorcerer'
+      char.level = 5
+      const rs = getLimitedResources(char)
+      expect(rs.find(r => r.name === 'Sorcery Points')?.uses).toBe(5)
+      expect(rs.find(r => r.name === 'Innate Sorcery')?.uses).toBe(2)
+    })
+
+    it('Warlock lv.2: Magical Cunning = 1/short rest', () => {
+      const char = freshChar()
+      char.className = 'warlock'
+      char.level = 2
+      const r = getLimitedResources(char).find(x => x.name === 'Magical Cunning')
+      expect(r?.uses).toBe(1)
+      expect(r?.recharge).toBe('short rest')
+    })
+
+    it('Wizard lv.1: Arcane Recovery = 1/long rest', () => {
+      const char = freshChar()
+      char.className = 'wizard'
+      char.level = 1
+      const r = getLimitedResources(char).find(x => x.name === 'Arcane Recovery')
+      expect(r?.uses).toBe(1)
+      expect(r?.recharge).toBe('long rest')
+    })
+
+    it('Cleric lv.10: Divine Intervention = 1/long rest', () => {
+      const char = freshChar()
+      char.className = 'cleric'
+      char.level = 10
+      const r = getLimitedResources(char).find(x => x.name === 'Divine Intervention')
+      expect(r?.uses).toBe(1)
+      expect(r?.recharge).toBe('long rest')
+    })
+
+    it('Cleric lv.9: aún NO tiene Divine Intervention', () => {
+      const char = freshChar()
+      char.className = 'cleric'
+      char.level = 9
+      const r = getLimitedResources(char).find(x => x.name === 'Divine Intervention')
+      expect(r).toBeUndefined()
+    })
+
+    it('Ranger lv.1: Favored Enemy = 2 Hunter\u2019s Mark gratis/long rest', () => {
+      const char = freshChar()
+      char.className = 'ranger'
+      char.level = 1
+      const r = getLimitedResources(char).find(x => x.name.startsWith('Favored Enemy'))
+      expect(r?.uses).toBe(2)
+      expect(r?.recharge).toBe('long rest')
+    })
+
+    it('Ranger lv.9: Favored Enemy escala a 4', () => {
+      const char = freshChar()
+      char.className = 'ranger'
+      char.level = 9
+      const r = getLimitedResources(char).find(x => x.name.startsWith('Favored Enemy'))
+      expect(r?.uses).toBe(4)
+    })
+
+    it('FIX Wild Shape: Druid lv.6 = 3 usos (no 2 hardcoded)', () => {
+      const char = freshChar()
+      char.className = 'druid'
+      char.level = 6
+      const r = getLimitedResources(char).find(x => x.name === 'Wild Shape')
+      expect(r?.uses).toBe(3)
+    })
+
+    it('FIX Wild Shape: Druid lv.17 = 4', () => {
+      const char = freshChar()
+      char.className = 'druid'
+      char.level = 17
+      const r = getLimitedResources(char).find(x => x.name === 'Wild Shape')
+      expect(r?.uses).toBe(4)
+    })
+
+    it('Wild Shape lv.20 sigue siendo unlimited (999)', () => {
+      const char = freshChar()
+      char.className = 'druid'
+      char.level = 20
+      const r = getLimitedResources(char).find(x => x.name === 'Wild Shape')
+      expect(r?.uses).toBe(999)
+    })
+  })
+
+  describe('#119 — subclase Glamour Bard', () => {
+    it('Glamour Bard lv.6: añade Mantle of Majesty', () => {
+      const char = freshChar()
+      char.className = 'bard'
+      char.subclass = 'glamour'
+      char.level = 6
+      const r = getLimitedResources(char).find(x => x.name === 'Mantle of Majesty')
+      expect(r?.uses).toBe(1)
+      expect(r?.recharge).toBe('long rest')
+    })
+
+    it('Glamour Bard lv.5: aún NO tiene Mantle of Majesty (lv.6)', () => {
+      const char = freshChar()
+      char.className = 'bard'
+      char.subclass = 'glamour'
+      char.level = 5
+      const r = getLimitedResources(char).find(x => x.name === 'Mantle of Majesty')
+      expect(r).toBeUndefined()
+    })
+
+    it('Glamour Bard lv.14: añade Unbreakable Majesty', () => {
+      const char = freshChar()
+      char.className = 'bard'
+      char.subclass = 'glamour'
+      char.level = 14
+      const r = getLimitedResources(char).find(x => x.name === 'Unbreakable Majesty')
+      expect(r?.uses).toBe(1)
+      expect(r?.recharge).toBe('short or long rest')
+    })
+  })
+
+  describe('#119 — Caso real Salusa Secundus (Bard Glamour lv.10)', () => {
+    it('incluye Lucky, Fey-Touched (x2), Bardic Inspiration, Mantle of Majesty', () => {
+      const char = freshChar()
+      char.className = 'bard'
+      char.subclass = 'glamour'
+      char.level = 10
+      char.abilityScores.cha = 15 // base 15
+      char.backgroundBonuses = { cha: 2, dex: 1 } // wayfarer: +2 cha
+      char.asiBonuses = { cha: 2 } // ASI lv.4 feat → cha +1 + lv.8 feat → cha +1 = +2
+      // Total CHA = 15+2+2 = 19 (mod +4)
+      char.originFeatId = 'lucky'
+      char.asiChoices = [
+        { level: 4, type: 'feat', featId: 'inspiring-leader', featAbility: 'cha' },
+        { level: 8, type: 'feat', featId: 'fey-touched', featAbility: 'cha' },
+      ]
+      const names = getLimitedResources(char).map(r => r.name)
+      expect(names).toContain('Luck Points')
+      expect(names).toContain('Fey-Touched: Misty Step')
+      expect(names).toContain('Fey-Touched: lv.1 spell')
+      expect(names).toContain('Bardic Inspiration')
+      expect(names).toContain('Mantle of Majesty')
+      // Inspiring Leader NO (sin contador)
+      expect(names).not.toContain('Inspiring Leader')
+      // Verifica usos clave
+      const luck = getLimitedResources(char).find(r => r.name === 'Luck Points')
+      expect(luck?.uses).toBe(4) // PB lv.10 = 4
+      const bi = getLimitedResources(char).find(r => r.name === 'Bardic Inspiration')
+      expect(bi?.uses).toBe(4) // CHA mod = +4
+      expect(bi?.recharge).toBe('short or long rest') // lv.10 ≥ 5
+    })
+  })
 })

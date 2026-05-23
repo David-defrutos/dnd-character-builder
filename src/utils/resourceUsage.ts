@@ -25,6 +25,7 @@
 
 import type { CharacterData } from '@/stores/character'
 import { getClassById } from '@/data/dnd5e/classes'
+import { getFeatById } from '@/data/dnd5e/feats'
 import { proficiencyBonus, modifier } from './calculations'
 
 export interface ResourceUsage {
@@ -36,6 +37,10 @@ export interface ResourceUsage {
   recharge: string
   /** Optional source tag for context ("Fighter lv.2", "Dragonborn", ...). */
   source?: string
+  /** Optional unit for the Max column. Empty for plain counters; "HP" for
+   *  pool resources like Paladin Lay on Hands (Max = "50 HP"). Used by the
+   *  PDF appendix renderer to format the Max cell. */
+  unit?: string
 }
 
 /** Total ability score (base + species + background + ASI bonuses). */
@@ -90,6 +95,17 @@ export function getLimitedResources(char: CharacterData): ResourceUsage[] {
       out.push({ name: 'Rage', uses: rages, recharge: 'long rest', source: `${cls.name} lv.${char.level}` })
     }
 
+    // Bard — Bardic Inspiration (#119)
+    // Uses = max(1, CHA mod) per PHB 2024. Recharge: long rest, short or long from lv.5
+    // (Font of Inspiration). Die size escala con bardicDie pero la columna del PDF es
+    // un contador de USOS, no de tamaño de dado. El tamaño del dado va a la descripción.
+    if (hasFeature(char, 'bardic-inspiration')) {
+      const chaMod = abilityMod(char, 'cha')
+      const uses = Math.max(1, chaMod)
+      const recharge = char.level >= 5 ? 'short or long rest' : 'long rest'
+      out.push({ name: 'Bardic Inspiration', uses, recharge, source: `${cls.name} lv.${char.level}` })
+    }
+
     // Fighter — Second Wind (per long rest, table; one back per short rest)
     const sw = progressionAt(char, 'secondWind')
     if (sw !== undefined && hasFeature(char, 'second-wind')) {
@@ -107,15 +123,86 @@ export function getLimitedResources(char: CharacterData): ResourceUsage[] {
       out.push({ name: 'Indomitable', uses: n, recharge: 'long rest', source: `${cls.name} lv.${char.level}` })
     }
 
-    // Cleric — Channel Divinity (table per short or long rest)
+    // Cleric / Paladin — Channel Divinity (table per short or long rest)
+    // Nota: Cleric usa feature id 'channel-divinity', Paladin 'channel-divinity-paladin'.
+    // Ambos comparten la columna `channelDivinity` en su progression.
     const cd = progressionAt(char, 'channelDivinity')
-    if (cd !== undefined && cd > 0 && hasFeature(char, 'channel-divinity')) {
+    const hasChannelDivinity = hasFeature(char, 'channel-divinity') || hasFeature(char, 'channel-divinity-paladin')
+    if (cd !== undefined && cd > 0 && hasChannelDivinity) {
       out.push({ name: 'Channel Divinity', uses: cd, recharge: 'short or long rest', source: `${cls.name} lv.${char.level}` })
     }
 
-    // Druid — Wild Shape (2/short or long rest; lv.20 unlimited)
+    // Cleric — Divine Intervention (1/long rest from lv.10) (#119)
+    if (hasFeature(char, 'divine-intervention')) {
+      out.push({ name: 'Divine Intervention', uses: 1, recharge: 'long rest', source: `${cls.name} lv.${char.level}` })
+    }
+
+    // Druid — Wild Shape (#119: FIX leer columna wildShape; lv.20 unlimited)
     if (hasFeature(char, 'wild-shape')) {
-      out.push({ name: 'Wild Shape', uses: char.level >= 20 ? 999 : 2, recharge: 'short or long rest', source: `${cls.name} lv.${char.level}` })
+      const wsCol = progressionAt(char, 'wildShape')
+      const uses = char.level >= 20 ? 999 : (wsCol !== undefined && wsCol > 0 ? wsCol : 2)
+      out.push({ name: 'Wild Shape', uses, recharge: 'short or long rest', source: `${cls.name} lv.${char.level}` })
+    }
+
+    // Monk — Focus Points (column focusPoints, short or long rest) (#119)
+    if (hasFeature(char, 'monks-focus')) {
+      const fp = progressionAt(char, 'focusPoints')
+      if (fp !== undefined && fp > 0) {
+        out.push({ name: 'Focus Points', uses: fp, recharge: 'short or long rest', source: `${cls.name} lv.${char.level}` })
+      }
+    }
+
+    // Monk — Uncanny Metabolism (1/long rest, lv.2) (#119)
+    if (hasFeature(char, 'uncanny-metabolism')) {
+      out.push({ name: 'Uncanny Metabolism', uses: 1, recharge: 'long rest', source: `${cls.name} lv.${char.level}` })
+    }
+
+    // Paladin — Lay on Hands (HP pool = 5 × level, long rest) (#119)
+    if (hasFeature(char, 'lay-on-hands')) {
+      out.push({ name: 'Lay on Hands (HP Pool)', uses: 5 * char.level, unit: 'HP', recharge: 'long rest', source: `${cls.name} lv.${char.level}` })
+    }
+
+    // Paladin — Paladin's Smite (1 free Divine Smite cast/long rest, lv.2) (#119)
+    if (hasFeature(char, 'paladin-smite')) {
+      out.push({ name: "Paladin's Smite", uses: 1, recharge: 'long rest', source: `${cls.name} lv.${char.level}` })
+    }
+
+    // Paladin — Faithful Steed (1 free Find Steed cast/long rest, lv.5) (#119)
+    if (hasFeature(char, 'faithful-steed')) {
+      out.push({ name: 'Faithful Steed', uses: 1, recharge: 'long rest', source: `${cls.name} lv.${char.level}` })
+    }
+
+    // Ranger — Favored Enemy (#119)
+    // Free Hunter's Mark casts without a slot. Cantidad en columna favoredEnemy.
+    if (hasFeature(char, 'favored-enemy')) {
+      const fe = progressionAt(char, 'favoredEnemy')
+      if (fe !== undefined && fe > 0) {
+        out.push({ name: 'Favored Enemy (free Hunter\u2019s Mark)', uses: fe, recharge: 'long rest', source: `${cls.name} lv.${char.level}` })
+      }
+    }
+
+    // Sorcerer — Sorcery Points (column sorceryPoints, long rest) (#119)
+    if (hasFeature(char, 'font-of-magic')) {
+      const sp = progressionAt(char, 'sorceryPoints')
+      if (sp !== undefined && sp > 0) {
+        out.push({ name: 'Sorcery Points', uses: sp, recharge: 'long rest', source: `${cls.name} lv.${char.level}` })
+      }
+    }
+
+    // Sorcerer — Innate Sorcery (2/long rest, lv.1) (#119)
+    if (hasFeature(char, 'innate-sorcery')) {
+      out.push({ name: 'Innate Sorcery', uses: 2, recharge: 'long rest', source: `${cls.name} lv.${char.level}` })
+    }
+
+    // Warlock — Magical Cunning (1/short rest, lv.2) (#119)
+    // Nota: regenera Pact Magic slots. NO duplicamos los slots como recurso (decisión del usuario).
+    if (hasFeature(char, 'magical-cunning')) {
+      out.push({ name: 'Magical Cunning', uses: 1, recharge: 'short rest', source: `${cls.name} lv.${char.level}` })
+    }
+
+    // Wizard — Arcane Recovery (1/long rest, lv.1) (#119)
+    if (hasFeature(char, 'arcane-recovery')) {
+      out.push({ name: 'Arcane Recovery', uses: 1, recharge: 'long rest', source: `${cls.name} lv.${char.level}` })
     }
   }
 
@@ -133,6 +220,16 @@ export function getLimitedResources(char: CharacterData): ResourceUsage[] {
     out.push({ name: 'Shadow Martyr', uses: 1, recharge: 'short or long rest', source: 'Echo Knight lv.10' })
   }
 
+  // Glamour Bard — Mantle of Majesty (1/long rest, lv.6) (#119)
+  if (char.subclass === 'glamour' && char.className === 'bard' && char.level >= 6) {
+    out.push({ name: 'Mantle of Majesty', uses: 1, recharge: 'long rest', source: 'College of Glamour lv.6' })
+  }
+
+  // Glamour Bard — Unbreakable Majesty (1/short or long rest, lv.14) (#119)
+  if (char.subclass === 'glamour' && char.className === 'bard' && char.level >= 14) {
+    out.push({ name: 'Unbreakable Majesty', uses: 1, recharge: 'short or long rest', source: 'College of Glamour lv.14' })
+  }
+
   // ─── Race-based resources ───────────────────────────────────────────────
   // Dragonborn — Breath Weapon (PB uses per long rest)
   if (char.race === 'dragonborn') {
@@ -142,6 +239,61 @@ export function getLimitedResources(char: CharacterData): ResourceUsage[] {
 
   // Tiefling — Hellish Resistance (passive, no usage; skip)
   // ... (otros patterns añadibles aquí en el futuro)
+
+  // ─── Feat-based resources (#119) ────────────────────────────────────────
+  // Recorre originFeatId + asiChoices[].featId. Solo los feats con usos
+  // limitados aparecen aquí; Inspiring Leader, Tough, Resilient, etc. no
+  // tienen contador y se omiten deliberadamente.
+  const featIds: Array<{ id: string; source: string }> = []
+  if (char.originFeatId) {
+    featIds.push({ id: char.originFeatId, source: 'Origin Feat' })
+  }
+  if (char.asiChoices && char.asiChoices.length > 0) {
+    for (const choice of char.asiChoices) {
+      if (choice.type === 'feat' && choice.featId) {
+        featIds.push({ id: choice.featId, source: `ASI Feat lv.${choice.level}` })
+      }
+    }
+  }
+  for (const { id, source } of featIds) {
+    const feat = getFeatById(id)
+    if (!feat) continue
+    switch (id) {
+      case 'lucky':
+        // Luck Points = PB, recharge long rest.
+        out.push({ name: 'Luck Points', uses: pb, recharge: 'long rest', source: `${source}: Lucky` })
+        break
+      case 'magic-initiate':
+        // 1 free cast del lv.1 spell por long rest.
+        out.push({ name: 'Magic Initiate (free lv.1 cast)', uses: 1, recharge: 'long rest', source: `${source}: ${feat.name}` })
+        break
+      case 'fey-touched':
+        // 2 filas: Misty Step + lv.1 spell elegido. 1 free cast cada uno por long rest.
+        out.push({ name: 'Fey-Touched: Misty Step', uses: 1, recharge: 'long rest', source: `${source}: ${feat.name}` })
+        out.push({ name: 'Fey-Touched: lv.1 spell', uses: 1, recharge: 'long rest', source: `${source}: ${feat.name}` })
+        break
+      case 'shadow-touched':
+        // 2 filas: Invisibility + lv.1 spell elegido. 1 free cast cada uno por long rest.
+        out.push({ name: 'Shadow-Touched: Invisibility', uses: 1, recharge: 'long rest', source: `${source}: ${feat.name}` })
+        out.push({ name: 'Shadow-Touched: lv.1 spell', uses: 1, recharge: 'long rest', source: `${source}: ${feat.name}` })
+        break
+      case 'ritual-caster':
+        // Quick Ritual: 1 free ritual cast (sin slot) por long rest.
+        out.push({ name: 'Quick Ritual', uses: 1, recharge: 'long rest', source: `${source}: ${feat.name}` })
+        break
+      case 'telepathic':
+        // Detect Thoughts: 1 free cast por long rest.
+        out.push({ name: 'Telepathic: Detect Thoughts', uses: 1, recharge: 'long rest', source: `${source}: ${feat.name}` })
+        break
+      case 'mage-slayer':
+        // Guarded Mind: 1 reroll INT/WIS/CHA save fallado por short or long rest.
+        out.push({ name: 'Guarded Mind', uses: 1, recharge: 'short or long rest', source: `${source}: ${feat.name}` })
+        break
+      default:
+        // Otros feats sin contador (Inspiring Leader, Tough, Resilient, etc.): skip.
+        break
+    }
+  }
 
   // #87: ordenar alfabéticamente por nombre. Antes el orden era el de
   // aparición en el código (Barbarian → Fighter → Cleric → ... → Race),

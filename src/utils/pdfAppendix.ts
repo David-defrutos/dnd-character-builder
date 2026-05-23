@@ -770,7 +770,10 @@ function drawResourceTable(state: DrawState, char: CharacterData): void {
     { header: 'Remaining', width: colRemaining, align: 'left' },
   ]
   const tableRows: TableRow[] = rows.map(r => {
-    const maxStr = r.uses >= 999 ? '∞' : String(r.uses)
+    // pdf-lib StandardFonts.Helvetica no codifica '∞' (sanitize lo pasaría a '?').
+    // Para el caso de Wild Shape lv.20 (uses=999) usamos texto plano "Unlimited".
+    const maxNum = r.uses >= 999 ? 'Unlimited' : String(r.uses)
+    const maxStr = r.unit ? `${maxNum} ${r.unit}` : maxNum
     return {
       cells: [
         r.name,
