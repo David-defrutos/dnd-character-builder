@@ -7,6 +7,41 @@ Convenciones:
 - # = referencia al bug/feature en la memoria de trabajo.
 
 ────────────────────────────────────────
+2026-05-23 19:15 · #131 — Catálogo: Goggles of True Insight (homebrew Salusa)
+────────────────────────────────────────
+Añadida entrada al catálogo magic-items.ts:
+  id: 'goggles-of-true-insight'
+  Wondrous Item, Uncommon (Requires Attunement)
+  weight: 0
+  Sin slot declarado: PHB 2024 no enforza unicidad para items "sobre el
+  rostro" (Eyes of Charming + Goggles of Night coexisten según RAW).
+  Decisión P53(c): equipable libremente, varios coexistentes posibles.
+
+Descripción completa traducida al inglés (coherencia con catálogo):
+3 cargas diarias, tirada Wisdom (Insight) +5 vs Charisma (Deception) de
+la criatura objetivo, información gradual según margen (+0/+2/+4/+6),
+limitaciones (no lee pensamientos, no contra mindless/immune-to-charm).
+
+Decisión de diseño que cierra la conversación P59-P63:
+- Los items homebrew con mecánicas (cargas, tiradas, descripción de
+  poderes) son MAGIC ITEMS, no custom. Se añaden al catálogo
+  magic-items.ts con id único.
+- kind:'custom' queda reservado SOLO para items sin mecánicas (texto
+  libre, narrative-only: "Daga del abuelo", "Carta del rey", etc.).
+
+ACCIÓN PENDIENTE EN JSON DE SALUSA (manual, no programática):
+  ANTES:
+    { "kind": "magic", "itemId": "goggles-of-intentions", "name": "...", ... }
+  DESPUÉS:
+    { "kind": "magic", "itemId": "goggles-of-true-insight", "name": "Goggles of True Insight", "attuned": true, ... }
+
+ARCHIVOS:
+- src/data/dnd5e/magic-items.ts (+1 entrada)
+
+TS strict: OK. Suite y build omitidos (cambio de datos puros, sin lógica
+nueva; la nueva estrategia salta tests/build para cambios sin riesgo).
+
+────────────────────────────────────────
 2026-05-23 16:28 · #130 — BUG: la mayoría de magic items no podían equiparse
 ────────────────────────────────────────
 SÍNTOMA reportado: en la UI, los Goggles of True Insight (Wondrous Item

@@ -916,6 +916,19 @@ export const magicItems: readonly MagicItem[] = [
     slot: "head",
   },
   {
+    // #131 — Homebrew item para la campaña de Salusa. Sin slot declarado
+    // a propósito: PHB 2024 no enforza unicidad para items "sobre el rostro"
+    // (Eyes of Charming + Goggles of Night pueden coexistir según RAW).
+    // Decisión P53(c): no slot, equipable libremente.
+    id: "goggles-of-true-insight",
+    name: "Goggles of True Insight",
+    category: "Wondrous Item",
+    rarity: "Uncommon",
+    attunement: true,
+    weight: 0,
+    description: "Wondrous Item, Uncommon (Requires Attunement)\n\nThese delicate goggles change style, shape, and color according to their owner's wish, adapting to their look as if they had always been part of their attire.\n\nYou have 3 daily charges. You recover all spent charges at dawn.\n\nWhen you are conversing with a creature you can see and hear within 30 feet, you can attempt to read its intentions. Make a Wisdom (Insight) +5 check contested by the creature's Charisma (Deception) check.\n\nIf you succeed, you spend 1 charge and gain information depending on the margin by which you beat the creature's roll:\n\n- Standard success: You know whether the creature intends to help, harm, or remain neutral toward you.\n- +2 or more: You also know whether it is trying to manipulate, distract, or stall you.\n- +4 or more: You also know whether its words contradict its visible emotions.\n- +6 or more: You also know whether it is hiding relevant information.\n\nIf you fail the check, the goggles reveal nothing reliable and no charge is spent.\n\nThe goggles don't read thoughts, don't automatically detect lies, and don't work against creatures immune to being charmed, mindless creatures, or creatures that cannot express understandable emotions.",
+  },
+  {
     id: "hammer-of-thunderbolts",
     name: "Hammer of Thunderbolts",
     category: "Weapon",
