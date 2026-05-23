@@ -37,7 +37,7 @@ import {
   computeSavingThrows, computeHitPointsBreakdown, computeMiscellaneous,
   computeSpellcastingCalculations, computeSpellSlots, computeCarryingCapacity,
 } from './detailedReferenceCalc'
-import { computeCurrentLoad } from './carryingLoad'
+import { computeCurrentLoad, itemUnitWeight, lbsToKg } from './carryingLoad'
 
 // ─── Layout constants ─────────────────────────────────────────────────────
 // Las dimensiones de página por defecto (US Letter). El PDF oficial 2024 de
@@ -928,7 +928,8 @@ function drawSpellSlots(state: DrawState, char: CharacterData): void {
 function drawCarryingCapacity(state: DrawState, char: CharacterData): void {
   const c = computeCarryingCapacity(char)
   // #121 — Current Load real basada en char.inventory[]
-  // #123 — desglose por bloque (Equipped / Carried / In magical containers)
+  // #128 — desglose por bloque movido a drawInventory (con detalle item por item).
+  // Esta sección queda como resumen rápido: límites + carga total + status.
   const load = computeCurrentLoad(char)
 
   drawSectionHeader(state, 'Carrying Capacity')
@@ -938,15 +939,55 @@ function drawCarryingCapacity(state: DrawState, char: CharacterData): void {
     `Push, Drag, or Lift: ${c.pushDragLiftLbs} lbs (${c.pushDragLiftKg} kg) — 2x capacity`,
     `Encumbered: more than ${c.encumberedAtLbs} lbs (${c.encumberedAtKg} kg) — STR x 5`,
     `Heavily Encumbered: more than ${c.heavilyEncumberedAtLbs} lbs (${c.heavilyEncumberedAtKg} kg) — STR x 10`,
-    // #123 — desglose por bloque (3 líneas) seguido del total y status.
-    `Equipped: ${load.equippedLbs} lbs`,
-    `Carried: ${load.carriedLbs} lbs`,
-    `In magical containers: ${load.storedLbs} lbs (does not count)`,
     `Current Load: ${load.total} lbs (${load.totalKg} kg)`,
     `Capacity used: ${load.capacityUsedPct}%`,
     `Status: ${load.status}`,
   ]
   drawBody(state, lines.join('\n'))
+}
+
+/** #128 — Sección de inventario detallada: lista cada item con su peso
+ *  (lbs y kg), agrupados por bloque (Equipped / Carried / In Magical
+ *  Containers). El bloque "In Magical Containers" muestra el peso real
+ *  pero indica que no cuenta para encumbrance. Si un item del catálogo
+ *  no tiene peso declarado se muestra "0 lbs (0 kg)" igual que cualquier
+ *  otro item de peso 0. */
+function drawInventory(state: DrawState, char: CharacterData): void {
+  const inv = char.inventory ?? []
+  if (inv.length === 0) return  // PJ sin inventario: no añadir sección.
+
+  drawSectionHeader(state, 'Inventory')
+
+  const equipped = inv.filter(i => i.equipped && !i.stored)
+  const stored = inv.filter(i => i.stored)
+  const carried = inv.filter(i => !i.equipped && !i.stored)
+
+  function renderItem(item: NonNullable<CharacterData['inventory']>[number]): string {
+    const qty = Math.max(1, Number.isFinite(item.qty) ? item.qty : 1)
+    const unitLbs = Math.max(0, itemUnitWeight(item))
+    const totalLbs = unitLbs * qty
+    const totalKg = lbsToKg(totalLbs)
+    const qtySuffix = qty > 1 ? ` ×${qty}` : ''
+    const attunedSuffix = item.kind === 'magic' && item.attuned ? ' [attuned]' : ''
+    return `  ${item.name}${qtySuffix}${attunedSuffix} — ${totalLbs} lbs (${totalKg} kg)`
+  }
+
+  const sections: string[] = []
+  if (equipped.length > 0) {
+    sections.push('Equipped:')
+    sections.push(...equipped.map(renderItem))
+  }
+  if (carried.length > 0) {
+    if (sections.length > 0) sections.push('')
+    sections.push('Carried:')
+    sections.push(...carried.map(renderItem))
+  }
+  if (stored.length > 0) {
+    if (sections.length > 0) sections.push('')
+    sections.push('In Magical Containers (does not count for encumbrance):')
+    sections.push(...stored.map(renderItem))
+  }
+  drawBody(state, sections.join('\n'))
 }
 
 // ─── Public entry point ───────────────────────────────────────────────────
@@ -1005,5 +1046,6 @@ export async function appendCharacterAppendix(
   drawWeaponAttacks(state, char)
   drawWeaponMasteries(state, char)
   drawCarryingCapacity(state, char)             // #120
+  drawInventory(state, char)                    // #128 — detalle por bloque
   drawResourceTable(state, char)
 }

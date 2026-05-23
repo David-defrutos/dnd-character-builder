@@ -80,7 +80,7 @@
     "Mantle of Majesty",
     "Countercharm",
     "ASI Feat: Inspiring Leader (lv.4)",
-    "ASI Feat: Fey-Touched (lv.8)"
+    "ASI Feat: Fey Touched (lv.8)"
   ],
   "backstory": "",
   "age": "",
@@ -229,67 +229,80 @@
       "attuned": true
     },
     {
-      "slotId": "salusa-violin",
-      "kind": "custom",
-      "itemId": "",
-      "name": "Violin",
-      "qty": 1
+      "slotId": "22067cba-2696-4dd5-88c5-6b0cb7d9d1c6",
+      "kind": "gear",
+      "itemId": "viol",
+      "name": "Viol",
+      "qty": 1,
+      "stored": true
     },
     {
-      "slotId": "salusa-thieves-tools",
-      "kind": "custom",
-      "itemId": "",
+      "slotId": "6fefe9b7-1736-47dc-852b-05c5b64e3474",
+      "kind": "gear",
+      "itemId": "thieves-tools",
       "name": "Thieves' Tools",
-      "qty": 1
+      "qty": 1,
+      "stored": true
     },
     {
-      "slotId": "salusa-bedroll",
-      "kind": "custom",
-      "itemId": "",
+      "slotId": "46528af9-d7bb-4867-8a85-345eb7ba6d11",
+      "kind": "gear",
+      "itemId": "bedroll",
       "name": "Bedroll",
-      "qty": 1
+      "qty": 1,
+      "stored": true
     },
     {
-      "slotId": "salusa-gaming-set",
-      "kind": "custom",
-      "itemId": "",
-      "name": "Gaming Set",
-      "qty": 1
-    },
-    {
-      "slotId": "salusa-pouches",
-      "kind": "custom",
-      "itemId": "",
-      "name": "Pouch",
-      "qty": 2
-    },
-    {
-      "slotId": "salusa-travelers-clothes",
-      "kind": "custom",
-      "itemId": "",
-      "name": "Traveler's Clothes",
-      "qty": 1
-    },
-    {
-      "slotId": "salusa-rope",
-      "kind": "custom",
-      "itemId": "",
-      "name": "Rope",
-      "qty": 1
-    },
-    {
-      "slotId": "salusa-entertainer-pack",
-      "kind": "custom",
-      "itemId": "",
+      "slotId": "a76f72ef-f2aa-44ab-8bec-56732beba8de",
+      "kind": "gear",
+      "itemId": "entertainers-pack",
       "name": "Entertainer's Pack",
-      "qty": 1
+      "qty": 1,
+      "notes": "Backpack, bedroll, bell, bullseye lantern, costumes, mirror, oil, rations, tinderbox, and waterskin.",
+      "stored": true
     },
     {
-      "slotId": "salusa-healing-potions",
-      "kind": "custom",
-      "itemId": "",
+      "slotId": "02383bce-6de6-43de-8204-e0873eb71567",
+      "kind": "gear",
+      "itemId": "gaming-set",
+      "name": "Gaming Set",
+      "qty": 1,
+      "stored": true
+    },
+    {
+      "slotId": "1832aa41-dac9-4c7d-b126-453d52df47cf",
+      "kind": "gear",
+      "itemId": "pouch",
+      "name": "Pouch",
+      "qty": 1,
+      "notes": "Holds 1/5 cubic foot or 6 pounds.",
+      "stored": true
+    },
+    {
+      "slotId": "9b7c3951-1f3e-4d97-8cf3-c66bccbc5596",
+      "kind": "gear",
+      "itemId": "travelers-clothes",
+      "name": "Clothes, Traveler’s",
+      "qty": 1,
+      "stored": true
+    },
+    {
+      "slotId": "989cdb54-f1a3-45f9-8a3d-38b9a2573499",
+      "kind": "gear",
+      "itemId": "rope",
+      "name": "Rope, Hempen (50 ft)",
+      "qty": 1,
+      "notes": "AC 11, 5 HP, can be burst with DC 17 STR check.",
+      "stored": true
+    },
+    {
+      "slotId": "e482c706-74a5-40bd-a63e-2c9ec2d7dd19",
+      "kind": "gear",
+      "itemId": "potion-of-healing",
       "name": "Potion of Healing",
-      "qty": 2
+      "qty": 1,
+      "notes": "Drink (Bonus Action): regain 2d4 + 2 HP.",
+      "stored": true
     }
   ],
   "expertiseSources": {
@@ -303,7 +316,7 @@
   "levelHistory": [
     {
       "level": 10,
-      "snapshotAt": "2026-05-23T08:17:09.657Z",
+      "snapshotAt": "2026-05-23T11:43:28.470Z",
       "snapshot": {
         "id": "salusa-secundus-bard-10",
         "variant": "dnd5e",
@@ -386,7 +399,7 @@
           "Mantle of Majesty",
           "Countercharm",
           "ASI Feat: Inspiring Leader (lv.4)",
-          "ASI Feat: Fey-Touched (lv.8)"
+          "ASI Feat: Fey Touched (lv.8)"
         ],
         "backstory": "",
         "age": "",
@@ -535,67 +548,80 @@
             "attuned": true
           },
           {
-            "slotId": "salusa-violin",
-            "kind": "custom",
-            "itemId": "",
-            "name": "Violin",
-            "qty": 1
+            "slotId": "22067cba-2696-4dd5-88c5-6b0cb7d9d1c6",
+            "kind": "gear",
+            "itemId": "viol",
+            "name": "Viol",
+            "qty": 1,
+            "stored": true
           },
           {
-            "slotId": "salusa-thieves-tools",
-            "kind": "custom",
-            "itemId": "",
+            "slotId": "6fefe9b7-1736-47dc-852b-05c5b64e3474",
+            "kind": "gear",
+            "itemId": "thieves-tools",
             "name": "Thieves' Tools",
-            "qty": 1
+            "qty": 1,
+            "stored": true
           },
           {
-            "slotId": "salusa-bedroll",
-            "kind": "custom",
-            "itemId": "",
+            "slotId": "46528af9-d7bb-4867-8a85-345eb7ba6d11",
+            "kind": "gear",
+            "itemId": "bedroll",
             "name": "Bedroll",
-            "qty": 1
+            "qty": 1,
+            "stored": true
           },
           {
-            "slotId": "salusa-gaming-set",
-            "kind": "custom",
-            "itemId": "",
-            "name": "Gaming Set",
-            "qty": 1
-          },
-          {
-            "slotId": "salusa-pouches",
-            "kind": "custom",
-            "itemId": "",
-            "name": "Pouch",
-            "qty": 2
-          },
-          {
-            "slotId": "salusa-travelers-clothes",
-            "kind": "custom",
-            "itemId": "",
-            "name": "Traveler's Clothes",
-            "qty": 1
-          },
-          {
-            "slotId": "salusa-rope",
-            "kind": "custom",
-            "itemId": "",
-            "name": "Rope",
-            "qty": 1
-          },
-          {
-            "slotId": "salusa-entertainer-pack",
-            "kind": "custom",
-            "itemId": "",
+            "slotId": "a76f72ef-f2aa-44ab-8bec-56732beba8de",
+            "kind": "gear",
+            "itemId": "entertainers-pack",
             "name": "Entertainer's Pack",
-            "qty": 1
+            "qty": 1,
+            "notes": "Backpack, bedroll, bell, bullseye lantern, costumes, mirror, oil, rations, tinderbox, and waterskin.",
+            "stored": true
           },
           {
-            "slotId": "salusa-healing-potions",
-            "kind": "custom",
-            "itemId": "",
+            "slotId": "02383bce-6de6-43de-8204-e0873eb71567",
+            "kind": "gear",
+            "itemId": "gaming-set",
+            "name": "Gaming Set",
+            "qty": 1,
+            "stored": true
+          },
+          {
+            "slotId": "1832aa41-dac9-4c7d-b126-453d52df47cf",
+            "kind": "gear",
+            "itemId": "pouch",
+            "name": "Pouch",
+            "qty": 1,
+            "notes": "Holds 1/5 cubic foot or 6 pounds.",
+            "stored": true
+          },
+          {
+            "slotId": "9b7c3951-1f3e-4d97-8cf3-c66bccbc5596",
+            "kind": "gear",
+            "itemId": "travelers-clothes",
+            "name": "Clothes, Traveler’s",
+            "qty": 1,
+            "stored": true
+          },
+          {
+            "slotId": "989cdb54-f1a3-45f9-8a3d-38b9a2573499",
+            "kind": "gear",
+            "itemId": "rope",
+            "name": "Rope, Hempen (50 ft)",
+            "qty": 1,
+            "notes": "AC 11, 5 HP, can be burst with DC 17 STR check.",
+            "stored": true
+          },
+          {
+            "slotId": "e482c706-74a5-40bd-a63e-2c9ec2d7dd19",
+            "kind": "gear",
+            "itemId": "potion-of-healing",
             "name": "Potion of Healing",
-            "qty": 2
+            "qty": 1,
+            "notes": "Drink (Bonus Action): regain 2d4 + 2 HP.",
+            "stored": true
           }
         ],
         "expertiseSources": {

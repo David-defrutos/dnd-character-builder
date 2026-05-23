@@ -11,11 +11,13 @@
      (canBeEquipped / requiresAttunement).
 -->
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { InventoryItem } from '@/stores/character'
 import type { MagicItemRarity } from '@/data/dnd5e/magic-items'
 import { allMagicItems as magicItems } from '@/data/dnd5e/magic-items'
+import { itemUnitWeight, lbsToKg } from '@/utils/carryingLoad'
 
-defineProps<{
+const props = defineProps<{
   item: InventoryItem
   block: 'equipped' | 'carried' | 'stored'
   /** True si el PJ tiene algún container mágico en el inventario; necesario
@@ -29,6 +31,20 @@ defineProps<{
    *  puede meterse a sí mismo, así que el botón "Store" no debe aparecer. */
   isContainer: boolean
 }>()
+
+// #128 — Peso por unidad del item, formateado "X lbs (Y kg)".
+// Items custom sin weight declarado → null (no mostrar). El resto siempre
+// muestra (catálogo siempre tiene peso, aunque sea 0; custom con weight:0
+// es decisión explícita del usuario).
+const weightLabel = computed<string | null>(() => {
+  const item = props.item
+  if (item.kind === 'custom' && (item.weight === undefined || item.weight === null)) {
+    return null
+  }
+  const lbs = itemUnitWeight(item)
+  const kg = lbsToKg(lbs)
+  return `${lbs} lbs (${kg} kg)`
+})
 
 const emit = defineEmits<{
   (e: 'toggle-equip', slotId: string): void
@@ -141,12 +157,16 @@ function rarityBg(rarity: MagicItemRarity): string {
         class="mt-1 w-full bg-transparent text-stone-400 text-xs placeholder-stone-600 outline-none border-b border-transparent hover:border-stone-600 focus:border-amber-600 transition-colors"
         placeholder="Notes (charges, condition…)" />
 
-      <!-- Weight (custom items) -->
-      <label v-if="item.kind === 'custom'" class="mt-1 flex items-center gap-2 text-xs text-stone-500">
-        <span>Weight (lbs)</span>
-        <input v-model.number="item.weight" type="number" min="0" step="0.25"
-          class="w-20 bg-stone-900 border border-stone-700 rounded px-2 py-0.5 text-xs text-stone-200" />
-      </label>
+      <!-- #128 — Peso del item (solo lectura para catálogo; editable para custom) -->
+      <div v-if="weightLabel || item.kind === 'custom'" class="mt-1 flex items-center gap-2 text-xs text-stone-500">
+        <template v-if="item.kind === 'custom'">
+          <span>Weight (lbs)</span>
+          <input v-model.number="item.weight" type="number" min="0" step="0.25"
+            class="w-20 bg-stone-900 border border-stone-700 rounded px-2 py-0.5 text-xs text-stone-200" />
+          <span v-if="weightLabel" class="text-stone-500">= {{ weightLabel }}</span>
+        </template>
+        <span v-else>{{ weightLabel }}</span>
+      </div>
     </div>
 
     <!-- Qty -->

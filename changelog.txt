@@ -7,6 +7,56 @@ Convenciones:
 - # = referencia al bug/feature en la memoria de trabajo.
 
 ────────────────────────────────────────
+2026-05-23 13:50 · #128 — Inventario detallado en PDF + peso en filas UI
+────────────────────────────────────────
+CONTEXTO: las 3 líneas de desglose Equipped/Carried/In Magical Containers
+en "Carrying Capacity" del PDF solo mostraban lbs (sin kg), eran solo
+totales por bloque (sin detalle por item) y mezclaban dos ideas: límites
+generales (capacity, encumbered thresholds) e inventario real del PJ.
+
+CAMBIOS:
+
+1. PDF Detailed Reference — "Carrying Capacity" simplificada:
+   Se quitan las 3 líneas Equipped/Carried/Stored del resumen, dejando
+   solo: capacity, push/drag/lift, encumbered thresholds, current load,
+   capacity used %, status. Es ahora puro "quick-glance" de límites.
+
+2. PDF Detailed Reference — nueva sección "Inventory":
+   Lista cada item del inventario agrupado en 3 bloques con cabecera
+   (Equipped / Carried / In Magical Containers). Cada línea muestra:
+       "  Nombre ×qty [attuned] — X lbs (Y kg)"
+   - El "×qty" solo aparece si qty > 1.
+   - El "[attuned]" solo en magic items atunados.
+   - El peso en kg se calcula con lbsToKg redondeado a entero.
+   - El bloque "In Magical Containers" muestra el peso real pero la
+     cabecera aclara "(does not count for encumbrance)".
+   - Si el PJ no tiene inventario, la sección no se añade.
+
+3. UI EquipmentManager — peso visible en cada fila:
+   InventoryItemRow.vue añade un computed `weightLabel` que muestra
+   "X lbs (Y kg)" debajo del input de Notes para cada item:
+   - Items del catálogo (weapon/armor/magic/gear): siempre se muestra.
+   - Items custom con weight declarado: muestra el input editable Y un
+     "= X lbs (Y kg)" al lado (feedback inmediato del kg calculado).
+   - Items custom con weight === undefined: no se muestra nada (es dato
+     faltante, no asunción de 0).
+   - Items con weight === 0 (catálogo o custom): muestra "0 lbs (0 kg)"
+     explícito porque es decisión consciente, no dato faltante.
+
+4. carryingLoad.ts:
+   - itemUnitWeight exportado (antes era función privada del módulo).
+     Necesario para que pdfAppendix y InventoryItemRow calculen el peso
+     de cada item sin duplicar la lógica de lookup por kind.
+   - lbsToKg ya estaba re-exportado (sin cambio).
+
+ARCHIVOS:
+- src/utils/carryingLoad.ts (export de itemUnitWeight)
+- src/utils/pdfAppendix.ts (drawCarryingCapacity simplificada + nuevo drawInventory)
+- src/components/shared/InventoryItemRow.vue (weightLabel computed + renderizado)
+
+TESTS: 895/895 OK. Build: OK. TS strict: OK.
+
+────────────────────────────────────────
 2026-05-23 13:10 · #127 — Nuevo kind 'gear' para objetos oficiales del catálogo
 ────────────────────────────────────────
 CONTEXTO: hasta ahora, cuando un PJ añadía un objeto oficial PHB 2024

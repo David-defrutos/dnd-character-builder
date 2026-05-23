@@ -57,7 +57,7 @@ export function computeCarryingLoadStatus(total: number, char: CharacterData): C
   return 'Unencumbered'
 }
 
-function itemUnitWeight(item: InventoryItem): number {
+export function itemUnitWeight(item: InventoryItem): number {
   if (item.kind === 'weapon') return getWeaponByName(item.itemId)?.weight ?? 0
   if (item.kind === 'armor') return getArmorByName(item.itemId)?.weight ?? 0
   if (item.kind === 'magic') return getMagicItemById(item.itemId)?.weight ?? 0
