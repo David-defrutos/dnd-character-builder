@@ -7,7 +7,14 @@
     "race": "gnome"
   },
   {
-    "file": "Salusa Secundus - bard - lv10 - 2026-05-23-1343.json",
+    "file": "Hermano muerte - cleric - lv10 - 2026-05-23-2138.json",
+    "name": "Hermano muerte",
+    "className": "cleric",
+    "level": 10,
+    "race": "human"
+  },
+  {
+    "file": "Salusa Secundus - bard - lv10 - 2026-05-23-2007.json",
     "name": "Salusa Secundus",
     "className": "bard",
     "level": 10,

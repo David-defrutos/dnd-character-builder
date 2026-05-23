@@ -80,7 +80,7 @@
     "Mantle of Majesty",
     "Countercharm",
     "ASI Feat: Inspiring Leader (lv.4)",
-    "ASI Feat: Fey Touched (lv.8)"
+    "ASI Feat: Fey-Touched (lv.8)"
   ],
   "backstory": "",
   "age": "",
@@ -222,11 +222,12 @@
     },
     {
       "slotId": "salusa-goggles-intentions",
-      "kind": "custom",
-      "itemId": "",
-      "name": "Goggles of Intentions (homebrew)",
+      "kind": "magic",
+      "itemId": "goggles-of-true-insight",
+      "name": "Goggles of True Insight",
       "qty": 1,
-      "attuned": true
+      "attuned": true,
+      "equipped": true
     },
     {
       "slotId": "22067cba-2696-4dd5-88c5-6b0cb7d9d1c6",

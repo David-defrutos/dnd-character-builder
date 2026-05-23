@@ -1,0 +1,332 @@
+{
+  "id": "f1fe49f1-fe93-4671-aaa4-2cc497739d38",
+  "variant": "dnd5e",
+  "name": "Hermano muerte",
+  "playerName": "",
+  "race": "human",
+  "subrace": "",
+  "className": "cleric",
+  "subclass": "death-domain",
+  "level": 10,
+  "background": "wayfarer",
+  "alignment": "ng",
+  "experiencePoints": 0,
+  "abilityScores": {
+    "str": 12,
+    "dex": 10,
+    "con": 14,
+    "int": 8,
+    "wis": 15,
+    "cha": 13
+  },
+  "speciesBonuses": {},
+  "speciesChoices": {},
+  "backgroundBonuses": {
+    "wis": 2,
+    "dex": 1
+  },
+  "asiBonuses": {
+    "wis": 2
+  },
+  "skillProficiencies": [
+    "insight",
+    "stealth",
+    "persuasion",
+    "medicine"
+  ],
+  "skillExpertise": [],
+  "savingThrowProficiencies": [
+    "wis",
+    "cha"
+  ],
+  "languages": [
+    "Common",
+    "Common Sign Language",
+    "Elvish"
+  ],
+  "proficienciesOther": [],
+  "weapons": [],
+  "armor": "",
+  "shield": false,
+  "equipment": [],
+  "coins": {
+    "cp": 0,
+    "sp": 0,
+    "ep": 0,
+    "gp": 0,
+    "pp": 0
+  },
+  "personalityTraits": "",
+  "ideals": "",
+  "bonds": "",
+  "flaws": "",
+  "featuresTraits": [
+    "Origin Feat: Lucky",
+    "Channel Divinity",
+    "Cleric Subclass",
+    "Ability Score Improvement",
+    "Sear Undead",
+    "Inescapable Destruction",
+    "Blessed Strikes",
+    "Divine Strike",
+    "Divine Intervention",
+    "ASI Feat: War Caster (lv.4)",
+    "ASI Feat: War Caster (lv.8)"
+  ],
+  "backstory": "",
+  "age": "",
+  "height": "",
+  "weight": "",
+  "eyes": "",
+  "hair": "",
+  "skin": "",
+  "allies": "",
+  "treasure": "",
+  "spellcastingClass": "cleric",
+  "spellcastingAbility": "wis",
+  "cantrips": [
+    "sacred-flame",
+    "light",
+    "guidance",
+    "resistance",
+    "mending"
+  ],
+  "spellsKnown": [
+    "1-bless",
+    "1-cure-wounds",
+    "1-sanctuary",
+    "1-detect-magic",
+    "1-healing-word",
+    "2-lesser-restoration",
+    "2-spiritual-weapon",
+    "3-daylight",
+    "3-dispel-magic",
+    "4-guardian-of-faith",
+    "4-death-ward",
+    "4-divination",
+    "5-mass-cure-wounds",
+    "5-raise-dead",
+    "5-greater-restoration"
+  ],
+  "spellsPrepared": [],
+  "hitDie": 8,
+  "maxHp": 73,
+  "currentHp": 73,
+  "tempHp": 0,
+  "speed": 30,
+  "sessionNotes": "",
+  "classes": [],
+  "asiChoices": [
+    {
+      "level": 4,
+      "type": "feat",
+      "featId": "war-caster",
+      "featAbility": "wis",
+      "featChoices": {}
+    },
+    {
+      "level": 8,
+      "type": "feat",
+      "featId": "war-caster",
+      "featAbility": "wis",
+      "featChoices": {}
+    }
+  ],
+  "speciesGrantedCantrips": [],
+  "speciesGrantedSpells": [],
+  "classArmorProficiencies": [
+    "light",
+    "medium",
+    "shields"
+  ],
+  "classWeaponProficiencies": [
+    "simple"
+  ],
+  "classToolProficiencies": [],
+  "classSkillProficiencies": [
+    "persuasion",
+    "medicine"
+  ],
+  "backgroundSkillProficiencies": [
+    "insight",
+    "stealth"
+  ],
+  "originFeatId": "lucky",
+  "toughHpBonus": 0,
+  "featAddedSavingThrows": [],
+  "featSpeedBonus": 0,
+  "featInitiativeProf": false,
+  "featDefenseACBonus": false,
+  "featAddedProficiencies": [],
+  "featAddedSkillProficiencies": [],
+  "featAddedExpertise": [],
+  "levelHistory": [
+    {
+      "level": 10,
+      "snapshotAt": "2026-05-23T19:38:08.147Z",
+      "snapshot": {
+        "id": "f1fe49f1-fe93-4671-aaa4-2cc497739d38",
+        "variant": "dnd5e",
+        "name": "Hermano muerte",
+        "playerName": "Unai",
+        "race": "human",
+        "subrace": "",
+        "className": "cleric",
+        "subclass": "death-domain",
+        "level": 10,
+        "background": "wayfarer",
+        "alignment": "ng",
+        "experiencePoints": 0,
+        "abilityScores": {
+          "str": 12,
+          "dex": 10,
+          "con": 14,
+          "int": 8,
+          "wis": 15,
+          "cha": 13
+        },
+        "speciesBonuses": {},
+        "speciesChoices": {},
+        "backgroundBonuses": {
+          "wis": 2,
+          "dex": 1
+        },
+        "asiBonuses": {
+          "wis": 2
+        },
+        "skillProficiencies": [
+          "insight",
+          "stealth",
+          "persuasion",
+          "medicine"
+        ],
+        "skillExpertise": [],
+        "savingThrowProficiencies": [
+          "wis",
+          "cha"
+        ],
+        "languages": [
+          "Common",
+          "Common Sign Language",
+          "Elvish"
+        ],
+        "proficienciesOther": [],
+        "weapons": [],
+        "armor": "",
+        "shield": false,
+        "equipment": [],
+        "coins": {
+          "cp": 0,
+          "sp": 0,
+          "ep": 0,
+          "gp": 0,
+          "pp": 0
+        },
+        "personalityTraits": "",
+        "ideals": "",
+        "bonds": "",
+        "flaws": "",
+        "featuresTraits": [
+          "Origin Feat: Lucky",
+          "Channel Divinity",
+          "Cleric Subclass",
+          "Ability Score Improvement",
+          "Sear Undead",
+          "Inescapable Destruction",
+          "Blessed Strikes",
+          "Divine Strike",
+          "Divine Intervention",
+          "ASI Feat: War Caster (lv.4)",
+          "ASI Feat: War Caster (lv.8)"
+        ],
+        "backstory": "",
+        "age": "",
+        "height": "",
+        "weight": "",
+        "eyes": "",
+        "hair": "",
+        "skin": "",
+        "allies": "",
+        "treasure": "",
+        "spellcastingClass": "cleric",
+        "spellcastingAbility": "wis",
+        "cantrips": [
+          "sacred-flame",
+          "light",
+          "guidance",
+          "resistance",
+          "mending"
+        ],
+        "spellsKnown": [
+          "1-bless",
+          "1-cure-wounds",
+          "1-sanctuary",
+          "1-detect-magic",
+          "1-healing-word",
+          "2-lesser-restoration",
+          "2-spiritual-weapon",
+          "3-daylight",
+          "3-dispel-magic",
+          "4-guardian-of-faith",
+          "4-death-ward",
+          "4-divination",
+          "5-mass-cure-wounds",
+          "5-raise-dead",
+          "5-greater-restoration"
+        ],
+        "spellsPrepared": [],
+        "hitDie": 8,
+        "maxHp": 73,
+        "currentHp": 73,
+        "tempHp": 0,
+        "speed": 30,
+        "sessionNotes": "",
+        "classes": [],
+        "asiChoices": [
+          {
+            "level": 4,
+            "type": "feat",
+            "featId": "war-caster",
+            "featAbility": "wis",
+            "featChoices": {}
+          },
+          {
+            "level": 8,
+            "type": "feat",
+            "featId": "war-caster",
+            "featAbility": "wis",
+            "featChoices": {}
+          }
+        ],
+        "speciesGrantedCantrips": [],
+        "speciesGrantedSpells": [],
+        "classArmorProficiencies": [
+          "light",
+          "medium",
+          "shields"
+        ],
+        "classWeaponProficiencies": [
+          "simple"
+        ],
+        "classToolProficiencies": [],
+        "classSkillProficiencies": [
+          "persuasion",
+          "medicine"
+        ],
+        "backgroundSkillProficiencies": [
+          "insight",
+          "stealth"
+        ],
+        "originFeatId": "lucky",
+        "toughHpBonus": 0,
+        "featAddedSavingThrows": [],
+        "featSpeedBonus": 0,
+        "featInitiativeProf": false,
+        "featDefenseACBonus": false,
+        "featAddedProficiencies": [],
+        "featAddedSkillProficiencies": [],
+        "featAddedExpertise": []
+      }
+    }
+  ]
+}
