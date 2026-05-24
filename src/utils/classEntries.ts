@@ -146,7 +146,7 @@ export function getCharSpellsKnown(char: CharacterData): string[] {
  */
 export function getCasterClasses(
   char: CharacterData,
-  classCatalog: Array<{ id: string; spellcasting: { ability: string } | null }>,
+  classCatalog: ReadonlyArray<{ id: string; spellcasting: { ability: string } | null }>,
 ): Array<{ entry: ClassEntry; ability: string }> {
   const out: Array<{ entry: ClassEntry; ability: string }> = []
   for (const entry of getClassEntries(char)) {

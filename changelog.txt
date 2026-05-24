@@ -2,6 +2,54 @@ D&D 2024 Character Builder — Changelog
 ═══════════════════════════════════════
 
 ────────────────────────────────────────
+2026-05-24 20:31 · #148 — Fix CI build: readonly en getCasterClasses + unused maxSpellLevelAvailable
+────────────────────────────────────────
+Build de CI (`vue-tsc -b && vite build`) rompía con 2 errores que en local
+`npx vue-tsc --noEmit` no detectaba porque el modo build (-b) aplica reglas
+más estrictas con project references.
+
+ERROR 1 — Argument of type 'readonly CharacterClass[]' is not assignable
+to parameter of type '{ id: string; spellcasting: { ability: string } | null }[]'
+en Step9Review.vue#L125:
+
+  Cause: getCasterClasses(char, variantClasses.value) — variantClasses es
+  ReadonlyArray<CharacterClass> (correcto, lo devuelve el getter del
+  catálogo). La firma de getCasterClasses recibía Array<...> mutable.
+
+  Fix: src/utils/classEntries.ts línea 149 — la firma pasa de
+    classCatalog: Array<{ id: string; spellcasting: ... | null }>
+  a:
+    classCatalog: ReadonlyArray<{ id: string; spellcasting: ... | null }>
+  La función no muta el array, así que ReadonlyArray es semánticamente
+  correcto y permite a los callers pasar catálogos readonly.
+
+ERROR 2 — 'maxSpellLevelAvailable' is declared but its value is never read
+en Step7Spells.vue#L136:
+
+  Cause: durante el fix #146 dejé el computed maxSpellLevelAvailable "por
+  si la cabecera lo usaba" como respaldo. Tras eliminar el filtro global y
+  pasar todo a per-class, ninguna parte del template lo consume.
+
+  Fix: eliminado el computed. Las referencias al concepto se mantienen en
+  comentarios (explicación del bug que motivó #146), no en código.
+
+ARCHIVOS:
+- src/utils/classEntries.ts (firma getCasterClasses)
+- src/components/steps/Step7Spells.vue (eliminado computed sin uso)
+
+TESTS: 1010/1010 OK. `npm run build` OK (que es lo que ejecuta CI).
+Build OK. TS strict OK.
+
+NOTA: Nueva pauta en memoria: usar `npm run build`, no `vue-tsc --noEmit`,
+antes de empaquetar ZIP. El modo build catch errores que `--noEmit` deja
+pasar (noUnusedLocals, ReadonlyArray en args, etc.).
+
+EL TERCER ITEM DEL CI ERA UN AVISO INFRAESTRUCTURAL:
+GitHub Actions avisa de que actions/checkout@v4 y actions/setup-node@v4
+corren en Node.js 20, deprecado en septiembre 2026. Es deuda del workflow
+.github/workflows/*.yml, NO del proyecto. No se aborda en este fix.
+
+────────────────────────────────────────
 2026-05-24 10:31 · #147 — M2 cerrado: subclase secundaria con UI y gating
 ────────────────────────────────────────
 Cierra M2 del análisis multiclass (subclase secundaria sin UI), pendiente

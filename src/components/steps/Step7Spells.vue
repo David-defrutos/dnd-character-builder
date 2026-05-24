@@ -132,11 +132,6 @@ const maxSpellLevelByClass = computed<Record<string, number>>(() => {
   return out
 })
 
-/** Sigue siendo útil para UI agregada (máximo absoluto, p.ej. cabecera). */
-const maxSpellLevelAvailable = computed(() =>
-  Math.max(0, ...Object.values(maxSpellLevelByClass.value)),
-)
-
 /**
  * Comprueba si el hechizo es elegible para alguna clase caster del PJ
  * respetando el límite por clase. Cantrips (level=0) siempre pasan si
