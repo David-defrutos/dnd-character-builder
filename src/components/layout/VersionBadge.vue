@@ -1,14 +1,16 @@
 <!--
-  VersionBadge.vue — #136
+  VersionBadge.vue — #136 (updated #151)
 
   Muestra el código de versión fijo en la esquina inferior-derecha de la
   página. Combina la fecha+hora del build inyectada por Vite con el hash
   del último commit (o un hash basado en timestamp si no hay git, p.ej. al
-  arrancar desde un ZIP).
+  arrancar desde un ZIP), y el último ticket del changelog para
+  verificación rápida del deploy.
 
   Las variables vienen de vite.config.ts (define):
     - __BUILD_DATE__: 'YYYY-MM-DD HH:MM' (UTC del momento del build)
     - __BUILD_HASH__: short hash de git o 'nogit-<timestamp36>'
+    - __BUILD_TICKET__: último '#N' parseado del changelog.txt
 
   El badge es muy discreto: gris claro sobre fondo oscuro semi-transparente,
   posición fixed para que no afecte al layout y se mantenga visible siempre.
@@ -20,10 +22,14 @@ import { ref } from 'vue'
 
 declare const __BUILD_DATE__: string
 declare const __BUILD_HASH__: string
+declare const __BUILD_TICKET__: string
 
 const buildDate = typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : 'dev'
 const buildHash = typeof __BUILD_HASH__ !== 'undefined' ? __BUILD_HASH__ : 'dev'
-const fullLabel = `build ${buildDate} · ${buildHash}`
+const buildTicket = typeof __BUILD_TICKET__ !== 'undefined' ? __BUILD_TICKET__ : ''
+const fullLabel = buildTicket
+  ? `build ${buildDate} · ${buildHash} · ${buildTicket}`
+  : `build ${buildDate} · ${buildHash}`
 
 const copied = ref(false)
 
@@ -47,6 +53,6 @@ async function copyToClipboard() {
     @click="copyToClipboard"
   >
     <span v-if="copied">copied!</span>
-    <span v-else>{{ buildDate }} · {{ buildHash }}</span>
+    <span v-else>{{ buildDate }} · {{ buildHash }}<span v-if="buildTicket"> · {{ buildTicket }}</span></span>
   </div>
 </template>

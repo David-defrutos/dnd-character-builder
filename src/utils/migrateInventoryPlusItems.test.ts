@@ -133,4 +133,29 @@ describe('#150 — migrateInventoryPlusItems', () => {
     const n = migrateInventoryPlusItems(char)
     expect(n).toBe(0)
   })
+
+  // #151 — IDs viejos con ESPACIO en lugar de guion (regex mal escapada
+  // generaba "hand crossbow-plus1" en vez de "hand-crossbow-plus1").
+  it('ID viejo con espacio ("hand crossbow-plus1") se migra correctamente', () => {
+    const char = makeChar([
+      mkItem({ kind: 'magic', itemId: 'hand crossbow-plus1', name: 'Hand Crossbow +1' }),
+    ])
+    const n = migrateInventoryPlusItems(char)
+    expect(n).toBe(1)
+    expect(char.inventory[0].kind).toBe('weapon')
+    expect(char.inventory[0].itemId).toBe('Hand Crossbow')
+    // El magicItemId se NORMALIZA al formato correcto con guion.
+    expect(char.inventory[0].magicItemId).toBe('hand-crossbow-plus1')
+  })
+
+  it('ID viejo con espacio ("studded leather armor-plus2"): migración correcta', () => {
+    const char = makeChar([
+      mkItem({ kind: 'magic', itemId: 'studded leather armor-plus2', name: 'Studded Leather Armor +2' }),
+    ])
+    const n = migrateInventoryPlusItems(char)
+    expect(n).toBe(1)
+    expect(char.inventory[0].kind).toBe('armor')
+    expect(char.inventory[0].itemId).toBe('Studded Leather Armor')
+    expect(char.inventory[0].magicItemId).toBe('studded-leather-armor-plus2')
+  })
 })

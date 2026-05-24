@@ -83,12 +83,18 @@ const PLUS_NAMES_TO_KIND: Record<string, { name: string; kind: 'weapon' | 'armor
 function migrateInventoryItem(item: InventoryItem): boolean {
   if (item.kind !== 'magic') return false
   if (!isPlusId(item.itemId)) return false
-  // Extraer la parte previa al sufijo -plusN
-  const base = item.itemId.replace(PLUS_SUFFIX, '')
+  // Extraer la parte previa al sufijo -plusN.
+  // #151 — Tolerar IDs viejos con ESPACIOS en lugar de guiones, generados
+  // por la regex mal escapada del template ("hand crossbow-plus1" en vez
+  // de "hand-crossbow-plus1"). Normalizamos espacios → guiones antes de
+  // buscar en la tabla.
+  const base = item.itemId.replace(PLUS_SUFFIX, '').replace(/\s+/g, '-')
   const entry = PLUS_NAMES_TO_KIND[base]
   if (!entry) return false
-  // Reescribir: kind real, itemId apuntando al nombre base, magicItemId al ID antiguo.
-  ;(item as InventoryItem).magicItemId = item.itemId
+  // Reescribir: kind real, itemId apuntando al nombre base, magicItemId al ID
+  // CORRECTO (con guiones), no al ID viejo con espacios.
+  const correctMagicId = `${base}-plus${item.itemId.match(PLUS_SUFFIX)?.[1] ?? '1'}`
+  ;(item as InventoryItem).magicItemId = correctMagicId
   ;(item as InventoryItem).itemId = entry.name
   ;(item as InventoryItem).kind = entry.kind
   // `attuned` lo respetamos si estaba (weapon/armor mágicas pueden requerir).

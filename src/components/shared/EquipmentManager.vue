@@ -185,6 +185,18 @@ function itemNeedsAttune(item: InventoryItem): boolean {
   return magicItems.find(m => m.id === id)?.attunement ?? false
 }
 
+/**
+ * #151 — Convierte "Hand Crossbow" → "hand-crossbow". Helper en script para
+ * evitar regex con backslash dentro de template literals en Vue templates,
+ * que se escapan inconsistentemente. La versión que estaba en el @click
+ * (.replace(/\\s+/g, '-')) NO funcionaba: dejaba los espacios intactos y
+ * generaba IDs como "hand crossbow-plus1" que luego no resolvían contra el
+ * catálogo mágico.
+ */
+function kebabName(name: string): string {
+  return name.toLowerCase().replace(/\s+/g, '-')
+}
+
 const inventoryItems = computed(() => characterStore.character.inventory ?? [])
 
 // #123 — ¿el PJ tiene al menos un container mágico? Necesario para mostrar
@@ -594,7 +606,7 @@ function rarityBg(rarity: string): string {
           </button>
           <div class="flex gap-0.5">
             <button v-for="bonus in [1,2,3]" :key="bonus"
-              @click="addItem({ kind: 'weapon', itemId: wpn.name, name: `${wpn.name} +${bonus}`, qty: 1, magicItemId: `${wpn.name.toLowerCase().replace(/\\s+/g,'-')}-plus${bonus}` })"
+              @click="addItem({ kind: 'weapon', itemId: wpn.name, name: `${wpn.name} +${bonus}`, qty: 1, magicItemId: `${kebabName(wpn.name)}-plus${bonus}` })"
               class="px-1.5 py-1 rounded text-xs font-mono cursor-pointer bg-stone-700 text-amber-400 hover:bg-amber-700 hover:text-stone-900 transition-colors"
               :title="`Add ${wpn.name} +${bonus} to inventory`">+{{ bonus }}</button>
           </div>
@@ -633,7 +645,7 @@ function rarityBg(rarity: string): string {
           </button>
           <div class="flex gap-0.5">
             <button v-for="bonus in [1,2,3]" :key="bonus"
-              @click="addItem({ kind: 'armor', itemId: arm.name, name: `${arm.name} +${bonus}`, qty: 1, magicItemId: `${arm.name.toLowerCase().replace(/\\s+/g,'-')}-plus${bonus}` })"
+              @click="addItem({ kind: 'armor', itemId: arm.name, name: `${arm.name} +${bonus}`, qty: 1, magicItemId: `${kebabName(arm.name)}-plus${bonus}` })"
               class="px-1.5 py-1 rounded text-xs font-mono cursor-pointer bg-stone-700 text-blue-400 hover:bg-blue-700 hover:text-stone-900 transition-colors"
               :title="`Add ${arm.name} +${bonus} to inventory`">+{{ bonus }}</button>
           </div>

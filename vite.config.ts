@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite'
 import { execSync } from 'node:child_process'
-import { writeFileSync, appendFileSync } from 'node:fs'
+import { writeFileSync, appendFileSync, readFileSync } from 'node:fs'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
@@ -20,12 +20,33 @@ function getBuildHash(): string {
 }
 const buildHash = getBuildHash()
 
+/**
+ * #151 — Extrae el último número de ticket del changelog para mostrarlo en
+ * el VersionBadge. Útil para verificar al vistazo si el deploy contiene el
+ * último fix sin tener que mirar el hash de git.
+ *
+ * Parsea la primera línea con formato "YYYY-MM-DD HH:MM · #N — Título".
+ * Si falla por cualquier motivo (changelog no existe, formato cambia),
+ * devuelve '' y el badge no muestra nada de ticket.
+ */
+function getLastTicket(): string {
+  try {
+    const text = readFileSync('./changelog.txt', 'utf-8')
+    const match = text.match(/^\d{4}-\d{2}-\d{2}.*?·\s*(#\d+)/m)
+    return match?.[1] ?? ''
+  } catch {
+    return ''
+  }
+}
+const lastTicket = getLastTicket()
+
 export default defineConfig({
   base: '/dnd-character-builder/',
   define: {
     __BUILD_HASH__: JSON.stringify(buildHash),
     __APP_VERSION__: JSON.stringify('2026.05.20'),
     __BUILD_DATE__: JSON.stringify(new Date().toISOString().slice(0, 16).replace('T', ' ')),
+    __BUILD_TICKET__: JSON.stringify(lastTicket),
   },
   plugins: [
     // ── Dev logging: browser → fichero dev.log.txt ────────────────────────

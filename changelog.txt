@@ -2,6 +2,85 @@ D&D 2024 Character Builder — Changelog
 ═══════════════════════════════════════
 
 ────────────────────────────────────────
+2026-05-24 23:08 · #151 — Fix BUG raíz #150: regex mal escapada generaba IDs con espacios + ticket en badge
+────────────────────────────────────────
+El fix #150 estaba INCOMPLETO. El usuario reportó que tras desplegarlo, el
+Hand Crossbow +1 seguía apareciendo como 'magic'. Investigación con
+inspección del JSON guardado del PJ.
+
+CAUSA RAÍZ:
+
+En src/components/shared/EquipmentManager.vue, los botones +1/+2/+3 del
+catálogo de weapons y armor usaban una regex inline para generar el
+magicItemId desde el nombre:
+
+  `${wpn.name.toLowerCase().replace(/\\s+/g,'-')}-plus${bonus}`
+
+Esta regex está DENTRO de un atributo de evento Vue (@click=") en formato
+template literal. El doble backslash \\ se interpreta como un \ literal
+en el JS resultante, dejando la regex efectiva como /\s+/g — que NO
+matchea espacios. Resultado: "Hand Crossbow" se procesaba como
+"hand crossbow" (espacio intacto), generando IDs tipo "hand crossbow-plus1"
+en lugar de "hand-crossbow-plus1".
+
+El #150 cambió kind a 'weapon' al añadir desde el catálogo, pero los items
+que el usuario YA tenía guardados antes de #150 conservaban el itemId roto.
+La migración de #150 buscaba "hand crossbow" en PLUS_NAMES_TO_KIND (donde
+la clave es "hand-crossbow"), no encontraba match, y dejaba el item sin
+migrar.
+
+DETECCIÓN:
+
+Lo descubrimos inspeccionando el JSON exportado del PJ (Cecino, fighter
+lv.10): el itemId del Hand Crossbow +1 era literalmente "hand crossbow-plus1"
+con espacio. Eso confirmó que el bug no era de migración sino de generación
+del ID en el primer lugar.
+
+FIX:
+
+1. src/components/shared/EquipmentManager.vue:
+   - Nuevo helper en <script>: kebabName(name) que hace .toLowerCase()
+     .replace(/\s+/g, '-') correctamente (en script, no en template, así
+     no hay double-escaping de Vue).
+   - Los dos botones +N (weapon y armor) usan kebabName(wpn.name) /
+     kebabName(arm.name) en lugar de la regex inline.
+
+2. src/utils/migrateInventoryPlusItems.ts:
+   - migrateInventoryItem ahora NORMALIZA espacios → guiones antes de
+     buscar en PLUS_NAMES_TO_KIND. Eso captura los IDs viejos rotos.
+   - Además, el magicItemId que se escribe es el ID CORRECTO con guiones,
+     no el viejo con espacios. Así el lookup en magic-items.ts funciona.
+
+3. +2 tests en migrateInventoryPlusItems.test.ts cubriendo IDs viejos con
+   espacio ("hand crossbow-plus1" y "studded leather armor-plus2").
+
+MEJORA UX: ticket en el VersionBadge
+
+Petición del usuario tras la confusión inicial sobre qué build estaba
+mirando. Ahora el badge muestra "build YYYY-MM-DD HH:MM · <hash> · #N"
+donde #N es el ÚLTIMO ticket del changelog.txt parseado en build-time.
+
+- vite.config.ts:
+  - Nueva fn getLastTicket() que lee changelog.txt en build y extrae el
+    primer "#N" de la primera línea con timestamp.
+  - Expone __BUILD_TICKET__ vía define.
+- src/components/layout/VersionBadge.vue:
+  - Declara __BUILD_TICKET__ y lo añade al display y al texto copiado.
+
+ARCHIVOS:
+- src/components/shared/EquipmentManager.vue (helper kebabName + 2 botones)
+- src/utils/migrateInventoryPlusItems.ts (normalización + magicItemId correcto)
+- src/utils/migrateInventoryPlusItems.test.ts (+2 tests)
+- vite.config.ts (parseo de changelog)
+- src/components/layout/VersionBadge.vue (display ticket)
+
+TESTS: 1029/1029 OK. `npm run build` OK. TS strict OK.
+
+NOTA OPERATIVA: con esta build, los PJs guardados con el bug viejo
+(itemId con espacio) se migran al cargarlos. El badge mostrará "#151"
+para verificar de un vistazo si la build incluye este fix.
+
+────────────────────────────────────────
 2026-05-24 22:44 · #150 — Fix BUG: weapon/armor +N se clasificaba como 'magic' en vez de su kind real
 ────────────────────────────────────────
 Bug reportado por el usuario: un Hand Crossbow +1 aparecía en el inventario
