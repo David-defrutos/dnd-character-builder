@@ -2,6 +2,55 @@ D&D 2024 Character Builder — Changelog
 ═══════════════════════════════════════
 
 ────────────────────────────────────────
+2026-05-24 20:52 · #149 — Fix BUG equip: escudo y armadura no podían equiparse juntos
+────────────────────────────────────────
+Bug reportado por el usuario: al intentar equipar un escudo teniendo una
+armadura puesta (o viceversa), la app desequipaba la otra y mostraba el
+toast "only one armor can be equipped at a time".
+
+CAUSA:
+
+En src/utils/equipSlots.ts, resolveSlot(item) devolvía 'armor' para
+CUALQUIER item con kind='armor'. Pero los escudos también vienen con
+kind='armor' en el modelo (el catálogo equipment.ts trata Shield como
+una entrada armor de type='shield'). Resultado: armor y shield ocupaban
+el mismo slot virtual y se desplazaban mutuamente al equiparlos.
+
+RAW (PHB 2024): armadura y escudo ocupan SLOTS DISTINTOS y se equipan
+juntos sin conflicto. El tipo SlotType del store YA declaraba 'armor' y
+'shield' como slots separados — solo faltaba que resolveSlot los
+distinguiera.
+
+FIX:
+
+src/utils/equipSlots.ts, resolveSlot():
+  if (item.kind === 'armor') {
+    if (/shield/i.test(item.name)) return 'shield'
+    return 'armor'
+  }
+
+Esto usa la MISMA heurística por nombre que ya emplea el resto de la app
+(p.ej. en computeArmorClass cuando detecta escudo desde inventory[] por
+/shield/i.test(name)). Sería más limpio añadir un campo armorType al
+InventoryItem y migrar PJs guardados, pero la heurística es estable
+porque "Shield" / "Shield +1" / etc. son los únicos nombres que el
+catálogo asigna.
+
+TESTS NUEVOS (6 en src/utils/equipSlots.test.ts):
+  - resolveSlot("Shield") → 'shield' (no 'armor').
+  - resolveSlot("Shield +1") → 'shield' (escudos mágicos).
+  - equipar escudo no desequipa la armadura ya puesta.
+  - equipar armadura no desequipa el escudo ya puesto.
+  - equipar segunda armadura SÍ desequipa la primera (regla original sigue).
+  - equipar segundo escudo desequipa el primero.
+
+ARCHIVOS:
+- src/utils/equipSlots.ts (resolveSlot distingue escudo)
+- src/utils/equipSlots.test.ts (+6 tests)
+
+TESTS: 1016/1016 OK. `npm run build` OK. TS strict OK.
+
+────────────────────────────────────────
 2026-05-24 20:31 · #148 — Fix CI build: readonly en getCasterClasses + unused maxSpellLevelAvailable
 ────────────────────────────────────────
 Build de CI (`vue-tsc -b && vite build`) rompía con 2 errores que en local

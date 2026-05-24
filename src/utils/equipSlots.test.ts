@@ -73,6 +73,74 @@ describe('#123 — resolveSlot', () => {
     const i = makeItem({ slotId: 'a', kind: 'custom', name: 'Curio' })
     expect(resolveSlot(i)).toBeUndefined()
   })
+
+  // #149 — Escudo NO debe entrar en el mismo slot que armadura.
+  // En el catálogo el escudo es kind='armor' (porque la entrada de equipment
+  // lo trata así), pero RAW armadura y escudo ocupan slots distintos y se
+  // equipan juntos. resolveSlot distingue por nombre.
+  it('shield (kind=armor, name="Shield") → slot shield, no armor', () => {
+    const i = makeItem({ slotId: 'a', kind: 'armor', itemId: 'Shield', name: 'Shield' })
+    expect(resolveSlot(i)).toBe('shield')
+  })
+
+  it('shield mágico ("Shield +1") → slot shield', () => {
+    const i = makeItem({ slotId: 'a', kind: 'armor', itemId: 'Shield', name: 'Shield +1' })
+    expect(resolveSlot(i)).toBe('shield')
+  })
+})
+
+describe('#149 — armadura + escudo se equipan juntos', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  it('equipar escudo no desequipa la armadura ya puesta', () => {
+    const inv: InventoryItem[] = [
+      makeItem({ slotId: 'a1', kind: 'armor', itemId: 'Studded Leather Armor', name: 'Studded Leather Armor', equipped: true }),
+      makeItem({ slotId: 's1', kind: 'armor', itemId: 'Shield', name: 'Shield' }),
+    ]
+    const result = equipItem(inv, 's1')
+    // El escudo se marca equipped=true.
+    expect(result.updates.find(u => u.slotId === 's1')?.equipped).toBe(true)
+    // La armadura NO recibe equipped=false.
+    const armorUpdate = result.updates.find(u => u.slotId === 'a1')
+    expect(armorUpdate?.equipped).not.toBe(false)
+    // No hay notice de desplazamiento.
+    expect(result.notice).toBeUndefined()
+  })
+
+  it('equipar armadura no desequipa el escudo ya puesto', () => {
+    const inv: InventoryItem[] = [
+      makeItem({ slotId: 's1', kind: 'armor', itemId: 'Shield', name: 'Shield', equipped: true }),
+      makeItem({ slotId: 'a1', kind: 'armor', itemId: 'Studded Leather Armor', name: 'Studded Leather Armor' }),
+    ]
+    const result = equipItem(inv, 'a1')
+    expect(result.updates.find(u => u.slotId === 'a1')?.equipped).toBe(true)
+    const shieldUpdate = result.updates.find(u => u.slotId === 's1')
+    expect(shieldUpdate?.equipped).not.toBe(false)
+    expect(result.notice).toBeUndefined()
+  })
+
+  it('equipar segunda armadura SÍ desequipa la primera (regla original sigue activa)', () => {
+    const inv: InventoryItem[] = [
+      makeItem({ slotId: 'a1', kind: 'armor', itemId: 'Studded Leather Armor', name: 'Studded Leather Armor', equipped: true }),
+      makeItem({ slotId: 'a2', kind: 'armor', itemId: 'Plate Armor', name: 'Plate Armor' }),
+    ]
+    const result = equipItem(inv, 'a2')
+    expect(result.updates.find(u => u.slotId === 'a2')?.equipped).toBe(true)
+    expect(result.updates.find(u => u.slotId === 'a1')?.equipped).toBe(false)
+    expect(result.notice).toBeDefined()
+    expect(result.notice).toMatch(/armor/)
+  })
+
+  it('equipar segundo escudo desequipa el primero', () => {
+    const inv: InventoryItem[] = [
+      makeItem({ slotId: 's1', kind: 'armor', itemId: 'Shield', name: 'Shield', equipped: true }),
+      makeItem({ slotId: 's2', kind: 'armor', itemId: 'Shield', name: 'Shield +1' }),
+    ]
+    const result = equipItem(inv, 's2')
+    expect(result.updates.find(u => u.slotId === 's2')?.equipped).toBe(true)
+    expect(result.updates.find(u => u.slotId === 's1')?.equipped).toBe(false)
+    expect(result.notice).toMatch(/shield/)
+  })
 })
 
 describe('#123 — isMagicalContainer', () => {

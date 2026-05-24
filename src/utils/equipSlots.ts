@@ -23,7 +23,15 @@ import { getMagicItemById } from '@/data/dnd5e/magic-items'
  *  puede determinar (item sin slot declarado en catálogo y sin selectedSlot
  *  en custom): el item se trata como "freely equippable" sin reglas. */
 export function resolveSlot(item: InventoryItem): SlotType | undefined {
-  if (item.kind === 'armor') return 'armor'
+  if (item.kind === 'armor') {
+    // En el inventario los escudos también vienen con kind='armor' (porque
+    // el catálogo de equipment.ts trata el escudo como una entrada armor de
+    // type='shield'). Distinguimos por nombre para que armadura y escudo
+    // ocupen slots diferentes y puedan equiparse juntos. El resto de la app
+    // ya usa esta misma heurística (computeArmorClass, etc.).
+    if (/shield/i.test(item.name)) return 'shield'
+    return 'armor'
+  }
   if (item.kind === 'weapon') return undefined  // armas no tienen slot único
   if (item.kind === 'magic') {
     const mi = getMagicItemById(item.itemId)
