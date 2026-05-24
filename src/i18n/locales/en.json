@@ -7,7 +7,18 @@
     "home": "Home",
     "newCharacter": "Create",
     "importCharacter": "Import Character",
-    "characters": "Archive"
+    "characters": "Archive",
+    "notes": "Notes & FAQ"
+  },
+  "notesAndFaq": {
+    "title": "Notes & FAQ",
+    "subtitle": "Free-form notes for your active character. Useful for rules reminders, combos, or anything you want at hand during play. Appears at the end of the PDF Detailed Reference.",
+    "noActive": "No active character. Load one from the Archive to start taking notes.",
+    "goToList": "Go to characters",
+    "editingFor": "Editing notes for",
+    "placeholder": "Write whatever you want here. Plain text, line breaks preserved.\n\nE.g.:\n- Action Surge: bonus action, 1 extra action.\n- Lucky: 3 luck points, regain on long rest.\n- Remember to mark Echo position on the map.",
+    "autosaved": "Auto-saved",
+    "chars": "characters"
   },
   "home": {
     "startButton": "Create a New Character",

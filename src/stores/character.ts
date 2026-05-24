@@ -236,6 +236,13 @@ export interface CharacterData {
   speed: number
   /** Notas de sesión del jugador. */
   sessionNotes: string
+  /**
+   * #153 — Notes & FAQ del PJ. Texto libre, separado de sessionNotes.
+   * Pensado para FAQ del jugador: reglas que se olvidan, recordatorios fijos,
+   * combos del PJ que conviene tener a mano. Aparece al final del anexo del
+   * PDF "Detailed Reference" para tenerlo a mano en mesa.
+   */
+  notesAndFaq?: string
   /** Skills otorgadas por el trasfondo — separadas para no borrar las de clase al cambiar. */
   backgroundSkillProficiencies?: string[]
   /** Skills elegidas via la clase — separadas igual que las del background.
@@ -403,6 +410,7 @@ function createEmptyCharacter(): CharacterData {
     tempHp: 0,
     speed: 30,
     sessionNotes: '',
+    notesAndFaq: '',
     classes: [],
     asiChoices: [],
   }

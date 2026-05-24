@@ -2,6 +2,68 @@ D&D 2024 Character Builder — Changelog
 ═══════════════════════════════════════
 
 ────────────────────────────────────────
+2026-05-25 00:01 · #153 — Pestaña Notes & FAQ + render al final del anexo PDF
+────────────────────────────────────────
+Petición del usuario: campo de texto libre para anotaciones del PJ
+(recordatorios de reglas, combos, FAQ personal) que se vea al final del
+"Detailed Reference" del PDF.
+
+DECISIONES:
+- Campo NUEVO char.notesAndFaq, separado de sessionNotes existente. Distinta
+  vida útil: notesAndFaq es referencia personal del PJ (estable), sessionNotes
+  son notas de partida (volátiles).
+- Texto PLANO. Sin formato (negrita, listas). Solo respeta saltos de línea.
+  drawBody del anexo ya hace wrap por anchura y respeta \n entre párrafos.
+- Pestaña PROPIA accesible desde el header (desktop + mobile), no embebida
+  en Step 8 ni Step 9. Ruta /notes.
+- Si no hay PJ activo cuando se entra a /notes, mostrar mensaje + enlace a
+  /characters en lugar de un textarea inerte.
+
+CAMBIOS:
+
+src/stores/character.ts:
+  - Nuevo campo opcional notesAndFaq?: string en CharacterData.
+  - Inicializado a '' en createDefaultCharacter.
+
+src/views/NotesAndFaqView.vue (nuevo):
+  - Textarea grande con autosize (resize-y) y placeholder con ejemplo.
+  - Computed two-way bindeado a char.notesAndFaq.
+  - Contador de caracteres + indicador "Auto-saved" (el store ya persiste
+    via Pinia).
+  - Estado sin PJ activo: mensaje + router-link a /characters.
+
+src/router/index.ts:
+  - Ruta /notes -> NotesAndFaqView (lazy).
+
+src/components/layout/AppHeader.vue:
+  - router-link "Notes & FAQ" en nav desktop y mobile.
+
+src/i18n/locales/en.json:
+  - nav.notes ("Notes & FAQ").
+  - Bloque notesAndFaq.* (title, subtitle, noActive, goToList, editingFor,
+    placeholder con ejemplo, autosaved, chars).
+
+src/utils/pdfAppendix.ts:
+  - Nueva fn drawNotesAndFaq(state, char). Usa drawBody que ya respeta
+    saltos de línea. Si el campo está vacío, omite la sección.
+  - Invocada al final del anexo, tras drawResourceTable.
+
+NO se ha añadido test específico para esta sección — la sección PDF es
+trivial (cabecera + drawBody, ambos ya tested indirectamente en muchos
+sitios) y la vista Vue es un form simple. Si en el futuro hay lógica
+condicional, se añade test.
+
+ARCHIVOS:
+- src/stores/character.ts (+campo)
+- src/views/NotesAndFaqView.vue (nuevo)
+- src/router/index.ts (+ruta)
+- src/components/layout/AppHeader.vue (+nav links)
+- src/i18n/locales/en.json (+claves)
+- src/utils/pdfAppendix.ts (+sección al final)
+
+TESTS: 1038/1038 OK. `npm run build` OK. TS strict OK.
+
+────────────────────────────────────────
 2026-05-24 23:45 · #152 — Weapon Masteries del anexo: filas por mastery única + Tactical Master
 ────────────────────────────────────────
 Petición del usuario: en la sección "Weapon Masteries" del anexo (Detailed

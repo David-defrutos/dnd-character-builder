@@ -19,6 +19,11 @@ const router = createRouter({
       component: () => import('@/views/CharacterListView.vue'),
     },
     {
+      path: '/notes',
+      name: 'notes',
+      component: () => import('@/views/NotesAndFaqView.vue'),
+    },
+    {
       path: '/privacy',
       name: 'privacy',
       component: () => import('@/views/PrivacyView.vue'),

@@ -1083,6 +1083,24 @@ function drawInventory(state: DrawState, char: CharacterData): void {
   renderBlock('In Magical Containers (does not count for encumbrance)', stored)
 }
 
+// ─── Notes & FAQ (#153) ─────────────────────────────────────────────────
+
+/**
+ * #153 — Texto libre del jugador (char.notesAndFaq). Se renderiza al final
+ * del anexo como la última sección, respetando saltos de línea (drawBody ya
+ * hace wrap por anchura y respeta \n entre párrafos). Sin formato — el campo
+ * es texto plano por decisión de diseño.
+ *
+ * Si el campo está vacío o no existe, omite la sección entera.
+ */
+function drawNotesAndFaq(state: DrawState, char: CharacterData): void {
+  const text = (char.notesAndFaq ?? '').trim()
+  if (!text) return
+
+  drawSectionHeader(state, 'Notes & FAQ')
+  drawBody(state, text)
+}
+
 // ─── Public entry point ───────────────────────────────────────────────────
 
 /**
@@ -1141,4 +1159,5 @@ export async function appendCharacterAppendix(
   drawCarryingCapacity(state, char)             // #120
   drawInventory(state, char)                    // #128 — detalle por bloque
   drawResourceTable(state, char)
+  drawNotesAndFaq(state, char)                  // #153 — siempre última
 }
