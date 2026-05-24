@@ -175,6 +175,16 @@ function canBeEquipped(item: InventoryItem): boolean {
   return item.selectedSlot !== undefined
 }
 
+/**
+ * #150 — ¿Requiere attunement esta entrada? Cubre tanto items "mágicos puros"
+ * (kind='magic') como weapon/armor con magicItemId (Hand Crossbow +1, etc.).
+ */
+function itemNeedsAttune(item: InventoryItem): boolean {
+  const id = item.kind === 'magic' ? item.itemId : item.magicItemId
+  if (!id) return false
+  return magicItems.find(m => m.id === id)?.attunement ?? false
+}
+
 const inventoryItems = computed(() => characterStore.character.inventory ?? [])
 
 // #123 — ¿el PJ tiene al menos un container mágico? Necesario para mostrar
@@ -195,7 +205,9 @@ const storedItems = computed(() =>
 )
 
 const attunedCount = computed(() =>
-  inventoryItems.value.filter(i => i.kind === 'magic' && i.attuned).length
+  inventoryItems.value.filter(i =>
+    i.attuned && (i.kind === 'magic' || i.magicItemId !== undefined)
+  ).length
 )
 
 // ─── Weapon catalog filters ──────────────────────────────────────────────────
@@ -433,7 +445,7 @@ function rarityBg(rarity: string): string {
               block="equipped"
               :hasContainer="hasMagicalContainer"
               :canEquip="canBeEquipped(item)"
-              :needsAttune="item.kind === 'magic' && (magicItems.find(m => m.id === item.itemId)?.attunement ?? false)"
+              :needsAttune="itemNeedsAttune(item)"
               :isContainer="isMagicalContainer(item)"
               @toggle-equip="toggleEquip"
               @toggle-attune="toggleAttuned"
@@ -457,7 +469,7 @@ function rarityBg(rarity: string): string {
               block="carried"
               :hasContainer="hasMagicalContainer"
               :canEquip="canBeEquipped(item)"
-              :needsAttune="item.kind === 'magic' && (magicItems.find(m => m.id === item.itemId)?.attunement ?? false)"
+              :needsAttune="itemNeedsAttune(item)"
               :isContainer="isMagicalContainer(item)"
               @toggle-equip="toggleEquip"
               @toggle-attune="toggleAttuned"
@@ -485,7 +497,7 @@ function rarityBg(rarity: string): string {
               block="stored"
               :hasContainer="hasMagicalContainer"
               :canEquip="canBeEquipped(item)"
-              :needsAttune="item.kind === 'magic' && (magicItems.find(m => m.id === item.itemId)?.attunement ?? false)"
+              :needsAttune="itemNeedsAttune(item)"
               :isContainer="isMagicalContainer(item)"
               @toggle-equip="toggleEquip"
               @toggle-attune="toggleAttuned"
@@ -582,7 +594,7 @@ function rarityBg(rarity: string): string {
           </button>
           <div class="flex gap-0.5">
             <button v-for="bonus in [1,2,3]" :key="bonus"
-              @click="addItem({ kind: 'magic', itemId: `${wpn.name.toLowerCase().replace(/\\s+/g,'-')}-plus${bonus}`, name: `${wpn.name} +${bonus}`, qty: 1, attuned: false })"
+              @click="addItem({ kind: 'weapon', itemId: wpn.name, name: `${wpn.name} +${bonus}`, qty: 1, magicItemId: `${wpn.name.toLowerCase().replace(/\\s+/g,'-')}-plus${bonus}` })"
               class="px-1.5 py-1 rounded text-xs font-mono cursor-pointer bg-stone-700 text-amber-400 hover:bg-amber-700 hover:text-stone-900 transition-colors"
               :title="`Add ${wpn.name} +${bonus} to inventory`">+{{ bonus }}</button>
           </div>
@@ -621,7 +633,7 @@ function rarityBg(rarity: string): string {
           </button>
           <div class="flex gap-0.5">
             <button v-for="bonus in [1,2,3]" :key="bonus"
-              @click="addItem({ kind: 'magic', itemId: `${arm.name.toLowerCase().replace(/\\s+/g,'-')}-plus${bonus}`, name: `${arm.name} +${bonus}`, qty: 1, attuned: false })"
+              @click="addItem({ kind: 'armor', itemId: arm.name, name: `${arm.name} +${bonus}`, qty: 1, magicItemId: `${arm.name.toLowerCase().replace(/\\s+/g,'-')}-plus${bonus}` })"
               class="px-1.5 py-1 rounded text-xs font-mono cursor-pointer bg-stone-700 text-blue-400 hover:bg-blue-700 hover:text-stone-900 transition-colors"
               :title="`Add ${arm.name} +${bonus} to inventory`">+{{ bonus }}</button>
           </div>

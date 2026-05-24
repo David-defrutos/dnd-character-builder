@@ -2,6 +2,99 @@ D&D 2024 Character Builder — Changelog
 ═══════════════════════════════════════
 
 ────────────────────────────────────────
+2026-05-24 22:44 · #150 — Fix BUG: weapon/armor +N se clasificaba como 'magic' en vez de su kind real
+────────────────────────────────────────
+Bug reportado por el usuario: un Hand Crossbow +1 aparecía en el inventario
+con badge "magic" (morado) y botón "Equip", cuando conceptualmente sigue
+siendo un arma — debería tener badge "weapon" (rojo) y comportarse como
+las demás armas.
+
+CAUSA:
+
+Los botones +1/+2/+3 del catálogo de weapons (line 585) y armor (line 624)
+en EquipmentManager.vue creaban entradas de inventory con `kind: 'magic'` e
+`itemId: <weapon-or-armor>-plus<N>` apuntando al magic item generado por la
+fábrica weaponPlusItems / armorPlusItems en magic-items.ts.
+
+Pero conceptualmente:
+- Hand Crossbow +1 → sigue siendo un arma. Su badge debería ser "weapon",
+  su comportamiento de slot el de un arma (sin slot único, se empuña).
+- Plate Armor +2 → sigue siendo una armadura. Slot 'armor'.
+- Shield +1 → sigue siendo un escudo. Slot 'shield' (resuelto en #149).
+
+El "vínculo mágico" (rareza, attunement, descripción, bonus) se mantiene
+pero NO debería cambiar el `kind` del item.
+
+FIX:
+
+1. src/stores/character.ts — InventoryItem gana campo opcional `magicItemId`:
+   apunta al ID en magic-items.ts cuando este weapon/armor también es ítem
+   mágico (Hand Crossbow +1 → "hand-crossbow-plus1"). El kind sigue siendo
+   'weapon' o 'armor' real.
+
+2. src/components/shared/EquipmentManager.vue — los dos botones del
+   catálogo (weapon +N y armor +N) ahora crean:
+     kind: 'weapon' (o 'armor')
+     itemId: <Name base>  (ej. "Hand Crossbow")
+     name: "<Name> +N"
+     magicItemId: <kebab-plus-id>
+
+3. src/utils/migrateInventoryPlusItems.ts (nuevo) — Migración silenciosa
+   de PJs guardados con el formato viejo. Reconoce los IDs por sufijo
+   `-plus(1|2|3)` y por tabla cerrada de nombres (PLUS_WEAPONS + PLUS_ARMOR
+   del catálogo). Idempotente. Invocada desde loadCharacter, importJson y
+   afterHydrate del pinia persist.
+
+4. src/components/shared/InventoryItemRow.vue — el lookup del MagicItem
+   asociado ahora usa un computed `magicMeta` que mira itemId si kind='magic'
+   o magicItemId si es weapon/armor. Esto hace que:
+     - el badge sea "weapon" / "armor" (no "magic") para las +N
+     - el FONDO de la fila refleje la rareza (Uncommon, Rare, Very Rare)
+       igual que en los magic puros — visualmente sigues sabiendo que el
+       Hand Crossbow +1 es un item mágico
+     - la rareza aparece como texto al lado del nombre
+
+5. src/components/shared/EquipmentManager.vue —
+     - attunedCount cuenta items attuned con vínculo mágico (sean kind='magic'
+       o weapon/armor con magicItemId).
+     - El prop needsAttune que se pasa a InventoryItemRow se calcula con
+       una nueva fn itemNeedsAttune(item) que cubre los dos casos.
+
+LO QUE NO CAMBIA:
+
+- El cálculo de AC (armorClassBreakdown.ts) y el parseo del bonus mágico
+  por nombre (parseMagicArmorBonus) siguen funcionando porque ya operaban
+  sobre `item.name` ("Studded Leather Armor +1"), no sobre el kind.
+- El bonus mágico de armas (weaponCalc.ts) también opera sobre nombre.
+- canBeEquipped: armas siguen siendo NO-equipable, armaduras SÍ. Una
+  weapon mágica antes salía como "magic" → equipable. Ahora sale como
+  "weapon" → NO equipable. Correcto: las armas se empuñan, no se equipan.
+
+TESTS NUEVOS (src/utils/migrateInventoryPlusItems.test.ts, 11 tests):
+  - Hand Crossbow +1 migrado a weapon + magicItemId.
+  - Plate Armor +2 migrado a armor + magicItemId.
+  - Shield +1 migrado a armor (shield se trata como armor en kind).
+  - Magic item puro (Cloak of Protection): no se migra.
+  - Item ya migrado: idempotente, no se toca.
+  - Weapon normal (sin +N): no se toca.
+  - Inventory vacío / sin inventory: no-op defensive.
+  - Mezcla: solo las +N se migran.
+  - IDs con kebab raro (War Pick, Half Plate Armor).
+  - Sufijo -plus inválido: no migra.
+
+ARCHIVOS:
+- src/stores/character.ts (+magicItemId en InventoryItem, +2 invocaciones
+  de migrateInventoryPlusItems)
+- src/components/shared/EquipmentManager.vue (botones +N usan kind real,
+  helper itemNeedsAttune, attunedCount con magicItemId)
+- src/components/shared/InventoryItemRow.vue (computed magicMeta para
+  resolver MagicItem por itemId o magicItemId)
+- src/utils/migrateInventoryPlusItems.ts (nuevo)
+- src/utils/migrateInventoryPlusItems.test.ts (nuevo, 11 tests)
+
+TESTS: 1027/1027 OK. `npm run build` OK. TS strict OK.
+
+────────────────────────────────────────
 2026-05-24 20:52 · #149 — Fix BUG equip: escudo y armadura no podían equiparse juntos
 ────────────────────────────────────────
 Bug reportado por el usuario: al intentar equipar un escudo teniendo una

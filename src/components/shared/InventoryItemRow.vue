@@ -78,13 +78,28 @@ function rarityBg(rarity: MagicItemRarity): string {
     default:          return 'bg-stone-800'
   }
 }
+
+/**
+ * #150 — Resuelve el MagicItem asociado a esta entrada, sea porque
+ * `kind === 'magic'` (lookup por itemId) o porque es un weapon/armor con
+ * `magicItemId` apuntando al catálogo mágico (Hand Crossbow +1, etc).
+ *
+ * Si la entrada no tiene vínculo mágico, devuelve undefined.
+ */
+const magicMeta = computed(() => {
+  const id = props.item.kind === 'magic'
+    ? props.item.itemId
+    : props.item.magicItemId
+  if (!id) return undefined
+  return magicItems.find(m => m.id === id)
+})
 </script>
 
 <template>
   <div
     class="flex items-start gap-3 rounded-lg px-3 py-2"
-    :class="item.kind === 'magic'
-      ? rarityBg(magicItems.find(m => m.id === item.itemId)?.rarity ?? 'Common')
+    :class="magicMeta
+      ? rarityBg(magicMeta.rarity)
       : 'bg-stone-800'"
   >
     <!-- Kind badge -->
@@ -108,10 +123,10 @@ function rarityBg(rarity: MagicItemRarity): string {
           title="Magical container — its contents don't count for encumbrance">
           📦 Container
         </span>
-        <!-- Rarity for magic items -->
-        <span v-if="item.kind === 'magic'" class="text-xs"
-          :class="rarityColor(magicItems.find(m => m.id === item.itemId)?.rarity ?? 'Common')">
-          {{ magicItems.find(m => m.id === item.itemId)?.rarity }}
+        <!-- Rarity para items mágicos (sean puros o weapon/armor +N) -->
+        <span v-if="magicMeta" class="text-xs"
+          :class="rarityColor(magicMeta.rarity)">
+          {{ magicMeta.rarity }}
         </span>
 
         <!-- Attune (solo si necesita attunement; nunca en bloque stored) -->

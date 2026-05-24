@@ -9,6 +9,7 @@ import { computeAcBreakdown } from '@/utils/armorClassBreakdown'
 import { getMaxLevel, getClasses, getEquipment } from '@/data'
 import { getMagicItemById } from '@/data/dnd5e/magic-items'
 import { migrateCharacterToClassEntries } from '@/utils/classEntries'
+import { migrateInventoryPlusItems } from '@/utils/migrateInventoryPlusItems'
 import { multiclassPrereqsSatisfied } from '@/utils/multiclassPrereqs'
 import { getMulticlassProfs } from '@/data/dnd5e/multiclassProfs'
 
@@ -135,6 +136,17 @@ export interface InventoryItem {
   qty: number
   /** Weight in pounds for custom/adventuring-gear items. Catalogue items resolve weight by itemId. */
   weight?: number
+  /**
+   * #150 — Si esta entrada es un weapon/armor que TAMBIÉN es ítem mágico
+   * (p.ej. Hand Crossbow +1, Plate Armor +2), `magicItemId` apunta al ID en
+   * `magic-items.ts` para resolver rarity, attunement, bonus y descripción.
+   *
+   * `kind` se mantiene como 'weapon' o 'armor' (no 'magic') porque
+   * conceptualmente sigue siendo el arma o armadura — el badge, el slot y
+   * el comportamiento deben ser los del item base. Solo es campo opcional
+   * para mantener compat con entradas que no tienen vínculo mágico.
+   */
+  magicItemId?: string
   /** #118 — Item equipped on the character (worn/wielded right now).
    *  Multiple items can be equipped; uniqueness rules (1 armor, 1 shield,
    *  1 cloak, max 2 rings) are enforced by the equip helper, not the data. */
@@ -512,6 +524,9 @@ export const useCharacterStore = defineStore('character', () => {
       // #139 Fase 1: si el PJ guardado es de antes del refactor multiclass,
       // poblamos classes[0] con los campos planos. Silencioso e idempotente.
       migrateCharacterToClassEntries(character.value)
+      // #150: weapon/armor +N que se guardaron con kind='magic' pasan a
+      // su kind real con magicItemId. Silencioso e idempotente.
+      migrateInventoryPlusItems(character.value)
     }
   }
 
@@ -1007,6 +1022,9 @@ export const useCharacterStore = defineStore('character', () => {
     // #139 Fase 1: si el JSON importado es del modelo viejo, migrar.
     // Silencioso e idempotente.
     migrateCharacterToClassEntries(data)
+    // #150: weapon/armor +N que se guardaron con kind='magic' pasan a su
+    // kind real con magicItemId. Silencioso e idempotente.
+    migrateInventoryPlusItems(data)
 
     character.value = data
     return { data, warnings }
@@ -1046,10 +1064,12 @@ export const useCharacterStore = defineStore('character', () => {
       }
       if (store.character) {
         migrateCharacterToClassEntries(store.character)
+        migrateInventoryPlusItems(store.character)
       }
       if (Array.isArray(store.savedCharacters)) {
         for (const c of store.savedCharacters) {
           migrateCharacterToClassEntries(c)
+          migrateInventoryPlusItems(c)
         }
       }
     },
