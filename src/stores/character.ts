@@ -8,6 +8,9 @@ import { commitLevelSnapshot } from '@/utils/levelHistory'
 import { computeAcBreakdown } from '@/utils/armorClassBreakdown'
 import { getMaxLevel, getClasses, getEquipment } from '@/data'
 import { getMagicItemById } from '@/data/dnd5e/magic-items'
+import { migrateCharacterToClassEntries } from '@/utils/classEntries'
+import { multiclassPrereqsSatisfied } from '@/utils/multiclassPrereqs'
+import { getMulticlassProfs } from '@/data/dnd5e/multiclassProfs'
 
 export interface AbilityScores {
   str: number
@@ -24,11 +27,60 @@ export interface Weapon {
   damage: string
 }
 
+/** Una entrada del multiclass o la única entrada para un PJ monoclase.
+ *
+ *  #139 (Fase 1, refactor multiclass): se amplía con todos los campos
+ *  específicos por clase del modelo nuevo. Los campos antiguos
+ *  (classId/subclass/level/hitDie) siguen existiendo y son obligatorios;
+ *  los nuevos son opcionales para mantener compatibilidad hacia atrás con
+ *  los PJs guardados antes del refactor. La migración (loadCharacter /
+ *  importJson) los rellena leyendo los campos planos de CharacterData.
+ */
 export interface ClassEntry {
   classId: string
   subclass: string
   level: number
   hitDie: number
+
+  // ── Campos del modelo nuevo (#139, Fase 1) ──
+  // Todos opcionales: los PJs migrados los obtienen al cargar; los nuevos
+  // los rellena addMulticlass / selectClass. La lectura agregada se hace
+  // vía los helpers de classEntries.ts (getCharCantrips, etc.).
+
+  /** ASIs cogidos en ESTA clase (no en el PJ global). En el modelo viejo
+   *  todos los ASIs vivían en char.asiChoices; el nuevo los reparte. */
+  asiChoices?: ASIChoice[]
+
+  /** Spellcasting ability de ESTA clase (wis para Cleric, int para Wizard,
+   *  cha para Sorcerer/Bard/Warlock/Paladin). Permite calcular DC/Attack
+   *  por clase en multiclass-caster. */
+  spellcastingAbility?: 'str' | 'dex' | 'con' | 'int' | 'wis' | 'cha'
+
+  /** Cantrips conocidos de ESTA clase. Distintos casters pueden conocer
+   *  cantrips distintos; antes vivían todos en char.cantrips. */
+  cantrips?: string[]
+
+  /** Hechizos preparados/conocidos de ESTA clase. */
+  spellsKnown?: string[]
+
+  /** Magic Initiate cogido vía ASI feat en ESTA clase (no el origin feat,
+   *  que sigue siendo único en char.magicInitiateChoices). */
+  magicInitiateChoices?: Array<{
+    source: string
+    spellList: 'cleric' | 'druid' | 'wizard'
+    cantrips: string[]
+    levelOneSpell: string
+  }>
+
+  /** Fighting Style elegido si la clase lo otorga (Fighter, Paladin, Ranger). */
+  fightingStyle?: string
+
+  /** Expertise picks si la clase los otorga (Rogue, Bard). */
+  expertiseChoices?: string[]
+
+  /** Weapon Masteries dominadas vía esta clase (Fighter, Barbarian, Paladin,
+   *  Ranger, Rogue). Antes vivían en char.weaponMasteries. */
+  weaponMasteries?: string[]
 }
 
 /** Documento generado el 2026-05-19-2200
@@ -457,6 +509,9 @@ export const useCharacterStore = defineStore('character', () => {
     const found = savedCharacters.value.find(c => c.id === id)
     if (found) {
       character.value = JSON.parse(JSON.stringify(found))
+      // #139 Fase 1: si el PJ guardado es de antes del refactor multiclass,
+      // poblamos classes[0] con los campos planos. Silencioso e idempotente.
+      migrateCharacterToClassEntries(character.value)
     }
   }
 
@@ -471,13 +526,35 @@ export const useCharacterStore = defineStore('character', () => {
    * Add a second (or third, etc.) class to the current D&D 5e character.
    * Only works for dnd5e variant.
    */
-  function addMulticlass(classId: string) {
+  /**
+   * Add a second (or third, etc.) class to the current D&D 5e character.
+   * Only works for dnd5e variant.
+   *
+   * #139 Fase 6 (M7): valida prereqs de habilidad del PHB 2024 (primary ability
+   * ≥ 13 en TODAS las clases existentes Y en la nueva). Si fallan, no añade
+   * y devuelve la lista de violaciones. La UI muestra el mensaje al jugador.
+   */
+  function addMulticlass(classId: string): { ok: true } | { ok: false; failures: string[] } {
     const char = character.value
-    if (char.variant !== 'dnd5e') return
+    if (char.variant !== 'dnd5e') return { ok: false, failures: ['Multiclass only available for D&D 5e'] }
 
     const allClasses = getClasses(char.variant)
     const newCls = allClasses.find(c => c.id === classId)
-    if (!newCls) return
+    if (!newCls) return { ok: false, failures: [`Unknown class: ${classId}`] }
+
+    // Don't add the same class twice
+    if (char.classes.some(c => c.classId === classId)) return { ok: false, failures: [`${newCls.name} is already in this character.`] }
+    // Caso PJ aún sin classes[]: si la clase nueva coincide con la primaria
+    // del modelo plano, también es duplicado.
+    if (char.classes.length === 0 && char.className === classId) {
+      return { ok: false, failures: [`${newCls.name} is already in this character.`] }
+    }
+
+    // #139 Fase 6 (M7) — prereqs de habilidad.
+    const prereqs = multiclassPrereqsSatisfied(char, newCls, allClasses)
+    if (!prereqs.satisfied) {
+      return { ok: false, failures: prereqs.failures }
+    }
 
     // If classes array is empty, populate with current primary class first
     if (char.classes.length === 0) {
@@ -488,9 +565,6 @@ export const useCharacterStore = defineStore('character', () => {
         hitDie: char.hitDie,
       })
     }
-
-    // Don't add the same class twice
-    if (char.classes.some(c => c.classId === classId)) return
 
     // Add the new class at level 1
     char.classes.push({
@@ -503,9 +577,28 @@ export const useCharacterStore = defineStore('character', () => {
     // Recalculate total level
     char.level = char.classes.reduce((sum, c) => sum + c.level, 0)
 
+    // #139 Fase 6 (M8) — Aplicar proficiencies parciales del PHB 2024.
+    // Se añaden a classArmorProficiencies / classWeaponProficiencies /
+    // classToolProficiencies (sin duplicar). No tocamos las skills sin
+    // selección del jugador (skillFromList queda pendiente de UI; cuando
+    // exista, se aplicará via característica skillProficiencies del PJ).
+    const profs = getMulticlassProfs(classId)
+    if (profs) {
+      const mergeUnique = (target: string[], extras: readonly string[]): string[] => {
+        const set = new Set(target)
+        for (const x of extras) set.add(x)
+        return Array.from(set)
+      }
+      char.classArmorProficiencies = mergeUnique(char.classArmorProficiencies ?? [], profs.armor)
+      char.classWeaponProficiencies = mergeUnique(char.classWeaponProficiencies ?? [], profs.weapons)
+      char.classToolProficiencies = mergeUnique(char.classToolProficiencies ?? [], profs.tools)
+    }
+
     // H8: recalcular maxHp desde cero (en lugar de sumar el hp del nuevo nivel)
     recomputeMaxHp(char)
     char.currentHp = char.maxHp
+
+    return { ok: true }
   }
 
   /**
@@ -527,6 +620,52 @@ export const useCharacterStore = defineStore('character', () => {
     // H8: recalcular HP desde cero (centralizado en recomputeMaxHp).
     recomputeMaxHp(char)
     char.currentHp = char.maxHp
+  }
+
+  /**
+   * #139 Fase 2 (M9): reordena classes[] intercambiando dos índices.
+   * Si el cambio afecta a classes[0] (la primaria), sincroniza también los
+   * campos planos primarios (className, subclass, hitDie, spellcastingAbility)
+   * para que el resto de la app, que todavía los lee, vea la nueva primaria.
+   *
+   * Sin efecto si los índices están fuera de rango o son el mismo.
+   */
+  function reorderClasses(fromIdx: number, toIdx: number) {
+    const char = character.value
+    const n = char.classes.length
+    if (fromIdx === toIdx) return
+    if (fromIdx < 0 || fromIdx >= n) return
+    if (toIdx < 0 || toIdx >= n) return
+
+    const arr = char.classes
+    const moved = arr.splice(fromIdx, 1)[0]
+    if (!moved) return
+    arr.splice(toIdx, 0, moved)
+
+    // Si el orden de la primaria cambió, refrescar los campos planos.
+    const newPrimary = arr[0]
+    if (newPrimary && (fromIdx === 0 || toIdx === 0)) {
+      const allClasses = getClasses(char.variant)
+      const newPrimaryCls = allClasses.find(c => c.id === newPrimary.classId)
+      char.className = newPrimary.classId
+      char.subclass = newPrimary.subclass
+      char.hitDie = newPrimary.hitDie
+      // Spellcasting ability del nuevo primario, si lo tiene definido en la
+      // entrada o resolvible desde el catálogo de clases.
+      if (newPrimary.spellcastingAbility) {
+        char.spellcastingAbility = newPrimary.spellcastingAbility
+        char.spellcastingClass = newPrimary.classId
+      } else if (newPrimaryCls?.spellcasting) {
+        char.spellcastingAbility = newPrimaryCls.spellcasting.ability
+        char.spellcastingClass = newPrimary.classId
+      } else {
+        // Nueva primaria no caster: limpiamos.
+        char.spellcastingAbility = ''
+        char.spellcastingClass = ''
+      }
+    }
+    // HP no cambia (es la suma de todas las clases, sin orden). Tampoco
+    // los ASIs ni cantrips: solo el orden y los campos primarios planos.
   }
 
   /**
@@ -865,6 +1004,10 @@ export const useCharacterStore = defineStore('character', () => {
     if (!data.background) warnings.push('WARN_NO_BACKGROUND')
     if (data.maxHp <= 0) warnings.push('WARN_NO_HP')
 
+    // #139 Fase 1: si el JSON importado es del modelo viejo, migrar.
+    // Silencioso e idempotente.
+    migrateCharacterToClassEntries(data)
+
     character.value = data
     return { data, warnings }
   }
@@ -886,6 +1029,7 @@ export const useCharacterStore = defineStore('character', () => {
     isMulticlass,
     addMulticlass,
     removeMulticlass,
+    reorderClasses,
     levelUp,
     exportJson,
     importJson,
@@ -893,5 +1037,21 @@ export const useCharacterStore = defineStore('character', () => {
 }, {
   persist: {
     pick: ['character', 'savedCharacters'],
+    // #139 Fase 1: tras rehidratar desde localStorage, migrar el PJ activo y
+    // todos los guardados al modelo nuevo. Silencioso e idempotente.
+    afterHydrate(ctx) {
+      const store = ctx.store as unknown as {
+        character: CharacterData
+        savedCharacters: CharacterData[]
+      }
+      if (store.character) {
+        migrateCharacterToClassEntries(store.character)
+      }
+      if (Array.isArray(store.savedCharacters)) {
+        for (const c of store.savedCharacters) {
+          migrateCharacterToClassEntries(c)
+        }
+      }
+    },
   },
 })

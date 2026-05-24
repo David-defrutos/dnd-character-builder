@@ -10,6 +10,7 @@ import { getSpells, getClasses, getBackgrounds, getMaxLevel, getSpellsKnownCount
 import { useGameTerms } from '@/composables/useGameTerms'
 import EquipmentManager from '@/components/shared/EquipmentManager.vue'
 import AsiSelector from '@/components/shared/AsiSelector.vue'
+import { getClassEntries, getCasterClasses } from '@/utils/classEntries'
 import WeaponMasteryPicker from '@/components/shared/WeaponMasteryPicker.vue'
 import FightingStylePicker from '@/components/shared/FightingStylePicker.vue'
 import ExpertisePicker from '@/components/shared/ExpertisePicker.vue'
@@ -29,6 +30,12 @@ const { exportPdf, exporting } = usePdfExport()
 const gt = useGameTerms()
 
 const char = computed(() => characterStore.character)
+/** #139 Fase 3c: clases sobre las que mostrar un AsiSelector. Una por entrada
+ *  en classes[]; si la lista está vacía, devuelve la primaria implícita
+ *  via getClassEntries. */
+const asiClassIds = computed<string[]>(() =>
+  getClassEntries(characterStore.character).map(e => e.classId),
+)
 const mods = computed(() => characterStore.abilityModifiers)
 const prof = computed(() => characterStore.profBonus)
 const currentLoad = computed(() => computeCurrentLoad(char.value))
@@ -108,17 +115,70 @@ const subclassMissingReview = computed(() =>
 // ── Selector de hechizos (#41) ────────────────────────────────────────────
 // Para preparadores (Clérigo, Druida, Paladín, etc.) muestra selector cuando
 // el jugador no ha visitado Step7 y tiene slots disponibles.
-const maxSpellsReview = computed(() =>
-  getSpellsKnownCount(char.value.className, char.value.level, characterStore.abilityModifiers)
-)
+//
+// #139 Fase 4b (multiclass): el cupo es la SUMA de los cupos de cada clase
+// caster del PJ, y la lista de hechizos disponibles incluye los de TODAS las
+// listas de clases caster del PJ (no solo la primaria).
+
+/** Clases caster del PJ: una entrada por cada clase con spellcasting. */
+const casterInfo = computed(() => {
+  const casters = getCasterClasses(char.value, variantClasses.value)
+  return casters.map(({ entry, ability }) => {
+    const abilityMod = mods.value[ability as keyof typeof mods.value] ?? 0
+    return {
+      classId: entry.classId,
+      className: variantClasses.value.find(c => c.id === entry.classId)?.name ?? entry.classId,
+      level: entry.level,
+      ability,
+      dc: spellSaveDC(prof.value, abilityMod),
+      attack: spellAttackBonus(prof.value, abilityMod),
+      maxSpells: getSpellsKnownCount(entry.classId, entry.level, characterStore.abilityModifiers),
+    }
+  })
+})
+
+const maxSpellsReview = computed(() => {
+  const casters = casterInfo.value
+  if (casters.length === 0) {
+    // Fallback: PJ sin classes[] todavía o clase no caster — usa la primaria.
+    return getSpellsKnownCount(char.value.className, char.value.level, characterStore.abilityModifiers)
+  }
+  return casters.reduce((sum, c) => sum + c.maxSpells, 0)
+})
+
 const spellSearchReview = ref('')
 const spellLevelFilterReview = ref<number | null>(null)
 
-const availableSpellsReview = computed(() => {
-  const cls = char.value.className
-  const maxLv = getMaxSpellLevel(cls, char.value.level)
-  return allSpells.value.filter(s => s.classes.includes(cls) && s.level > 0 && s.level <= maxLv)
-})
+/**
+ * #146 — Elegibilidad por clase con su propio max-level.
+ * Mismo razonamiento que en Step7Spells: el filtro anterior tomaba el max
+ * absoluto entre todas las clases caster, permitiendo elegir hechizos de
+ * una clase secundaria por encima de su progreso real. Ahora cada hechizo
+ * se evalúa contra el max de cada clase que lo tenga en su lista.
+ */
+function isSpellEligibleReview(spell: { level: number; classes: readonly string[] }): boolean {
+  const casters = casterInfo.value
+  if (casters.length === 0) {
+    // Fallback monoclase no caster pero con cantrips de raza/origen.
+    if (spell.classes.includes(char.value.className)) {
+      if (spell.level === 0) return true
+      const maxLv = getMaxSpellLevel(char.value.className, char.value.level)
+      return spell.level <= maxLv
+    }
+    return false
+  }
+  for (const ci of casters) {
+    if (!spell.classes.includes(ci.classId)) continue
+    if (spell.level === 0) return true
+    const maxLv = getMaxSpellLevel(ci.classId, ci.level)
+    if (spell.level <= maxLv) return true
+  }
+  return false
+}
+
+const availableSpellsReview = computed(() =>
+  allSpells.value.filter(s => s.level > 0 && isSpellEligibleReview(s)),
+)
 
 const filteredSpellsReview = computed(() => {
   let list = availableSpellsReview.value
@@ -420,11 +480,27 @@ const levelUpBlockedReason = computed(() => {
   return ''
 })
 const levelUpMessage = ref<string | null>(null)
+/** #139 Fase 5 (M5): cuando hay multiclass, el botón "Level up" abre un
+ *  selector inline pidiendo qué clase subir. En monoclase es directo. */
+const showLevelUpClassPicker = ref(false)
 
 function doLevelUp() {
   // Defensive: guard against keyboard-driven or stale-state clicks.
   if (!canLevelUp.value) return
-  const result = characterStore.levelUp()
+  // #139 Fase 5 (M5): si hay multiclass, abre el selector. Si no, subimos
+  // directo (la primaria es la única clase del PJ).
+  if ((char.value.classes ?? []).length >= 2) {
+    showLevelUpClassPicker.value = true
+    return
+  }
+  doLevelUpClass()
+}
+
+/** Sube nivel en la clase indicada. Si classId es undefined, levelUp del
+ *  store mantiene su comportamiento por defecto (la primaria). */
+function doLevelUpClass(classId?: string) {
+  showLevelUpClassPicker.value = false
+  const result = characterStore.levelUp(classId)
   if (!result) {
     levelUpMessage.value = t('characters.maxLevel')
   } else {
@@ -588,7 +664,20 @@ function handleImport(event: Event) {
       class="bg-stone-800 border border-stone-700 rounded-lg p-4 mb-4"
     >
       <h3 class="font-semibold text-stone-300 mb-2">{{ t('spells.title') }}</h3>
-      <div v-if="char.spellcastingAbility" class="flex gap-4 text-sm mb-3">
+      <!-- #139 Fase 4b — DC/Attack por clase caster.
+           Si hay multiclass de casters, se muestra un bloque por clase.
+           Si solo hay una clase caster (o ninguna y caemos a la primaria),
+           se muestra el bloque original único. -->
+      <div v-if="casterInfo.length > 1" class="space-y-1 mb-3 text-sm">
+        <div v-for="ci in casterInfo" :key="`caster-${ci.classId}`"
+             class="flex gap-4 items-baseline">
+          <span class="text-amber-500 font-medium min-w-24">{{ ci.className }}</span>
+          <span class="text-stone-500 text-xs">({{ ci.ability.toUpperCase() }})</span>
+          <span class="text-stone-400">{{ t('spells.spellSaveDC') }}: <strong class="text-amber-400">{{ ci.dc }}</strong></span>
+          <span class="text-stone-400">{{ t('spells.spellAttackBonus') }}: <strong class="text-amber-400">{{ formatModifier(ci.attack) }}</strong></span>
+        </div>
+      </div>
+      <div v-else-if="char.spellcastingAbility" class="flex gap-4 text-sm mb-3">
         <span class="text-stone-400">{{ t('spells.spellSaveDC') }}: <strong class="text-amber-400">{{ spellDC }}</strong></span>
         <span class="text-stone-400">{{ t('spells.spellAttackBonus') }}: <strong class="text-amber-400">{{ formatModifier(spellAtk) }}</strong></span>
       </div>
@@ -662,8 +751,10 @@ function handleImport(event: Event) {
       <EquipmentManager />
     </div>
 
-    <!-- ASI / Feat Checkpoints -->
-    <AsiSelector class="mb-4" />
+    <!-- ASI / Feat Checkpoints — #139 Fase 3c (multiclass-aware) -->
+    <template v-for="cid in asiClassIds" :key="`asi-${cid}`">
+      <AsiSelector :class-id="cid" class="mb-4" />
+    </template>
 
     <!-- #89: Weapon Mastery -->
     <WeaponMasteryPicker class="mb-4" />
@@ -820,6 +911,38 @@ function handleImport(event: Event) {
           : 'bg-stone-700/60 text-stone-500 cursor-not-allowed'"
       >
         <span aria-hidden="true">⬆</span> {{ t('review.levelUp') }}
+      </button>
+    </div>
+
+    <!-- #139 Fase 5 (M5) — Selector inline de clase al subir nivel en multiclass.
+         Aparece tras pulsar "Level up" si el PJ tiene >=2 clases. Muestra una
+         tarjeta por cada clase con su nivel actual y el nivel resultante,
+         más el hit die para que el jugador valore. Cerrar con "Cancelar". -->
+    <div v-if="showLevelUpClassPicker" class="mt-4 bg-stone-800 border border-purple-700/40 rounded-lg p-4">
+      <p class="text-purple-300 font-medium mb-3">{{ t('review.levelUpPickClass') }}</p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+        <button
+          v-for="entry in char.classes"
+          :key="`lvlup-${entry.classId}`"
+          @click="doLevelUpClass(entry.classId)"
+          class="flex items-center justify-between gap-3 px-3 py-2 bg-stone-700 hover:bg-purple-700/40 border border-stone-600 hover:border-purple-500 rounded transition-colors text-left cursor-pointer"
+        >
+          <div>
+            <div class="text-amber-400 font-medium">
+              {{ variantClasses.find(c => c.id === entry.classId)?.name ?? entry.classId }}
+            </div>
+            <div class="text-xs text-stone-400">
+              {{ t('common.level') }} {{ entry.level }} → {{ entry.level + 1 }}
+            </div>
+          </div>
+          <span class="text-xs text-stone-500">d{{ entry.hitDie }}</span>
+        </button>
+      </div>
+      <button
+        @click="showLevelUpClassPicker = false"
+        class="text-xs text-stone-400 hover:text-stone-200 cursor-pointer"
+      >
+        {{ t('common.cancel') }}
       </button>
     </div>
 

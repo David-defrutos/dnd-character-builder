@@ -208,7 +208,7 @@ describe('Milestone 25 — Feats con UI de selección (#52 fase 2)', () => {
         featChoices: {},
       }]
       const decisions = pendingLevelDecisions(char)
-      const relevant = decisions.find(d => d.key === 'feat-4-skill')
+      const relevant = decisions.find(d => d.key === 'feat-fighter-4-skill')
       expect(relevant).toBeDefined()
       expect(relevant?.message).toContain('Observant')
       expect(relevant?.message).toContain('0/1')
@@ -221,7 +221,7 @@ describe('Milestone 25 — Feats con UI de selección (#52 fase 2)', () => {
         featChoices: { skill: ['perception'] },
       }]
       const decisions = pendingLevelDecisions(char)
-      expect(decisions.find(d => d.key === 'feat-4-skill')).toBeUndefined()
+      expect(decisions.find(d => d.key === 'feat-fighter-4-skill')).toBeUndefined()
     })
 
     it('Crafter con solo 2/3 tools: pendiente', () => {
@@ -231,7 +231,7 @@ describe('Milestone 25 — Feats con UI de selección (#52 fase 2)', () => {
         featChoices: { tools: ["Smith's Tools", "Carpenter's Tools"] },
       }]
       const decisions = pendingLevelDecisions(char)
-      const relevant = decisions.find(d => d.key === 'feat-4-tools')
+      const relevant = decisions.find(d => d.key === 'feat-fighter-4-tools')
       expect(relevant).toBeDefined()
       expect(relevant?.message).toContain('2/3')
     })
@@ -243,8 +243,8 @@ describe('Milestone 25 — Feats con UI de selección (#52 fase 2)', () => {
         featChoices: { skill: ['arcana'], expertise: [] },
       }]
       const decisions = pendingLevelDecisions(char)
-      expect(decisions.find(d => d.key === 'feat-4-skill')).toBeUndefined()
-      expect(decisions.find(d => d.key === 'feat-4-expertise')).toBeDefined()
+      expect(decisions.find(d => d.key === 'feat-fighter-4-skill')).toBeUndefined()
+      expect(decisions.find(d => d.key === 'feat-fighter-4-expertise')).toBeDefined()
     })
   })
 })

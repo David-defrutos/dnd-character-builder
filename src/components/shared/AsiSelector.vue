@@ -2,6 +2,17 @@
 // AsiSelector.vue — ASI / Feat checkpoint selector.
 // Standalone: reads/writes characterStore directly.
 // Used in Step4Abilities and Step9Review.
+//
+// #139 Fase 3b — Multiclass: el componente acepta una prop opcional `classId`
+// que indica QUÉ clase del PJ está editando este selector. Si no se pasa,
+// usa la primaria (classes[0].classId, o el char.className plano si no hay
+// classes[] aún). Para multiclass se monta una instancia por clase en
+// Step4Abilities y Step9Review (Fase 3c).
+//
+// IMPORTANTE: los bonos a ability scores son globales del PJ. Por eso
+// recomputeBonuses() y applyFeatEffects() reciben TODOS los AsiChoices del
+// PJ (vía getAllAsiChoices), no solo los de esta clase. Lo mismo para los
+// featuresTraits (las etiquetas "ASI Feat: ...") que listamos.
 import { ref, computed, watch, onMounted } from 'vue'
 import { useCharacterStore } from '@/stores/character'
 import type { ASIChoice } from '@/stores/character'
@@ -11,23 +22,74 @@ import { getFeatById } from '@/data/dnd5e/feats'
 import { applyFeatEffects } from '@/utils/featEffects'
 import { syncMagicInitiateChoices } from '@/utils/magicInitiate'
 import { isAsiSlotLocked } from '@/utils/asiLock'
+import {
+  getPrimaryClass,
+  getClassEntry,
+  getAsiChoicesForClass,
+  setAsiChoicesForClass,
+  getAllAsiChoices,
+} from '@/utils/classEntries'
 import FeatPicker from '@/components/shared/FeatPicker.vue'
 import FeatChoicesPicker from '@/components/shared/FeatChoicesPicker.vue'
 
+/**
+ * Prop opcional `classId`: indica para qué clase del PJ es este selector.
+ * Si no se pasa (caso default, igual que antes de #139), opera sobre la
+ * primaria.
+ */
+const props = defineProps<{
+  classId?: string
+}>()
+
 const characterStore = useCharacterStore()
 
-const selectedClass = computed(() => getClassById(characterStore.character.className))
+/**
+ * #138 — Modo "edición forzada". Cuando el usuario pulsa "Desbloquear edición",
+ * los slots locked por nivel (#72) se vuelven editables de nuevo. NO se
+ * persiste: al recargar el componente o salir de la pantalla, vuelve a false.
+ * Esto evita "olvidar" que estamos en modo desbloqueado.
+ *
+ * Riesgo conocido: cambiar un slot ya bloqueado puede romper el árbol de
+ * prerequisitos (un feat de lv.4 puede haber sido prereq de algo en lv.5+).
+ * El usuario asume esa responsabilidad — el aviso textual lo recuerda.
+ */
+const forceUnlock = ref(false)
+
+/**
+ * ID de la clase que controla este selector. Si la prop viene definida,
+ * la usamos; si no, caemos a la primaria (getPrimaryClass).
+ */
+const activeClassId = computed<string>(() => {
+  if (props.classId) return props.classId
+  const prim = getPrimaryClass(characterStore.character)
+  return prim?.classId ?? ''
+})
+
+const selectedClass = computed(() => getClassById(activeClassId.value))
+
+/**
+ * Nivel del PJ DENTRO de esta clase (no el nivel total).
+ *  - Si hay entrada en classes[] para activeClassId → usar entry.level.
+ *  - Si no, caer a char.level (modelo viejo no migrado: sin classes[]).
+ */
+const classLevel = computed<number>(() => {
+  const entry = getClassEntry(characterStore.character, activeClassId.value)
+  if (entry) return entry.level
+  return characterStore.character.level
+})
 
 const asiLevels = computed(() => {
   if (!selectedClass.value) return []
-  return getAsiLevels(selectedClass.value.id, characterStore.character.level)
+  return getAsiLevels(selectedClass.value.id, classLevel.value)
 })
 
 const asiChoices = ref<ASIChoice[]>([])
 
 function syncAsiChoices() {
   const levels = asiLevels.value
-  const existing = characterStore.character.asiChoices ?? []
+  // #139 Fase 3b: leer los ASIs de ESTA clase (con fallback al plano para
+  // PJs no migrados).
+  const existing = getAsiChoicesForClass(characterStore.character, activeClassId.value)
   asiChoices.value = levels.map(lvl => {
     const found = existing.find(c => c.level === lvl)
     if (found) {
@@ -46,12 +108,24 @@ function syncAsiChoices() {
   if (levels.length > 0) persistChoices()
 }
 
-watch([() => characterStore.character.className, () => characterStore.character.level], syncAsiChoices)
+watch(
+  [
+    () => characterStore.character.className,
+    () => characterStore.character.level,
+    () => props.classId,
+    () => classLevel.value,
+  ],
+  syncAsiChoices,
+)
 onMounted(syncAsiChoices)
 
 
 function recomputeBonuses() {
-  characterStore.character.asiBonuses = aggregateAsiBumps(asiChoices.value)
+  // #139 Fase 3b: los bonos a ability scores son del PJ entero, no solo de
+  // esta clase. Sumamos los AsiChoices de TODAS las clases del personaje.
+  characterStore.character.asiBonuses = aggregateAsiBumps(
+    getAllAsiChoices(characterStore.character),
+  )
 }
 
 function syncFeatTags() {
@@ -61,7 +135,12 @@ function syncFeatTags() {
   const tagPrefix = 'ASI Feat: '
   characterStore.character.featuresTraits =
     characterStore.character.featuresTraits.filter(t => !t.startsWith(tagPrefix))
-  for (const c of asiChoices.value) {
+  // #139 Fase 3b: featuresTraits del PJ contiene los feats de TODAS las
+  // clases. Cuando hay varios selectores activos (multiclass), cada uno
+  // limpia el prefijo y vuelve a poblarlo con los suyos; pero al hacerlo
+  // pisaría los del otro selector. Para evitarlo, repoblamos con TODOS.
+  const all = getAllAsiChoices(characterStore.character)
+  for (const c of all) {
     if (c.type === 'feat' && c.featId) {
       const feat = getFeatById(c.featId)
       if (feat) characterStore.character.featuresTraits.push(`${tagPrefix}${feat.name} (lv.${c.level})`)
@@ -70,10 +149,19 @@ function syncFeatTags() {
 }
 
 function persistChoices() {
-  characterStore.character.asiChoices = JSON.parse(JSON.stringify(asiChoices.value))
+  // #139 Fase 3b: escribir los choices de ESTA clase via helper, que también
+  // sincroniza char.asiChoices plano si esta es la primaria.
+  setAsiChoicesForClass(
+    characterStore.character,
+    activeClassId.value,
+    JSON.parse(JSON.stringify(asiChoices.value)),
+  )
   recomputeBonuses()
   syncFeatTags()
-  applyFeatEffects(characterStore.character, asiChoices.value)
+  // applyFeatEffects necesita TODOS los choices del PJ, no solo los de esta
+  // clase, para que efectos como Alert (initiative prof) o Tough HP se
+  // mantengan al persistir desde un selector secundario.
+  applyFeatEffects(characterStore.character, getAllAsiChoices(characterStore.character))
   // Limpia magicInitiateChoices huérfanas si el jugador cambió un ASI feat
   // Magic Initiate por otro feat distinto (la elección ya no aplica). #74
   syncMagicInitiateChoices(characterStore.character)
@@ -150,6 +238,28 @@ function setFeatChoices(idx: number, choices: Record<string, string[]>) {
   persistChoices()
 }
 
+/**
+ * #137 — IDs de feats no-repetibles ya cogidos en otros checkpoints. Se le
+ * pasan al FeatPicker para que muestre el aviso "ya cogido" sin bloquear.
+ * - Excluye el slot pasado (no se marca a sí mismo).
+ * - Excluye los feats marcados como `repeatable` en el catálogo (ASI,
+ *   Elemental Adept, Magic Initiate, Skilled).
+ * - Si dos slots distintos llevan el MISMO feat no-repetible, ambos verán el
+ *   aviso, lo cual es exactamente lo deseado: el usuario sabe que tiene que
+ *   cambiar uno de los dos.
+ */
+function duplicateFeatIdsFor(idx: number): Set<string> {
+  const out = new Set<string>()
+  asiChoices.value.forEach((slot, i) => {
+    if (i === idx) return
+    if (slot.type !== 'feat' || !slot.featId) return
+    const feat = getFeatById(slot.featId)
+    if (!feat || feat.repeatable) return
+    out.add(slot.featId)
+  })
+  return out
+}
+
 const overCapAbilities = computed(() => {
   const offenders: string[] = []
   for (const k of ABILITY_KEYS) {
@@ -218,11 +328,29 @@ function featOf(featId: string | undefined) {
  * (la regla pide "una skill que YA tengas", no la que vas a coger ahora).
  */
 /**
+ * #138 — ¿Hay al menos un slot locked por nivel? Si no, el botón de
+ * desbloquear no aparece (no tiene nada que hacer).
+ *
+ * #139 Fase 3b: usar classLevel (nivel del PJ DENTRO de esta clase), no
+ * char.level total. Un slot lv.4 de Wizard solo está locked si Wizard
+ * pasó de nivel 4, no si el PJ total subió.
+ */
+const hasLockedSlots = computed(() =>
+  asiChoices.value.some(slot => isAsiSlotLocked(slot.level, classLevel.value))
+)
+
+/**
  * #72 — Un slot ASI queda bloqueado cuando el personaje YA ha subido al
  * siguiente nivel después de ese checkpoint. Ver @/utils/asiLock.
+ *
+ * #138 — Cuando forceUnlock está activo (botón "Desbloquear edición"),
+ * todos los slots quedan editables independientemente del nivel.
+ *
+ * #139 Fase 3b: usar classLevel para multiclass-awareness.
  */
 function isSlotLocked(slotLevel: number): boolean {
-  return isAsiSlotLocked(slotLevel, characterStore.character.level)
+  if (forceUnlock.value) return false
+  return isAsiSlotLocked(slotLevel, classLevel.value)
 }
 
 const alreadyProficientSkills = computed((): readonly string[] => {
@@ -235,9 +363,12 @@ const alreadyProficientSkills = computed((): readonly string[] => {
 <template>
   <div v-if="asiLevels.length > 0" class="bg-stone-800/50 border border-amber-700/30 rounded-lg p-5">
     <h3 class="text-lg font-bold text-amber-400 mb-2">
-      Level-up choices
+      <span v-if="props.classId && selectedClass">
+        Level-up choices — {{ selectedClass.name }}
+      </span>
+      <span v-else>Level-up choices</span>
       <span class="text-stone-500 text-xs font-normal">
-        ({{ asiLevels.length }} ASI/Feat checkpoint{{ asiLevels.length === 1 ? '' : 's' }} at level {{ characterStore.character.level }})
+        ({{ asiLevels.length }} ASI/Feat checkpoint{{ asiLevels.length === 1 ? '' : 's' }} at level {{ classLevel }})
       </span>
     </h3>
     <p class="text-xs text-stone-400 mb-4">
@@ -249,6 +380,31 @@ const alreadyProficientSkills = computed((): readonly string[] => {
       ⚠ Cap exceeded for: <strong>{{ overCapAbilities.join(', ') }}</strong>. Scores cap at 20 (Epic Boons at 30).
     </div>
 
+    <!-- #138 — Botón "Desbloquear edición" cuando hay slots bloqueados por
+         nivel. Permite corregir un feat ya cogido en un nivel pasado.
+         Riesgo asumido por el usuario: cambiar un feat puede invalidar
+         prerequisitos de feats posteriores; la app no revalida en cascada. -->
+    <div v-if="hasLockedSlots" class="mb-4 flex items-start justify-between gap-3 flex-wrap"
+         :class="forceUnlock ? 'bg-amber-900/30 border border-amber-700/40 rounded p-2' : ''">
+      <div class="flex-1 text-xs">
+        <p v-if="forceUnlock" class="text-amber-300">
+          ⚠ <strong>Edición desbloqueada.</strong> Cambiar feats de niveles pasados
+          puede romper la coherencia del personaje (un feat puede haber sido
+          prerequisito de decisiones posteriores). La app no revalida automáticamente.
+        </p>
+        <p v-else class="text-stone-500">
+          Algunos slots están bloqueados porque el personaje ya subió de nivel.
+        </p>
+      </div>
+      <button @click="forceUnlock = !forceUnlock"
+        class="px-3 py-1 rounded text-xs font-medium cursor-pointer transition-colors shrink-0"
+        :class="forceUnlock
+          ? 'bg-amber-600 text-stone-900 hover:bg-amber-500'
+          : 'bg-stone-700 text-stone-300 hover:bg-stone-600 border border-stone-600'">
+        {{ forceUnlock ? '🔓 Bloquear de nuevo' : '🔒 Desbloquear edición' }}
+      </button>
+    </div>
+
     <div class="space-y-3">
       <div v-for="(slot, idx) in asiChoices" :key="`asi-${slot.level}`"
            class="bg-stone-900/40 rounded p-3 relative"
@@ -256,7 +412,7 @@ const alreadyProficientSkills = computed((): readonly string[] => {
         <!-- #72: candado cuando el slot quedó bloqueado al subir de nivel -->
         <div v-if="isSlotLocked(slot.level)"
              class="absolute top-2 right-2 text-xs text-stone-400 flex items-center gap-1 bg-stone-800/80 px-2 py-0.5 rounded"
-             :title="`Locked: character is already level ${characterStore.character.level}. Choices made at level ${slot.level} can no longer be changed.`">
+             :title="`Locked: character is already level ${classLevel}. Choices made at level ${slot.level} can no longer be changed.`">
           🔒 Locked
         </div>
         <!-- Capa que captura clics sobre todos los controles cuando está locked.
@@ -333,6 +489,7 @@ const alreadyProficientSkills = computed((): readonly string[] => {
             :model-value="slot.featId ?? ''"
             :label="isEpicBoonLevel(slot.level) ? 'Choose an Epic Boon:' : 'Choose a feat:'"
             :character="characterStore.character"
+            :duplicate-ids="duplicateFeatIdsFor(idx)"
             ineligible-mode="mark"
             @update:model-value="setFeatId(idx, $event)"
           />

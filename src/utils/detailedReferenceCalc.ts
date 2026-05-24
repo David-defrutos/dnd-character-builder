@@ -12,6 +12,7 @@
 
 import type { CharacterData } from '@/stores/character'
 import { getClassById } from '@/data/dnd5e/classes'
+import { getClassEntries } from '@/utils/classEntries'
 import {
   FULL_CASTER_SLOTS, HALF_CASTER_SLOTS, THIRD_CASTER_SLOTS, PACT_MAGIC_SLOTS,
 } from '@/data/dnd5e/rules'
@@ -188,6 +189,57 @@ export function computeSpellcastingCalculations(char: CharacterData): Spellcasti
     saveDcLine: `Spell Save DC: 8 + PB +${pb} + ${ABILITY} ${fmtMod(sMod)} = ${saveDc}`,
     attackBonusLine: `Spell Attack Bonus: PB +${pb} + ${ABILITY} ${fmtMod(sMod)} = ${fmtMod(atk)}`,
   }
+}
+
+/**
+ * #139 Fase 5 — Cálculo de spellcasting POR clase para multiclass.
+ *
+ * Devuelve un array con un elemento por cada clase caster del PJ, cada uno
+ * con su propio DC/Attack/ability/className. Si el PJ es monoclase o tiene
+ * solo una clase caster, devuelve un array de un elemento (que coincide
+ * con lo que computeSpellcastingCalculations devolvía).
+ *
+ * El PB es el del NIVEL TOTAL del PJ (regla 2024: PB = (total level + 7) / 4),
+ * no por clase. Pero la ability viene de cada clase.
+ *
+ * Devuelve [] si no hay ninguna clase caster (PJ Fighter puro, p.ej.).
+ */
+export interface SpellcastingCalculationsForClass extends SpellcastingCalculations {
+  classId: string
+  className: string
+  classLevel: number
+}
+
+export function computeSpellcastingCalculationsByClass(
+  char: CharacterData,
+): SpellcastingCalculationsForClass[] {
+  const entries = getClassEntries(char)
+  const out: SpellcastingCalculationsForClass[] = []
+  const pb = pbForLevel(char.level || 1)
+
+  for (const entry of entries) {
+    const cls = getClassById(entry.classId)
+    if (!cls?.spellcasting) continue
+    // Ability: la del entry.spellcastingAbility si está, si no la del catálogo.
+    const ability = (entry.spellcastingAbility ?? cls.spellcasting.ability) as AbilityKey
+    const sMod = abilityModifier(totalAbilityScore(char, ability))
+    const fullName = ABILITY_FULL_NAME[ability]
+    const ABILITY = ability.toUpperCase()
+    const saveDc = 8 + pb + sMod
+    const atk = pb + sMod
+    out.push({
+      classId: entry.classId,
+      className: cls.name,
+      classLevel: entry.level,
+      abilityKey: ability,
+      saveDc,
+      attackBonus: atk,
+      abilityLine: `Spellcasting Ability: ${fullName} (${ABILITY} ${fmtMod(sMod)})`,
+      saveDcLine: `Spell Save DC: 8 + PB +${pb} + ${ABILITY} ${fmtMod(sMod)} = ${saveDc}`,
+      attackBonusLine: `Spell Attack Bonus: PB +${pb} + ${ABILITY} ${fmtMod(sMod)} = ${fmtMod(atk)}`,
+    })
+  }
+  return out
 }
 
 // ─── Spell Slots ─────────────────────────────────────────────────────────

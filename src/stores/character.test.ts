@@ -274,6 +274,8 @@ describe('useCharacterStore', () => {
       const store = useCharacterStore()
       store.character.variant = 'dnd5e'
       store.character.className = 'fighter'
+      // #139 Fase 6 M7: abilityScores que satisfagan prereqs (Fighter STR/DEX 13, Wizard INT 13).
+      store.character.abilityScores = { str: 13, dex: 10, con: 10, int: 13, wis: 10, cha: 10 }
       store.addMulticlass('wizard')
       store.addMulticlass('wizard') // duplicate
       expect(store.character.classes).toHaveLength(2)
@@ -285,9 +287,14 @@ describe('useCharacterStore', () => {
       store.character.className = 'fighter'
       store.character.hitDie = 10
       store.character.level = 3
-      store.addMulticlass('fighter') // same class
-      // classes should have just the primary class entry
-      expect(store.character.classes).toHaveLength(1)
+      // #139 Fase 6 M7: Fighter STR 13 cumplido.
+      store.character.abilityScores = { str: 13, dex: 10, con: 10, int: 10, wis: 10, cha: 10 }
+      const r = store.addMulticlass('fighter') // same class
+      // Post #139 Fase 6: addMulticlass devuelve {ok:false} y NO toca classes[].
+      expect(r.ok).toBe(false)
+      if (!r.ok) {
+        expect(r.failures.join(' ')).toMatch(/already/i)
+      }
     })
   })
 

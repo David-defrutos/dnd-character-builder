@@ -7,7 +7,8 @@ import type { CharacterData } from '@/stores/character'
 import {
   totalAbilityScore, abilityModifier, fmtMod, pbForLevel,
   computeSavingThrows, computeHitPointsBreakdown, computeMiscellaneous,
-  computeSpellcastingCalculations, computeSpellSlots, computeCarryingCapacity,
+  computeSpellcastingCalculations, computeSpellcastingCalculationsByClass,
+  computeSpellSlots, computeCarryingCapacity,
   lbsToKg,
 } from './detailedReferenceCalc'
 
@@ -284,6 +285,93 @@ describe('#120 — computeSpellcastingCalculations', () => {
     expect(c.saveDc).toBe(16)
     expect(c.attackBonus).toBe(8)
     expect(c.abilityLine).toContain('Intelligence')
+  })
+})
+
+describe('#139 Fase 5 — computeSpellcastingCalculationsByClass', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  it('PJ sin caster: array vacío', () => {
+    const char = freshChar()
+    char.className = 'fighter'
+    char.level = 5
+    char.subclass = 'champion'
+    char.abilityScores = { str: 16, dex: 12, con: 14, int: 10, wis: 10, cha: 8 }
+    char.classes = [{ classId: 'fighter', subclass: 'champion', level: 5, hitDie: 10 }]
+    expect(computeSpellcastingCalculationsByClass(char)).toEqual([])
+  })
+
+  it('PJ monoclase wizard: un solo elemento', () => {
+    const char = freshChar()
+    char.className = 'wizard'
+    char.subclass = ''
+    char.level = 5
+    char.abilityScores = { str: 8, dex: 14, con: 14, int: 17, wis: 12, cha: 10 }
+    char.spellcastingAbility = 'int'
+    char.classes = [{ classId: 'wizard', subclass: '', level: 5, hitDie: 6 }]
+    const r = computeSpellcastingCalculationsByClass(char)
+    expect(r).toHaveLength(1)
+    expect(r[0]!.classId).toBe('wizard')
+    expect(r[0]!.classLevel).toBe(5)
+    expect(r[0]!.abilityKey).toBe('int')
+    expect(r[0]!.saveDc).toBeGreaterThan(0)
+    expect(r[0]!.attackBonus).toBeGreaterThan(0)
+  })
+
+  it('PJ multiclass Cleric+Wizard: dos elementos con abilities distintas', () => {
+    const char = freshChar()
+    char.className = 'cleric'
+    char.subclass = ''
+    char.level = 8  // 5+3
+    char.abilityScores = { str: 10, dex: 12, con: 14, int: 16, wis: 16, cha: 10 }
+    char.spellcastingAbility = 'wis'
+    char.classes = [
+      { classId: 'cleric', subclass: '', level: 5, hitDie: 8 },
+      { classId: 'wizard', subclass: '', level: 3, hitDie: 6 },
+    ]
+    const r = computeSpellcastingCalculationsByClass(char)
+    expect(r).toHaveLength(2)
+    expect(r.map(c => c.classId).sort()).toEqual(['cleric', 'wizard'])
+    const cleric = r.find(c => c.classId === 'cleric')!
+    const wizard = r.find(c => c.classId === 'wizard')!
+    expect(cleric.abilityKey).toBe('wis')
+    expect(wizard.abilityKey).toBe('int')
+    // PB es del nivel TOTAL (8 → PB 3), no por clase.
+    // saveDc = 8 + 3 + mod. WIS 16 → mod +3 → DC 14. INT 16 → mod +3 → DC 14.
+    expect(cleric.saveDc).toBe(14)
+    expect(wizard.saveDc).toBe(14)
+    expect(cleric.attackBonus).toBe(6)
+    expect(wizard.attackBonus).toBe(6)
+  })
+
+  it('multiclass con clase non-caster: solo se incluyen casters', () => {
+    const char = freshChar()
+    char.className = 'fighter'
+    char.subclass = ''
+    char.level = 8  // 4+4
+    char.abilityScores = { str: 16, dex: 12, con: 14, int: 16, wis: 10, cha: 8 }
+    char.classes = [
+      { classId: 'fighter', subclass: '', level: 4, hitDie: 10 },
+      { classId: 'wizard', subclass: '', level: 4, hitDie: 6 },
+    ]
+    const r = computeSpellcastingCalculationsByClass(char)
+    expect(r).toHaveLength(1)
+    expect(r[0]!.classId).toBe('wizard')
+  })
+
+  it('prioriza entry.spellcastingAbility sobre la del catálogo', () => {
+    const char = freshChar()
+    char.className = 'wizard'
+    char.subclass = ''
+    char.level = 5
+    char.abilityScores = { str: 8, dex: 14, con: 14, int: 17, wis: 16, cha: 10 }
+    // entry indica WIS por si en algún momento la app permite cambiar la
+    // ability spellcasting de una clase (variante de mesa).
+    char.classes = [
+      { classId: 'wizard', subclass: '', level: 5, hitDie: 6, spellcastingAbility: 'wis' },
+    ]
+    const r = computeSpellcastingCalculationsByClass(char)
+    expect(r[0]!.abilityKey).toBe('wis')
   })
 })
 

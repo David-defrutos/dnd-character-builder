@@ -35,7 +35,8 @@ import {
 import {
   fmtMod,
   computeSavingThrows, computeHitPointsBreakdown, computeMiscellaneous,
-  computeSpellcastingCalculations, computeSpellSlots, computeCarryingCapacity,
+  computeSpellcastingCalculations, computeSpellcastingCalculationsByClass,
+  computeSpellSlots, computeCarryingCapacity,
 } from './detailedReferenceCalc'
 import { computeCurrentLoad, itemUnitWeight, lbsToKg } from './carryingLoad'
 
@@ -883,9 +884,26 @@ function drawMiscellaneous(state: DrawState, char: CharacterData): void {
 
 /** Spellcasting Calculations: Ability, Save DC, Attack Bonus. */
 function drawSpellcastingCalculations(state: DrawState, char: CharacterData): void {
+  // #139 Fase 5: si el PJ tiene más de una clase caster, mostramos un bloque
+  // por cada una con su DC/Attack/ability. Si solo hay una (o ninguna),
+  // mantenemos el comportamiento anterior.
+  const multi = computeSpellcastingCalculationsByClass(char)
+  if (multi.length > 1) {
+    drawSectionHeader(state, 'Spellcasting Calculations')
+    for (const c of multi) {
+      // Sub-header por clase, en negrita para diferenciar.
+      state.page.drawText(sanitize(`${c.className} (lv.${c.classLevel})`), {
+        x: MARGIN_X, y: state.y, size: 10, font: state.fontBold, color: COLOR_HEADER,
+      })
+      state.y -= 12
+      drawBody(state, [c.abilityLine, c.saveDcLine, c.attackBonusLine].join('\n'))
+      state.y -= 4
+    }
+    return
+  }
+  // Comportamiento original (1 sola clase caster o monoclase).
   const c = computeSpellcastingCalculations(char)
   if (!c) return
-
   drawSectionHeader(state, 'Spellcasting Calculations')
   drawBody(state, [c.abilityLine, c.saveDcLine, c.attackBonusLine].join('\n'))
 }

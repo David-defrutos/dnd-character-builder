@@ -2,6 +2,745 @@ D&D 2024 Character Builder — Changelog
 ═══════════════════════════════════════
 
 ────────────────────────────────────────
+2026-05-24 10:31 · #147 — M2 cerrado: subclase secundaria con UI y gating
+────────────────────────────────────────
+Cierra M2 del análisis multiclass (subclase secundaria sin UI), pendiente
+desde el cierre del refactor multiclass Fase 6. Detectado por auditoría
+externa del 2026-05-24, punto 2: "Las subclases multiclase siguen incompletas
+— Fighter 3 / Wizard 3 debería elegir subclase Fighter Y subclase Wizard,
+ahora mismo la lógica solo exige una".
+
+CAMBIOS:
+
+  src/components/steps/Step3Class.vue:
+    - selectSubclass(sub, classId?) parametrizada por clase. Si classId es
+      undefined o coincide con la primaria, sincroniza también char.subclass
+      plano. Si es secundaria, solo escribe en classes[idx].subclass.
+    - Nuevo computed secondaryClassesNeedingSubclass: clases idx>=1 cuyo
+      nivel propio >= subclassLevel y que tengan subclases disponibles.
+    - Bloque UI nuevo dentro del panel multiclass: un selector por cada
+      clase secundaria desbloqueada, con badge "⚠ Pick a subclass" si está
+      vacía, descripción de la subclase elegida debajo. La primaria sigue
+      gestionada en el bloque existente del template (no se duplica).
+
+  src/utils/levelUpGating.ts:
+    - Sección "subclass missing": antes solo gating la primaria con
+      "char.level >= cls.subclassLevel && !char.subclass". Eso permitía
+      dejar un Wizard secundario en lv.3+ sin Arcane Tradition.
+    - Ahora itera getClassEntries(char) y emite "subclass-<classId>" por
+      cada clase con subclase pendiente. Mensaje incluye nombre de clase
+      para multiclass: "Choose your Arcane Tradition for Wizard (unlocked
+      at level 3)".
+
+  src/i18n/locales/en.json:
+    +1 clave (class.subclassPending).
+
+TESTS NUEVOS (src/utils/multiclassSubclassGating.test.ts, 7 tests):
+  - Fighter 3 primario sin subclase emite subclass-fighter.
+  - Fighter 3 / Wizard 3 ambos sin subclase: 2 entradas.
+  - Fighter con subclase + Wizard sin: solo el Wizard.
+  - Wizard secundario lv.2 (< subclassLevel 3): no bloquea.
+  - Mensaje del key indica la clase.
+  - Ambos con subclase: 0 entradas.
+  - Wizard 2 / Sorcerer 3: solo el Sorcerer.
+
+TESTS EXISTENTES ADAPTADOS:
+  src/utils/levelUpGating.test.ts: 5 expects de toContain('subclass')
+  cambiados a toContain('subclass-fighter') porque la key cambió.
+
+ARCHIVOS:
+- src/components/steps/Step3Class.vue (selectSubclass parametrizada + UI
+  selector secundario)
+- src/utils/levelUpGating.ts (gating itera classes[])
+- src/i18n/locales/en.json (+1 clave)
+- src/utils/multiclassSubclassGating.test.ts (nuevo, 7 tests)
+- src/utils/levelUpGating.test.ts (5 keys adaptadas)
+
+TESTS: 1010/1010 OK. Build OK. TS strict OK.
+
+────────────────────────────────────────
+2026-05-24 10:31 · #146 — Filtro de hechizos por clase con max-level POR clase
+────────────────────────────────────────
+Bug real detectado por auditoría externa del 2026-05-24, punto 1, no
+detectado durante el refactor multiclass Fases 1-6.
+
+Síntoma: Ranger 4 / Wizard 5 podía aprender hechizos Ranger de nivel 2-3
+que no debería. El filtro maxSpellLevelAvailable tomaba el MÁXIMO entre
+clases (max(1, 3) = 3) y aplicaba ese tope global a todos los hechizos.
+Aid (Ranger nivel 2) pasaba el filtro aunque el Ranger 4 solo llega a
+hechizos de nivel 1.
+
+REGLA CORRECTA (PHB 2024):
+  Cada clase progresa independientemente en qué nivel de hechizo puede
+  aprender. Los SLOTS se combinan vía multiclass spell slots, pero los
+  HECHIZOS APRENDIDOS/PREPARADOS no — cada uno limitado por su clase.
+
+FIX:
+  Antes: spell.level <= max(maxLevelByClass)
+  Ahora: para cada clase caster del PJ que tenga el hechizo en su lista,
+         spell.level <= maxLevelByClass[classId]. Elegible si AL MENOS UNA
+         clase pasa el chequeo.
+
+CAMBIOS:
+
+  src/components/steps/Step7Spells.vue:
+    - maxSpellLevelByClass: computed<Record<string, number>> con max level
+      por classId.
+    - maxSpellLevelAvailable mantenido para UI agregada (máximo absoluto).
+    - isSpellEligible(spell): función helper que evalúa por clase.
+    - availableSpells filtra usando isSpellEligible.
+    - watch sobre maxSpellLevelByClass limpia spellsKnown que ya no sean
+      elegibles per-class al subir nivel (antes solo limpiaba por nivel
+      máximo global).
+
+  src/components/steps/Step9Review.vue:
+    - Mismo refactor. Nueva fn isSpellEligibleReview, mismo razonamiento.
+    - availableSpellsReview reescrito.
+
+TESTS NUEVOS (src/utils/spellFilterByClass.test.ts, 8 tests):
+  - Ranger 4 / Wizard 5 NO permite Aid (Ranger lv.2, max Ranger 1).
+  - Ranger 4 / Wizard 5 SÍ permite Fireball (Wizard lv.3 ≤ max Wizard 3).
+  - NO permite hechizo Wizard lv.4 (> max wizard 3).
+  - Cleric 3 / Wizard 5: Cure Wounds (en ambas listas) elegible vía Cleric.
+  - Cantrip: elegible si alguna clase lo tiene en lista (sin max level).
+  - Monoclase Wizard 5: comportamiento esperado.
+  - PJ sin caster: ningún hechizo.
+  - Hechizo de clase que el PJ no tiene: no elegible.
+
+  La función testeada es un espejo de la lógica de Step7/Step9 (no se
+  monta el componente). Si las dos divergen, el bug vuelve: mantenerlas
+  alineadas.
+
+ARCHIVOS:
+- src/components/steps/Step7Spells.vue (refactor filtro)
+- src/components/steps/Step9Review.vue (refactor filtro)
+- src/utils/spellFilterByClass.test.ts (nuevo, 8 tests)
+
+TESTS: 1002/1002 OK al cerrar este punto (luego 1010 tras #147).
+Build OK. TS strict OK.
+
+────────────────────────────────────────
+2026-05-24 09:31 · #145 — Refactor multiclass FASE 6: cierre (M7 + M8 + E2E)
+────────────────────────────────────────
+Última fase del refactor multiclass. Cierra los dos bugs RAW pendientes
+(M7 prereqs de habilidad y M8 proficiencies parciales) y añade cobertura
+end-to-end del flujo completo.
+
+SUBFASES:
+
+6a — M7 PREREQS DE HABILIDAD PARA MULTICLASS:
+  Regla PHB 2024 pág. 36: "To qualify for a new class, you must have a
+  score of at least 13 in the primary ability of the new class and your
+  current classes." Si la clase tiene varias primary abilities (Ranger:
+  DEX o WIS), basta cumplir UNA.
+
+  Archivos:
+  - src/utils/multiclassPrereqs.ts (nuevo) — helper puro
+    multiclassPrereqsSatisfied(char, newCls, allClasses) que devuelve
+    {satisfied, failures[]}. Cuenta TOTAL ability score (base + species +
+    background + asi). Mensajes legibles: "Wizard requires INT 13 (you
+    have 10)".
+  - src/stores/character.ts — addMulticlass cambia firma:
+    devuelve {ok: true} | {ok: false, failures: string[]}. Antes era void.
+    Aplica prereqs antes de añadir. Si fallan: no toca classes[].
+  - src/components/steps/Step3Class.vue — addSecondaryClass maneja el
+    nuevo retorno. Si falla, banner rojo con lista de violaciones, panel
+    se queda abierto para que el jugador vea el error y pueda probar otra.
+  - src/i18n/locales/en.json — +1 clave (class.multiclassBlocked).
+  - src/utils/multiclassPrereqs.test.ts (nuevo) — 8 tests:
+    sin clases (solo nueva), Wizard sin INT, Fighter+Wizard OK, Fighter
+    falla por STR, Ranger acepta DEX o WIS, ASI bonuses cuentan, triple
+    multiclass valida TODAS, devuelve TODAS las violaciones.
+
+6b — M8 PROFICIENCIES MULTICLASS PARCIALES:
+  Regla PHB 2024 pág. 36: "When you gain your first level in a class
+  other than your initial class, you gain only some of the new class's
+  starting proficiencies." La lista exacta está en cada clase del PHB
+  ("As a Multiclass Character").
+
+  Tabla codificada con las 12 clases base (ej: Cleric → Light + Medium +
+  Shields; Fighter → +Martial weapons; Rogue → Light + Thieves' Tools +
+  1 skill choice; Wizard/Monk/Sorcerer → nada).
+
+  Archivos:
+  - src/data/dnd5e/multiclassProfs.ts (nuevo) — interfaz MulticlassProfs
+    con armor/weapons/tools + skillFromList?/musicalInstrumentChoice?
+    para futuras UIs de elección. Constante MULTICLASS_PROFS con las 12
+    entradas + helper getMulticlassProfs(classId).
+  - src/stores/character.ts — addMulticlass aplica las proficiencies a
+    classArmorProficiencies / classWeaponProficiencies /
+    classToolProficiencies (mergeUnique, sin duplicar). Las skillFromList
+    y musicalInstrumentChoice quedan pendientes de UI dedicada.
+  - src/data/dnd5e/multiclassProfs.test.ts (nuevo) — 13 tests:
+    7 sobre la tabla (cobertura de las 12 clases, casos específicos),
+    6 sobre integración con addMulticlass (sumas correctas, no duplica,
+    Wizard sin proficiencies, rechazo de duplicados deja arrays intactos).
+
+6c — TESTS E2E DEL REFACTOR COMPLETO:
+  - src/utils/multiclassRefactor.e2e.test.ts (nuevo) — 4 tests:
+    1. Fighter 4 / Wizard 3: flujo de creación completo. Setup en Step1/2,
+       Fighter primario + Wizard secundario via addMulticlass, dos levelUp
+       de Wizard, ASI por clase en Fighter, getCasterClasses devuelve solo
+       Wizard, computeSpellcastingCalculationsByClass devuelve PB del nivel
+       total (7) y DC correcto, gating no marca el ASI ya resuelto.
+    2. reorderClasses sincroniza className/hitDie/spellcastingAbility planos.
+    3. Prereqs M7 bloquean Wizard→Fighter con STR 8/DEX 10.
+    4. Proficiencies M8 acumulan sin duplicar (Wizard+Fighter, +Cleric).
+
+  El E2E cubre Fases 1-6 trabajando juntas: helpers, migración, reorder,
+  spellcasting por clase, levelUp(classId), prereqs y profs multiclass.
+
+AJUSTES A TESTS EXISTENTES (consecuencia de M7):
+
+  src/stores/character.test.ts: 2 tests del bloque multiclass actualizados.
+  Antes addMulticlass era void; ahora la prereq validation rechaza
+  silenciosamente si abilityScores no satisfacen los requisitos. Los tests
+  ahora setean abilityScores válidos antes y comprueban el nuevo retorno
+  {ok: false, failures}. El test "does not add the same class twice" se
+  adapta al comportamiento correcto post-Fase 6: el rechazo no toca
+  classes[] (antes creaba la primaria sintética como side-effect).
+
+  Fix adicional en addMulticlass: cuando char.classes está vacío pero
+  char.className === classId, también se rechaza como duplicado. Antes
+  pasaba la guarda y creaba 2 entradas con la misma classId.
+
+ARCHIVOS:
+- src/utils/multiclassPrereqs.ts (nuevo)
+- src/utils/multiclassPrereqs.test.ts (nuevo, 8 tests)
+- src/data/dnd5e/multiclassProfs.ts (nuevo)
+- src/data/dnd5e/multiclassProfs.test.ts (nuevo, 13 tests)
+- src/utils/multiclassRefactor.e2e.test.ts (nuevo, 4 tests)
+- src/stores/character.ts (addMulticlass refactor + import)
+- src/stores/character.test.ts (2 tests adaptados)
+- src/components/steps/Step3Class.vue (banner de error)
+- src/i18n/locales/en.json (+1 clave)
+
+TESTS: 995/995 OK (antes Fase 5: 970, +25 nuevos en Fase 6).
+Build OK. TS strict OK.
+
+LO QUE NO HACE FASE 6:
+- M2 Subclase secundaria sin UI — sigue pendiente, fuera de alcance acordado.
+- skillFromList y musicalInstrumentChoice de M8: la tabla los declara pero
+  no hay UI para que el jugador elija. Para iteración futura.
+
+────────────────────────────────────────
+2026-05-24 09:31 · #144 — Refactor multiclass FASE 5: PDF + level-up UI multiclass
+────────────────────────────────────────
+Penúltima fase del refactor. Cierra M3 en el PDF anexo (DC/Attack por
+clase) y M5 (selector de clase al subir nivel).
+
+M3 EN EL PDF ANEXO:
+
+La hoja PDF principal (AcroForm 2024) tiene un único set de campos
+"Spellcasting Class / Ability / DC / Attack". No hay forma RAW de
+mostrar dos casters ahí; mantenemos el comportamiento existente (datos
+de la primaria). En el anexo "sheet 3", donde sí controlamos la
+maquetación, ahora se muestra UN BLOQUE POR CADA CLASE CASTER.
+
+Archivos:
+- src/utils/detailedReferenceCalc.ts:
+  Nueva función computeSpellcastingCalculationsByClass(char):
+  SpellcastingCalculationsForClass[]. Devuelve un elemento por cada
+  clase caster del PJ con su ability/DC/attack/className/classLevel.
+  PB se calcula sobre el NIVEL TOTAL (regla 2024), pero la ability
+  viene de cada clase (entry.spellcastingAbility con fallback al
+  catálogo). Devuelve [] si no hay casters.
+  La función original computeSpellcastingCalculations queda intacta
+  para los puntos donde solo hace falta el bloque de la primaria.
+
+- src/utils/pdfAppendix.ts:
+  drawSpellcastingCalculations: si multi.length > 1, dibuja
+  sub-header por clase en negrita ("Cleric (lv.3)") seguido del
+  desglose abilityLine/saveDcLine/attackBonusLine. Si solo hay una
+  clase caster, comportamiento original.
+
+- src/utils/detailedReferenceCalc.test.ts: +5 tests Fase 5:
+  PJ no caster (array vacío), monoclase wizard (1 elemento),
+  multiclass Cleric+Wizard con abilities distintas y PB del total,
+  multiclass con clase non-caster (solo Wizard en el array),
+  prioridad de entry.spellcastingAbility sobre catálogo.
+
+M5 LEVEL-UP UI MULTICLASS:
+
+Hasta Fase 4 el botón "Level Up" llamaba a levelUp() sin classId, lo
+cual subía la primaria silenciosamente. En multiclass el jugador puede
+querer subir cualquier clase, no necesariamente la primaria.
+
+Archivos:
+- src/components/steps/Step9Review.vue:
+  Nuevo ref showLevelUpClassPicker. doLevelUp(): si char.classes
+  tiene >=2 entradas, abre el selector; si no, llama directo a
+  doLevelUpClass(undefined) (comportamiento anterior).
+  Nuevo doLevelUpClass(classId?) que invoca characterStore.levelUp(classId).
+  UI: panel inline con una tarjeta por cada clase mostrando
+  "Lv.X → X+1" y d<hitDie>. Cerrar con "Cancel".
+
+- src/views/CharacterListView.vue:
+  Si el PJ es multiclass, en lugar de subir directo desde la lista
+  abrimos el editor en Step9 para que aparezca el selector.
+  Evita el mal default "siempre sube la primaria".
+
+- src/i18n/locales/en.json: +1 clave (review.levelUpPickClass).
+
+ARCHIVOS:
+- src/utils/detailedReferenceCalc.ts (+computeSpellcastingCalculationsByClass)
+- src/utils/pdfAppendix.ts (drawSpellcastingCalculations multiclass-aware)
+- src/utils/detailedReferenceCalc.test.ts (+5 tests Fase 5)
+- src/components/steps/Step9Review.vue (selector de clase al level-up)
+- src/views/CharacterListView.vue (redirige a editor si multiclass)
+- src/i18n/locales/en.json (+1 clave)
+
+TESTS: 970/970 OK (antes Fase 4: 965, +5 nuevos en Fase 5).
+Build OK. TS strict OK.
+
+LO QUE NO HACE FASE 5:
+- AcroForm sigue mostrando solo la primaria (limitación del formulario).
+- M2 (subclase secundaria sin UI) sigue pendiente.
+
+────────────────────────────────────────
+2026-05-24 09:05 · #143 — Refactor multiclass FASE 4: hechizos por clase
+────────────────────────────────────────
+Cierra (o avanza significativamente) M3, M4 y M6 del análisis multiclass.
+Tras esta fase, un Cleric 3 / Wizard 5 ve DC/Attack POR clase en la review,
+el editor de hechizos muestra las dos listas combinadas, y el cupo total
+refleja la suma correcta.
+
+SUBFASES:
+
+4a — HELPERS DE SPELLCASTING MULTICLASS (src/utils/classEntries.ts):
+  - getCasterClasses(char, classCatalog): devuelve [{entry, ability}] solo
+    para clases con spellcasting. Resuelve el orden (primaria primero) y
+    la spellcasting ability (de la entrada o del catálogo).
+  - getSpellsKnownForClass / setSpellsKnownForClass: lectura/escritura
+    de hechizos de UNA clase con sincronía al char.spellsKnown plano si
+    es la primaria. Para clases secundarias, devuelve [] si la entrada
+    no tiene spellsKnown definido (no podemos atribuir hechizos del plano
+    a una secundaria sin etiqueta).
+  - getCantripsForClass / setCantripsForClass: misma semántica que arriba
+    para cantrips.
+  - +12 tests Fase 4a en classEntries.test.ts.
+
+4b — Step9Review MULTICLASS (src/components/steps/Step9Review.vue):
+  - Nuevo computed casterInfo: array con {classId, className, level, ability,
+    dc, attack, maxSpells} POR cada clase caster del PJ.
+  - maxSpellsReview: suma de maxSpells de TODAS las clases caster (antes solo
+    la primaria — bug M4 reportado en análisis multiclass).
+  - availableSpellsReview: filtra por TODAS las listas de clases caster
+    (antes solo char.className — bug M4).
+  - UI: si casterInfo.length > 1, muestra DC/Attack por clase en un bloque
+    aparte. Si no, mantiene el bloque único original.
+
+4c — Step7Spells PANEL POR CLASE (src/components/steps/Step7Spells.vue):
+  - Nuevo computed spellBreakdownByClass: cuenta cuántos hechizos del array
+    actual pertenecen a cada clase caster (atribución heurística: la
+    PRIMERA clase caster cuya spell list contenga ese hechizo).
+  - Panel informativo "Spells by class" visible solo en multiclass-caster.
+    Muestra count/max por clase con badge rojo "over limit" si excede.
+  - NO bloquea selección: solo informa. La selección sigue contando contra
+    el cupo total agregado (que ya hacía bien).
+  - i18n: +2 claves (spells.byClass, spells.overLimit).
+
+4d — pendingLevelDecisions SUMA POR CLASES CASTER (src/utils/levelUpGating.ts):
+  - Sección 3 (Spellcasting): antes usaba cls.spellcasting de la primaria.
+    Ahora itera getClassEntries y suma getCantripsKnown + getSpellsKnownCount
+    de TODAS las clases caster. Coherente con lo que Step7 ya hacía en su
+    cupo agregado.
+  - Etiqueta "prepared spell" vs "known spell": toma la primera caster
+    prepared del PJ. No ideal para mixes raros (Wizard + Sorcerer), pero
+    coherente con el modelo actual de un único char.spellsKnown agregado.
+
+ATRIBUCIÓN POR CLASE DE LOS HECHIZOS:
+
+El modelo actual sigue almacenando hechizos en char.spellsKnown[] sin
+etiqueta de clase. Para presentar info por clase (M6), Step7 usa una
+heurística estable: cada hechizo se atribuye a la PRIMERA clase caster
+cuya spell list lo contenga (orden de classes[]). Esto significa:
+  - Bless en Cleric+Wizard → Cleric (si Cleric es primaria).
+  - Es informativo, no estricto. El usuario decide.
+  - La separación estricta (cada spellId etiquetado con classId al elegirlo)
+    queda para fase de pulido futura.
+
+LO QUE NO HACE FASE 4:
+- M2 Subclase secundaria sin UI.
+- M5 levelUp con UI multiclass.
+- M7 Prereqs habilidad multiclass.
+- M8 Proficiencies multiclass parciales.
+- PDF aún muestra DC/Attack único (Fase 5 lo aborda).
+
+ARCHIVOS:
+- src/utils/classEntries.ts (+5 helpers, ~85 líneas)
+- src/utils/classEntries.test.ts (+12 tests)
+- src/components/steps/Step9Review.vue (casterInfo + UI multiclass DC/Attack)
+- src/components/steps/Step7Spells.vue (spellBreakdownByClass + panel UI)
+- src/utils/levelUpGating.ts (sección 3 suma por casters)
+- src/i18n/locales/en.json (+2 claves)
+
+TESTS: 965/965 OK (antes 953, +12 nuevos de 4a). Build OK. TS strict OK.
+
+────────────────────────────────────────
+2026-05-24 08:45 · #142 — Refactor multiclass FASE 3: ASIs por clase
+────────────────────────────────────────
+Cierra M1 del análisis multiclass: cada clase tiene sus propios ASI/Feat
+checkpoints, calculados con su nivel DENTRO de esa clase (no el total).
+Un Fighter 4 / Wizard 4 ahora muestra DOS checkpoints lv.4, uno por clase,
+en lugar de los checkpoints de "algo nivel 8".
+
+Subfases:
+
+3a — HELPERS DE LECTURA/ESCRITURA POR CLASE (src/utils/classEntries.ts):
+  - getAsiChoicesForClass(char, classId): devuelve el array de la entrada;
+    si no está definido y es la primaria, cae a char.asiChoices plano.
+  - setAsiChoicesForClass(char, classId, choices): escribe en la entrada
+    y, si es la primaria (classes[0]), espeja en char.asiChoices plano
+    para que el código antiguo que aún lee el plano (gating, PDF) lo vea.
+  - +7 tests en classEntries.test.ts.
+
+3b — AsiSelector PARAMETRIZADO (src/components/shared/AsiSelector.vue):
+  - Nueva prop opcional `classId`. Si no se pasa, opera sobre la primaria
+    (comportamiento idéntico al anterior para monoclase).
+  - selectedClass, classLevel, asiLevels parametrizados por classId.
+  - syncAsiChoices lee via getAsiChoicesForClass.
+  - persistChoices escribe via setAsiChoicesForClass.
+  - recomputeBonuses usa aggregateAsiBumps(getAllAsiChoices(char)) —
+    bonos GLOBALES del PJ, no de una clase.
+  - applyFeatEffects y syncFeatTags operan sobre TODOS los choices.
+  - isSlotLocked y hasLockedSlots usan classLevel (no char.level total).
+    Un slot lv.4 del Wizard solo está locked si Wizard pasó nivel 4,
+    no si el PJ total subió a 8.
+  - Cabecera muestra "Level-up choices — <ClassName>" si la prop está
+    activa; mantiene el texto antiguo cuando no.
+
+3c — Steps INVOCAN UNO POR CLASE:
+  - Step4Abilities.vue: ELIMINADA la lógica ASI duplicada (~140 líneas
+    de script + ~120 de template). Reemplazada por:
+        <template v-for="cid in asiClassIds">
+          <AsiSelector :class-id="cid" class="mt-8" />
+        </template>
+    Una fuente de verdad sola: el componente compartido.
+    Imports muertos limpiados (ASIChoice, getAsiLevels, aggregateAsiBumps,
+    isEpicBoonLevel, ABILITY_KEYS, getClassById, getFeatById, applyFeatEffects,
+    watch, onMounted, eligibleFeats).
+  - Step9Review.vue: igual con v-for por clase.
+
+3d — pendingLevelDecisions ITERA CLASES (src/utils/levelUpGating.ts):
+  - Bucle for-of sobre getClassEntries(char). Para cada clase: getAsiLevels
+    con classLevel; getAsiChoicesForClass para leer slots; tag de key
+    incluye classId → "asi-fighter-4-missing", "feat-wizard-8-skill", etc.
+  - Mensaje al usuario etiqueta la clase solo si hay multiclass:
+    "Resolve the ASI/Feat choice at Fighter lv.4" en multiclass;
+    "Resolve the ASI/Feat choice at level 4" en monoclase.
+  - Subclase y hechizos siguen monoclase (Fase 4).
+
+TESTS ACTUALIZADOS:
+  - levelUpGating.test.ts: keys esperadas asi-fighter-N → multiclass-aware.
+  - featChoices.test.ts: keys esperadas feat-fighter-4-skill etc.
+  - 9+3 tests actualizados, mismo número total (sin perder cobertura).
+
+ARCHIVOS:
+- src/utils/classEntries.ts (+2 helpers, ~60 líneas)
+- src/utils/classEntries.test.ts (+7 tests Fase 3a)
+- src/components/shared/AsiSelector.vue (refactor profundo)
+- src/components/steps/Step4Abilities.vue (~260 líneas eliminadas)
+- src/components/steps/Step9Review.vue (v-for sobre asiClassIds)
+- src/utils/levelUpGating.ts (bucle por clase)
+- src/utils/levelUpGating.test.ts (keys actualizadas)
+- src/utils/featChoices.test.ts (keys actualizadas)
+
+TESTS: 953/953 OK (antes 946). Build OK. TS strict OK.
+
+LO QUE NO HACE Fase 3:
+- M2 Subclase secundaria sin UI.
+- M3 Spellcasting ability ambigua (un único spellcastingAbility en el PJ).
+- M4 Hechizos por clase en review.
+- M5 levelUp con UI multiclass.
+- M6 Prepared spells límite por clase.
+Todo queda para Fase 4.
+
+────────────────────────────────────────
+2026-05-24 08:45 · #141 — Refactor multiclass FASE 2: Step3 reescrito + reorderClasses
+────────────────────────────────────────
+Cierra M9 (reordenar clases) y deja Step3 listo para multiclass: cada
+elección de clase primaria o subclase queda sincronizada en classes[0]
+además de en los campos planos. Esto garantiza que cualquier código que
+use getClassEntries() ve datos consistentes.
+
+CAMBIOS EN EL STORE (src/stores/character.ts):
+
+  reorderClasses(fromIdx, toIdx) — nueva función:
+    - Intercambia dos índices del array classes[].
+    - Si afecta a classes[0] (la primaria), sincroniza también los campos
+      planos: className, subclass, hitDie, spellcastingAbility,
+      spellcastingClass. Si la nueva primaria no es caster, limpia los
+      spellcasting* a string vacío.
+    - HP no se recalcula (es la suma de todas las clases, sin orden).
+    - No-op si fromIdx === toIdx, o si alguno está fuera de rango.
+
+CAMBIOS EN Step3Class.vue:
+
+  selectClass(cls) — ahora termina llamando a syncPrimaryClassEntry(cls):
+    - Si classes[] está vacío, crea la entrada primaria con todos los
+      campos. Si ya existe alguna entrada, actualiza la primera con la
+      clase recién seleccionada (classId, subclass='' por cambio,
+      hitDie, spellcastingAbility).
+    - NO toca cantrips/spellsKnown/asiChoices de la entrada: la UI
+      todavía vive en los campos planos durante la transición.
+
+  selectSubclass(sub) — ahora también refleja en classes[0].subclass.
+
+  UI nueva en el bloque "multiclass breakdown":
+    - Cada entrada lleva botones ↑/↓ para reordenar (deshabilitados en
+      bordes — ↑ disabled en idx 0, ↓ disabled en último).
+    - Badge "Primary" en el slot 0 con borde ámbar.
+    - Frase explicativa: "La clase primaria es la del primer slot.
+      Reordena con ↑/↓ para cambiar cuál guía la hoja del PJ."
+    - Handlers moveClassUp(idx) / moveClassDown(idx) que llaman a
+      characterStore.reorderClasses.
+
+i18n EN (src/i18n/locales/en.json):
+  - class.primary: "Primary"
+  - class.primaryNote: frase explicativa
+  - class.moveUp / class.moveDown: a11y labels y title
+
+TESTS NUEVOS (src/stores/reorderClasses.test.ts, 9 tests):
+  - Intercambio simple.
+  - Mover wizard a primaria sincroniza spellcastingAbility=int.
+  - Mover fighter a primaria limpia spellcasting si la nueva no es caster.
+  - Reordenar índices que NO incluyen el 0 no toca campos planos.
+  - fromIdx === toIdx: no-op.
+  - Índices fuera de rango: no-op.
+  - Triple multiclass: mover wizard a primaria en posición 0.
+  - HP no se recalcula tras reorder.
+  - Subclase de la nueva primaria se respeta.
+
+ARCHIVOS:
+- src/stores/character.ts (+reorderClasses, +export)
+- src/components/steps/Step3Class.vue (selectClass espeja, UI reorder)
+- src/i18n/locales/en.json (+4 claves)
+- src/stores/reorderClasses.test.ts (nuevo, 9 tests)
+
+TESTS: 946/946 OK (antes 937). Build OK. TS strict OK.
+
+────────────────────────────────────────
+2026-05-24 00:32 · #139 — Refactor multiclass FASE 1: infraestructura del modelo nuevo
+────────────────────────────────────────
+Arranque del refactor multiclass acordado (H9 desaparcado). El plan completo
+está en 6 fases; esta primera no toca UI, solo añade la capa de acceso y la
+migración. Al final la app se ve y funciona idéntica, pero todos los PJs
+cargados quedan migrados al modelo nuevo y los helpers están listos para
+que las fases siguientes los consuman.
+
+DISEÑO DEL MODELO NUEVO (consensuado con el usuario):
+
+ClassEntry pasa de 4 campos (classId, subclass, level, hitDie) a 11. Los 7
+nuevos son OPCIONALES para compatibilidad con PJs guardados antes del
+refactor:
+  - asiChoices?           ASIs cogidos en ESTA clase, no en el PJ global
+  - spellcastingAbility?  wis/int/cha de la clase (resuelve M3 del análisis)
+  - cantrips?             cantrips conocidos por la clase
+  - spellsKnown?          hechizos preparados/conocidos por la clase
+  - magicInitiateChoices? Magic Initiate vía ASI feat en esta clase
+  - fightingStyle?        si la clase lo otorga
+  - expertiseChoices?     si la clase los otorga
+  - weaponMasteries?      armas dominadas vía esta clase
+
+Los campos plano de CharacterData (char.className, char.cantrips,
+char.spellsKnown, char.asiChoices, char.spellcastingAbility, etc.) SIGUEN
+existiendo. Durante la fase de transición la fuente de verdad es híbrida:
+los helpers dan prioridad a classes[] si tiene los campos rellenos, y caen
+al modelo plano si no.
+
+HELPERS NUEVOS (src/utils/classEntries.ts):
+  - getPrimaryClass(char)         → classes[0] o entrada sintética desde
+                                    los campos planos.
+  - getClassEntries(char)         → array seguro, nunca undefined ni vacío
+                                    salvo si no hay clase aún.
+  - getTotalLevel(char)           → suma de niveles de todas las entradas.
+  - getClassEntry(char, classId)  → entrada por id, o undefined.
+  - getCharCantrips(char)         → unión deduplicada de cantrips de todas
+                                    las clases (con fallback al modelo viejo).
+  - getCharSpellsKnown(char)      → unión deduplicada de hechizos preparados.
+  - getAllAsiChoices(char)        → concatenación de ASIChoice de todas las
+                                    entradas (con fallback).
+  - migrateCharacterToClassEntries(char)
+                                  → si classes[] está vacío y hay className
+                                    plano, sintetiza classes[0] volcando los
+                                    campos planos. Idempotente y silenciosa.
+
+MIGRACIÓN AUTOMÁTICA AL CARGAR PJs (3 puntos):
+  - loadCharacter(id) — cuando el usuario abre un PJ guardado.
+  - importJson(json)  — cuando importa un .json externo.
+  - afterHydrate del Pinia persist — al arrancar la app, rehidrata
+    character y savedCharacters[] desde localStorage y los migra.
+
+Resultado: los 2 PJs guardados a mano del usuario quedan migrados sin
+darse cuenta. Los JSON exportados antes del refactor también se aceptan.
+
+LO QUE SIGUE SIN HACER (queda a las fases 2+):
+  - Step3Class, Step7Spells, Step9Review y AsiSelector siguen escribiendo
+    en los campos planos. Si el usuario edita un cantrip ahora mismo, va
+    a char.cantrips, no a char.classes[0].cantrips. Los dos lados pueden
+    divergir tras editar. Se arregla cuando los Steps reescriban en
+    classes[] (Fase 2 = Step3, Fase 3 = ASI/feats, Fase 4 = spells).
+  - No se ha desactivado nada. La app sigue funcionando exactamente igual
+    que antes a ojos del usuario.
+
+TESTS (src/utils/classEntries.test.ts, +25 tests):
+  - getPrimaryClass: PJ viejo, PJ nuevo, sin clase, multiclass.
+  - getClassEntries: PJ viejo, multiclass triple, vacío.
+  - getTotalLevel: monoclase, multiclass doble y triple.
+  - getClassEntry: búsqueda por id, id inexistente.
+  - getCharCantrips: fallback al modelo viejo, unión por clase, deduplicación,
+    semántica de "alguna entrada con cantrips definido activa modo nuevo".
+  - getCharSpellsKnown: idéntica casuística.
+  - getAllAsiChoices: fallback, concatenación, dos slots lv.4 en multiclass.
+  - migrateCharacterToClassEntries: monoclase completo, ya migrado (idempotente),
+    sin clase (no-op), weaponMasteries volcadas, campos undefined, doble llamada.
+
+ARCHIVOS:
+- src/stores/character.ts (ClassEntry ampliada, import migrate, llamadas en
+  loadCharacter/importJson/afterHydrate)
+- src/utils/classEntries.ts (nuevo, 198 líneas)
+- src/utils/classEntries.test.ts (nuevo, 25 tests)
+
+TESTS: 937/937 OK (antes 912). Build: OK. TS strict: OK.
+
+────────────────────────────────────────
+2026-05-24 00:32 · #138 — Botón "Desbloquear edición" para slots ASI bloqueados
+────────────────────────────────────────
+Pareja natural de #137. Cuando el lock del #72 deja un slot ASI/feat
+inaccesible (porque el PJ ya subió de nivel), el usuario no podía corregir
+un feat duplicado o un ASI mal puesto sin restaurar a un nivel anterior
+desde el historial.
+
+FIX en src/components/shared/AsiSelector.vue:
+
+  - Nuevo ref reactivo forceUnlock (no persistido — vuelve a false al
+    desmontar el componente). Evita que el usuario olvide que está en
+    modo desbloqueado entre sesiones.
+
+  - Nuevo computed hasLockedSlots: true si existe al menos un slot que
+    isAsiSlotLocked clasificaría como locked.
+
+  - isSlotLocked respeta forceUnlock: si está activo, devuelve false aunque
+    el nivel hubiera bloqueado el slot.
+
+  - Botón visible en el bloque "Level-up choices" SOLO si hay slots locked.
+    Inicialmente "🔒 Desbloquear edición" + texto neutro. Al activarlo se
+    pinta el bloque en ámbar y aparece aviso visible:
+
+      ⚠ Edición desbloqueada. Cambiar feats de niveles pasados puede romper
+      la coherencia del personaje (un feat puede haber sido prerequisito de
+      decisiones posteriores). La app no revalida automáticamente.
+
+  - Cambia a "🔓 Bloquear de nuevo" cuando activo.
+
+SIN AUTOCORRECCIÓN. Si el cambio rompe coherencia (un feat con prereq
+"Spellcasting" que dejas tras quitar spellcasting, p.ej.), la app no
+detecta retroactivamente. Decisión consciente del usuario: si en uso real
+aparecen incoherencias, abriremos #N para un auditor.
+
+ARCHIVOS:
+- src/components/shared/AsiSelector.vue
+
+TESTS: TS strict OK. No se añaden tests específicos: el toggle es
+estrictamente UI y la lógica subyacente (isAsiSlotLocked) ya está cubierta
+por sus 5 tests originales del #72.
+
+────────────────────────────────────────
+2026-05-24 00:32 · #137 — Warning de feat duplicado en checkpoints ASI/Feat
+────────────────────────────────────────
+SÍNTOMA reportado: el usuario tenía War Caster cogido en lv.4 y lv.8. War
+Caster NO es repetible en PHB 2024 (la tabla pág. 199 solo marca con
+asterisco los 4 repetibles: Ability Score Improvement, Elemental Adept,
+Magic Initiate, Skilled).
+
+CAUSA: FeatPicker.vue valida prerequisitos vía checkFeatPrerequisites pero
+NO comprueba si el feat seleccionado ya está cogido en otro checkpoint del
+mismo PJ. La regla "Repeatable" del PHB se aplicaba solo al elegir
+inicialmente, sin contexto del resto del personaje.
+
+DECISIÓN DEL USUARIO (importante porque condiciona el alcance):
+  - NO bloquear duplicados: warning visible, el usuario decide.
+  - NO autocorregir PJs antiguos.
+  - El warning recuerda la regla RAW sin atar.
+
+Esto resuelve también la inquietud sobre Resilient: técnicamente Resilient
+NO es Repeatable en PHB 2024 (no lleva asterisco ni subsección
+"Repeatable"). Pero el feat se autobloquea por su propio prereq ("Choose
+one ability in which you lack saving throw proficiency"), por lo que en
+algunas mesas se interpreta como repetible eligiendo ability distinta. El
+warning permite ambas interpretaciones: si el usuario coge Resilient con
+CON y luego con DEX, ve el aviso, decide y sigue.
+
+FIX en dos archivos:
+
+1. src/components/shared/FeatPicker.vue:
+   - Nueva prop `duplicateIds: ReadonlySet<string>` opcional.
+   - Helper isDuplicate(f): true si f.id está en duplicateIds.
+   - En la lista de feats: badge ámbar "⚠ ya cogido" junto al nombre.
+   - En el bloque del feat seleccionado: párrafo explicativo dentro de
+     una caja ámbar.
+   - Inicialmente puse una guarda "if (f.id === props.modelValue) return
+     false" pensando en no marcarme a mí mismo; pero precisamente cuando
+     ESTE slot tiene el feat duplicado debe verse el aviso. Quité la
+     guarda y dejé que duplicateFeatIdsFor(idx) excluya el propio slot
+     del cómputo (lo cual es correcto).
+
+2. src/components/shared/AsiSelector.vue:
+   - Nuevo método duplicateFeatIdsFor(idx): recorre asiChoices, excluye el
+     slot pasado, ignora feats marcados como repeatable en el catálogo
+     (Magic Initiate, Skilled, ASI, Elemental Adept), devuelve el Set.
+   - Pasa el Set al FeatPicker como prop duplicate-ids por slot.
+
+TESTS (src/components/shared/featDuplicateDetection.test.ts, +10 tests):
+  - Slot único con feat: 0 duplicados.
+  - Dos slots con War Caster: ambos se detectan mutuamente.
+  - Magic Initiate, Skilled, ASI, Elemental Adept (repetibles): nunca dups.
+  - Resilient cogido dos veces (no marcado como repeatable): SÍ marca dup.
+  - Slot ASI (no feat) ve duplicados potenciales en otros slots.
+  - Slot feat con featId vacío ídem.
+  - Combinación realista: 4 slots con 2 duplicados, asserts por slot.
+
+ARCHIVOS:
+- src/components/shared/FeatPicker.vue (+prop duplicateIds, +helper, 2 badges)
+- src/components/shared/AsiSelector.vue (+duplicateFeatIdsFor, +prop pasada)
+- src/components/shared/featDuplicateDetection.test.ts (nuevo, 10 tests)
+
+TESTS: 912/912 OK (antes 902). Build: OK. TS strict: OK.
+
+────────────────────────────────────────
+2026-05-24 00:32 · #136 — VersionBadge en esquina inferior derecha
+────────────────────────────────────────
+Necesidad del usuario: identificar a simple vista qué build está corriendo
+en el navegador, sobre todo cuando hay confusión entre ZIPs subidos por él
+y ZIPs generados por Claude (la confusión ocurrió con timestamps UTC vs
+hora local Madrid, ver pauta operativa nueva).
+
+DISEÑO:
+Vite ya tenía definidos __BUILD_DATE__ y __BUILD_HASH__ en vite.config.ts
+(usaban git rev-parse --short HEAD si disponible, o nogit-<timestamp36> como
+fallback al arrancar desde un ZIP sin .git). El badge solo los expone.
+
+COMPONENTE src/components/layout/VersionBadge.vue:
+  - position: fixed, bottom-right (esquina inferior derecha).
+  - text-[10px] font-mono leading-none — discreto, no estorba.
+  - bg-stone-900/70 con border, hover cambia color de texto.
+  - Click copia "build YYYY-MM-DD HH:MM · HASH" al portapapeles (útil al
+    reportar bugs: el usuario pega la string en el chat).
+  - Tras copiar, muestra "copied!" durante 1.5s.
+  - z-50, se mantiene visible incluso bajo el banner GDPR.
+
+Montado en App.vue dentro del root div para heredar tema oscuro. No afecta
+al layout porque es fixed.
+
+ARCHIVOS:
+- src/components/layout/VersionBadge.vue (nuevo)
+- src/App.vue (+import +1 línea en template)
+
+TESTS: TS strict OK. Sin tests específicos: el componente es estrictamente
+visual y depende de variables del bundler.
+
+────────────────────────────────────────
 2026-05-23 21:00 · #135 — #81 BUG: Random character bloqueado por "Resolve before leveling up"
 ────────────────────────────────────────
 SÍNTOMA: tras pulsar "Random" en la home, el PJ llegaba a Step9 Review con

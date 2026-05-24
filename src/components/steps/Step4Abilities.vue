@@ -1,16 +1,17 @@
 <script setup lang="ts">
 // Documento generado el 2026-05-19-2245 — bugfix tarea 12
-import { ref, computed, watch, onMounted } from 'vue'
+// #139 Fase 3c: la lógica ASI/Feat se delega al componente compartido
+// <AsiSelector>, que soporta multiclass. Este Step solo orquesta la generación
+// de ability scores y monta un AsiSelector por clase.
+import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useCharacterStore } from '@/stores/character'
-import type { AbilityScores, ASIChoice } from '@/stores/character'
+import type { AbilityScores } from '@/stores/character'
 import { rollAbilityScores, STANDARD_ARRAY, POINT_BUY_COSTS, pointBuyRemaining } from '@/utils/diceRoller'
 import { modifier, formatModifier } from '@/utils/calculations'
-import { getAsiLevels, eligibleFeats, aggregateAsiBumps, isEpicBoonLevel, ABILITY_KEYS } from '@/data/dnd5e/asi'
-import { getClassById } from '@/data/dnd5e/classes'
-import { getFeatById } from '@/data/dnd5e/feats'
-import { applyFeatEffects } from '@/utils/featEffects'
 import DiceRoller from '@/components/shared/DiceRoller.vue'
+import AsiSelector from '@/components/shared/AsiSelector.vue'
+import { getClassEntries } from '@/utils/classEntries'
 
 const { t } = useI18n()
 const characterStore = useCharacterStore()
@@ -103,142 +104,17 @@ function setMethod(m: Method) {
   }
 }
 
-// ─── ASI / Feat checkpoints (Milestone 10) ─────────────────────────────────
+// ─── ASI / Feat checkpoints — #139 Fase 3c ─────────────────────────────────
+// La lógica ASI vive ahora en el componente compartido <AsiSelector>, que
+// además soporta multiclass (acepta classId como prop). Aquí solo decidimos
+// qué clases mostrar: una entrada por cada classes[i] del PJ, o la primaria
+// implícita si todavía no hay classes[] poblado.
 
-/** Character class chosen in Step 3 (may be empty if user skipped). */
-const selectedClass = computed(() => getClassById(characterStore.character.className))
-
-/** Character levels at which an ASI or Epic Boon is granted. */
-const asiLevels = computed(() => {
-  if (!selectedClass.value) return []
-  return getAsiLevels(selectedClass.value.id, characterStore.character.level)
-})
-
-/** Reactive working copy of the asiChoices array (one slot per checkpoint). */
-const asiChoices = ref<ASIChoice[]>([])
-
-/** Sync the working copy from store (safe to call any time after mount). */
-function syncAsiChoices() {
-  try {
-    const levels = asiLevels.value
-    const existing = characterStore.character.asiChoices ?? []
-    const next: ASIChoice[] = levels.map(lvl => {
-      const found = existing.find(c => c.level === lvl)
-      if (found) return { ...found }
-      return isEpicBoonLevel(lvl)
-        ? { level: lvl, type: 'feat', featId: '' }
-        : { level: lvl, type: 'asi', asiMode: '2', asiAbilities: [] }
-    })
-    asiChoices.value = next
-    if (levels.length > 0) persistChoices()
-  } catch (err) {
-    console.error('[Step4] syncAsiChoices error:', err)
-  }
-}
-
-/** Re-sync when class or level changes (NOT immediate — init is in onMounted). */
-watch(
-  [() => characterStore.character.className, () => characterStore.character.level],
-  syncAsiChoices,
-)
-
-onMounted(syncAsiChoices)
-
-/** Persist current choices into the store + recalculate asiBonuses. */
-function persistChoices() {
-  try {
-    characterStore.character.asiChoices = JSON.parse(JSON.stringify(asiChoices.value))
-    recomputeBonuses()
-    syncFeatTags()
-    applyFeatEffects(characterStore.character, asiChoices.value)
-  } catch (err) {
-    console.error('[Step4] persistChoices error:', err)
-  }
-}
-
-function recomputeBonuses() {
-  characterStore.character.asiBonuses = aggregateAsiBumps(asiChoices.value)
-}
-
-/** Reflect chosen feats in featuresTraits without duplicates. */
-function syncFeatTags() {
-  // Guard: ensure featuresTraits is always an array.
-  if (!Array.isArray(characterStore.character.featuresTraits)) {
-    characterStore.character.featuresTraits = []
-  }
-  // Remove all previously inserted ASI-derived feat tags.
-  const tagPrefix = 'ASI Feat: '
-  characterStore.character.featuresTraits =
-    characterStore.character.featuresTraits.filter(t => !t.startsWith(tagPrefix))
-  for (const c of asiChoices.value) {
-    if (c.type === 'feat' && c.featId) {
-      const feat = getFeatById(c.featId)
-      if (feat) {
-        characterStore.character.featuresTraits.push(`${tagPrefix}${feat.name} (lv.${c.level})`)
-      }
-    }
-  }
-}
-
-function setChoiceType(idx: number, type: 'asi' | 'feat') {
-  const slot = asiChoices.value[idx]
-  if (!slot) return
-  slot.type = type
-  if (type === 'asi') {
-    slot.asiMode = '2'
-    slot.asiAbilities = []
-    slot.featId = undefined
-  } else {
-    slot.featId = ''
-    slot.asiMode = undefined
-    slot.asiAbilities = undefined
-  }
-  persistChoices()
-}
-
-function setAsiMode(idx: number, mode: '2' | '1+1') {
-  const slot = asiChoices.value[idx]
-  if (!slot) return
-  slot.asiMode = mode
-  // Reset abilities — user must re-pick to confirm.
-  slot.asiAbilities = []
-  persistChoices()
-}
-
-function setAsiAbility(idx: number, slotIdx: number, val: string) {
-  const slot = asiChoices.value[idx]
-  if (!slot?.asiAbilities) return
-  const k = val as typeof ABILITY_KEYS[number]
-  while (slot.asiAbilities.length < slotIdx) {
-    slot.asiAbilities.push('' as typeof ABILITY_KEYS[number])
-  }
-  slot.asiAbilities[slotIdx] = k
-  persistChoices()
-}
-
-function setFeatId(idx: number, featId: string) {
-  const slot = asiChoices.value[idx]
-  if (!slot) return
-  slot.featId = featId
-  persistChoices()
-}
-
-function eligibleFeatsForLevel(level: number) {
-  return eligibleFeats(level, selectedClass.value)
-}
-
-/** Warn if any ability score would exceed the cap after applying ASIs.
- *  Regular ASIs cap at 20; Epic Boon levels cap at 30. */
-const overCapAbilities = computed(() => {
-  const hasEpicBoon = asiChoices.value.some(s => isEpicBoonLevel(s.level) && s.type === 'asi')
-  const cap = hasEpicBoon ? 30 : 20
-  const offenders: string[] = []
-  for (const k of ABILITY_KEYS) {
-    const total = (characterStore.character.abilityScores[k] ?? 10)
-      + characterStore.totalBonus(k as any)
-    if (total > cap) offenders.push(k.toUpperCase())
-  }
-  return offenders
+/** Clases sobre las que mostrar un AsiSelector. Una por entrada en classes[];
+ *  si la lista está vacía pero hay className plano, devuelve esa primaria. */
+const asiClassIds = computed<string[]>(() => {
+  const entries = getClassEntries(characterStore.character)
+  return entries.map(e => e.classId)
 })
 </script>
 
@@ -360,126 +236,11 @@ const overCapAbilities = computed(() => {
       </div>
     </div>
 
-    <!-- ── ASI / Feat Checkpoints (Milestone 10) ──────────────────────── -->
-    <div v-if="asiLevels.length > 0" class="mt-8 bg-stone-800/50 border border-amber-700/30 rounded-lg p-5">
-      <h3 class="text-lg font-bold text-amber-400 mb-2">
-        Level-up choices
-        <span class="text-stone-500 text-xs font-normal">
-          ({{ asiLevels.length }} ASI/Feat checkpoint{{ asiLevels.length === 1 ? '' : 's' }} at level {{ characterStore.character.level }})
-        </span>
-      </h3>
-      <p class="text-xs text-stone-400 mb-4">
-        In the 2024 rules, every class gets an Ability Score Improvement at levels 4, 8, 12 and 16,
-        plus an Epic Boon at 19. <strong>Fighter</strong> gets two extras (6 and 14);
-        <strong>Rogue</strong> gets one extra at 10. At each checkpoint you can bump your scores
-        or take a feat instead.
-      </p>
+    <!-- ── ASI / Feat Checkpoints — #139 Fase 3c (multiclass-aware) ──── -->
+    <template v-for="cid in asiClassIds" :key="`asi-${cid}`">
+      <AsiSelector :class-id="cid" class="mt-8" />
+    </template>
 
-      <div v-if="overCapAbilities.length" class="mb-4 bg-red-900/20 border border-red-700/40 rounded p-2 text-xs text-red-300">
-        ⚠ Cap exceeded for: <strong>{{ overCapAbilities.join(', ') }}</strong>.
-        2024 rules cap regular ability scores at 20 (Epic Boons can go to 30).
-      </div>
-
-      <div class="space-y-3">
-        <div
-          v-for="(slot, idx) in asiChoices"
-          :key="`asi-${slot.level}`"
-          class="bg-stone-900/40 rounded p-3"
-        >
-          <div class="flex items-center justify-between flex-wrap gap-2 mb-2">
-            <span class="text-sm font-medium text-amber-400">
-              Level {{ slot.level }}
-              <span v-if="isEpicBoonLevel(slot.level)" class="text-xs text-amber-600/80 ml-1">(Epic Boon)</span>
-            </span>
-            <div v-if="!isEpicBoonLevel(slot.level)" class="flex gap-2 text-xs">
-              <button
-                @click="setChoiceType(idx, 'asi')"
-                class="px-2 py-1 rounded transition-colors cursor-pointer"
-                :class="slot.type === 'asi' ? 'bg-amber-600 text-stone-900 font-medium' : 'bg-stone-700 text-stone-300 hover:bg-stone-600'"
-              >Ability Score Improvement</button>
-              <button
-                @click="setChoiceType(idx, 'feat')"
-                class="px-2 py-1 rounded transition-colors cursor-pointer"
-                :class="slot.type === 'feat' ? 'bg-amber-600 text-stone-900 font-medium' : 'bg-stone-700 text-stone-300 hover:bg-stone-600'"
-              >Feat</button>
-            </div>
-          </div>
-
-          <!-- ASI controls -->
-          <div v-if="slot.type === 'asi'" class="flex flex-wrap gap-3 items-center text-xs">
-            <label class="flex items-center gap-2">
-              <input type="radio" :checked="slot.asiMode === '2'" @change="setAsiMode(idx, '2')" class="accent-amber-500" />
-              <span>+2 to one</span>
-            </label>
-            <label class="flex items-center gap-2">
-              <input type="radio" :checked="slot.asiMode === '1+1'" @change="setAsiMode(idx, '1+1')" class="accent-amber-500" />
-              <span>+1 to two</span>
-            </label>
-
-            <template v-if="slot.asiMode === '2'">
-              <label>
-                <span class="text-stone-400 mr-1">+2 to</span>
-                <select
-                  :value="slot.asiAbilities?.[0] ?? ''"
-                  @change="setAsiAbility(idx, 0, ($event.target as HTMLSelectElement).value)"
-                  class="bg-stone-900 border border-stone-700 rounded px-2 py-1 text-stone-200"
-                >
-                  <option value="" disabled>— Choose —</option>
-                  <option v-for="ab in ABILITY_KEYS" :key="ab" :value="ab">{{ ab.toUpperCase() }}</option>
-                </select>
-              </label>
-            </template>
-            <template v-else>
-              <label>
-                <span class="text-stone-400 mr-1">+1 to</span>
-                <select
-                  :value="slot.asiAbilities?.[0] ?? ''"
-                  @change="setAsiAbility(idx, 0, ($event.target as HTMLSelectElement).value)"
-                  class="bg-stone-900 border border-stone-700 rounded px-2 py-1 text-stone-200"
-                >
-                  <option value="" disabled>— Choose —</option>
-                  <option v-for="ab in ABILITY_KEYS" :key="ab" :value="ab">{{ ab.toUpperCase() }}</option>
-                </select>
-              </label>
-              <label>
-                <span class="text-stone-400 mr-1">+1 to</span>
-                <select
-                  :value="slot.asiAbilities?.[1] ?? ''"
-                  @change="setAsiAbility(idx, 1, ($event.target as HTMLSelectElement).value)"
-                  class="bg-stone-900 border border-stone-700 rounded px-2 py-1 text-stone-200"
-                >
-                  <option value="" disabled>— Choose —</option>
-                  <option v-for="ab in ABILITY_KEYS" :key="ab" :value="ab"
-                    :disabled="ab === slot.asiAbilities?.[0]">
-                    {{ ab.toUpperCase() }}
-                  </option>
-                </select>
-              </label>
-            </template>
-          </div>
-
-          <!-- Feat controls -->
-          <div v-else class="text-xs">
-            <label class="block mb-1 text-stone-400">
-              {{ isEpicBoonLevel(slot.level) ? 'Choose an Epic Boon:' : 'Choose a feat:' }}
-            </label>
-            <select
-              :value="slot.featId ?? ''"
-              @change="setFeatId(idx, ($event.target as HTMLSelectElement).value)"
-              class="bg-stone-900 border border-stone-700 rounded px-2 py-1 text-stone-200 w-full max-w-md"
-            >
-              <option value="">— pick one —</option>
-              <option v-for="f in eligibleFeatsForLevel(slot.level)" :key="f.id" :value="f.id">
-                {{ f.name }}<span v-if="f.category !== 'origin'"> ({{ f.category }})</span>
-              </option>
-            </select>
-            <p v-if="slot.featId" class="mt-2 text-stone-500 italic">
-              {{ getFeatById(slot.featId)?.description }}
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
 
   </section>
 </template>

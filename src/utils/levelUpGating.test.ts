@@ -24,7 +24,7 @@ describe('Milestone 14 — gating del level-up (#50)', () => {
       char.className = 'fighter'
       char.level = 2
       char.subclass = ''
-      expect(pendingLevelDecisions(char).map(d => d.key)).not.toContain('subclass')
+      expect(pendingLevelDecisions(char).map(d => d.key)).not.toContain('subclass-fighter')
       expect(canLevelUp(char)).toBe(true)
     })
 
@@ -35,7 +35,7 @@ describe('Milestone 14 — gating del level-up (#50)', () => {
       char.subclass = ''
       // (no ASI yet at lv 3, no spellcaster) — only blocker should be subclass
       const decisions = pendingLevelDecisions(char)
-      expect(decisions.map(d => d.key)).toContain('subclass')
+      expect(decisions.map(d => d.key)).toContain('subclass-fighter')
       expect(canLevelUp(char)).toBe(false)
     })
 
@@ -44,7 +44,7 @@ describe('Milestone 14 — gating del level-up (#50)', () => {
       char.className = 'fighter'
       char.level = 3
       char.subclass = 'champion'
-      expect(pendingLevelDecisions(char).map(d => d.key)).not.toContain('subclass')
+      expect(pendingLevelDecisions(char).map(d => d.key)).not.toContain('subclass-fighter')
     })
 
     it('no bloquea para clases sin subclases (caso teórico)', () => {
@@ -53,7 +53,7 @@ describe('Milestone 14 — gating del level-up (#50)', () => {
       char.level = 10
       char.subclass = 'champion'
       const decisions = pendingLevelDecisions(char)
-      expect(decisions.map(d => d.key)).not.toContain('subclass')
+      expect(decisions.map(d => d.key)).not.toContain('subclass-fighter')
     })
   })
 
@@ -65,7 +65,7 @@ describe('Milestone 14 — gating del level-up (#50)', () => {
       char.subclass = 'champion'
       char.asiChoices = [] // missing the lv 4 choice
       const decisions = pendingLevelDecisions(char)
-      expect(decisions.some(d => d.key.startsWith('asi-4-'))).toBe(true)
+      expect(decisions.some(d => d.key.startsWith('asi-fighter-4-'))).toBe(true)
     })
 
     it('bloquea si type=feat pero featId está vacío', () => {
@@ -75,7 +75,7 @@ describe('Milestone 14 — gating del level-up (#50)', () => {
       char.subclass = 'champion'
       char.asiChoices = [{ level: 4, type: 'feat', featId: '' }]
       const decisions = pendingLevelDecisions(char)
-      expect(decisions.some(d => d.key === 'feat-4-missing')).toBe(true)
+      expect(decisions.some(d => d.key === 'feat-fighter-4-missing')).toBe(true)
     })
 
     it('bloquea si el feat tiene asiBonus multi-opción y featAbility está sin elegir', () => {
@@ -86,7 +86,7 @@ describe('Milestone 14 — gating del level-up (#50)', () => {
       // Crusher: +1 STR or CON — multi-opción
       char.asiChoices = [{ level: 4, type: 'feat', featId: 'crusher' }]
       const decisions = pendingLevelDecisions(char)
-      expect(decisions.some(d => d.key === 'feat-4-ability')).toBe(true)
+      expect(decisions.some(d => d.key === 'feat-fighter-4-ability')).toBe(true)
     })
 
     it('no bloquea si el feat tiene asiBonus de una sola opción (auto-resuelto)', () => {
@@ -117,7 +117,7 @@ describe('Milestone 14 — gating del level-up (#50)', () => {
       char.subclass = 'champion'
       char.asiChoices = [{ level: 4, type: 'asi', asiMode: '1+1', asiAbilities: ['str', 'str'] }]
       const decisions = pendingLevelDecisions(char)
-      expect(decisions.some(d => d.key === 'asi-4-dup')).toBe(true)
+      expect(decisions.some(d => d.key === 'asi-fighter-4-dup')).toBe(true)
     })
 
     it('REGRESIÓN #50 reabierto — slot ASI recién creado con array vacío bloquea', () => {
@@ -129,7 +129,7 @@ describe('Milestone 14 — gating del level-up (#50)', () => {
       char.subclass = 'champion'
       char.asiChoices = [{ level: 4, type: 'asi', asiMode: '2', asiAbilities: [] }]
       const decisions = pendingLevelDecisions(char)
-      expect(decisions.some(d => d.key === 'asi-4-empty')).toBe(true)
+      expect(decisions.some(d => d.key === 'asi-fighter-4-empty')).toBe(true)
     })
 
     it('REGRESIÓN #50 — slot ASI modo +1+1 con array vacío bloquea', () => {
@@ -139,7 +139,7 @@ describe('Milestone 14 — gating del level-up (#50)', () => {
       char.subclass = 'champion'
       char.asiChoices = [{ level: 4, type: 'asi', asiMode: '1+1', asiAbilities: [] }]
       const decisions = pendingLevelDecisions(char)
-      expect(decisions.some(d => d.key === 'asi-4-two')).toBe(true)
+      expect(decisions.some(d => d.key === 'asi-fighter-4-two')).toBe(true)
     })
 
     it('REGRESIÓN #50 — slot ASI modo +1+1 con solo el primero relleno bloquea', () => {
@@ -149,7 +149,7 @@ describe('Milestone 14 — gating del level-up (#50)', () => {
       char.subclass = 'champion'
       char.asiChoices = [{ level: 4, type: 'asi', asiMode: '1+1', asiAbilities: ['str'] }]
       const decisions = pendingLevelDecisions(char)
-      expect(decisions.some(d => d.key === 'asi-4-two')).toBe(true)
+      expect(decisions.some(d => d.key === 'asi-fighter-4-two')).toBe(true)
     })
 
     it('no bloquea si type=asi modo +2 está bien relleno', () => {
@@ -159,7 +159,7 @@ describe('Milestone 14 — gating del level-up (#50)', () => {
       char.subclass = 'champion'
       char.asiChoices = [{ level: 4, type: 'asi', asiMode: '2', asiAbilities: ['str'] }]
       const decisions = pendingLevelDecisions(char)
-      expect(decisions.some(d => d.key.startsWith('asi-4'))).toBe(false)
+      expect(decisions.some(d => d.key.startsWith('asi-fighter-4'))).toBe(false)
     })
 
     it('Fighter en nivel 6 (ASI extra) bloquea si falta el slot de nivel 6', () => {
@@ -172,7 +172,7 @@ describe('Milestone 14 — gating del level-up (#50)', () => {
         // nivel 6 vacío
       ]
       const decisions = pendingLevelDecisions(char)
-      expect(decisions.some(d => d.key === 'asi-6-missing')).toBe(true)
+      expect(decisions.some(d => d.key === 'asi-fighter-6-missing')).toBe(true)
     })
 
     it('escenario completo Fighter 4 → 5 con todo resuelto deja canLevelUp=true', () => {
@@ -235,11 +235,11 @@ describe('Milestone 14 — gating del level-up (#50)', () => {
       char.asiChoices = []
       const decisions = pendingLevelDecisions(char)
       const keys = decisions.map(d => d.key)
-      expect(keys).toContain('subclass')
+      expect(keys).toContain('subclass-fighter')
       // Fighter tiene ASIs en 4, 6, 8
-      expect(keys.some(k => k.startsWith('asi-4'))).toBe(true)
-      expect(keys.some(k => k.startsWith('asi-6'))).toBe(true)
-      expect(keys.some(k => k.startsWith('asi-8'))).toBe(true)
+      expect(keys.some(k => k.startsWith('asi-fighter-4'))).toBe(true)
+      expect(keys.some(k => k.startsWith('asi-fighter-6'))).toBe(true)
+      expect(keys.some(k => k.startsWith('asi-fighter-8'))).toBe(true)
       expect(canLevelUp(char)).toBe(false)
     })
 

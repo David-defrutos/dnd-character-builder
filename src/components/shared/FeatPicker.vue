@@ -14,6 +14,15 @@ const props = defineProps<{
   /** Cuando hay character: 'hide' oculta los no elegibles, 'mark' los muestra
    *  desactivados con motivo. Default: 'mark'. */
   ineligibleMode?: 'hide' | 'mark'
+  /** IDs de feats ya cogidos en otros checkpoints no-repetibles (#137).
+   *  No se filtran ni se bloquean: el usuario puede elegirlos igualmente,
+   *  pero la fila muestra un warning visible. La regla RAW del PHB 2024 es
+   *  que solo los marcados con asterisco (ASI, Elemental Adept, Magic
+   *  Initiate, Skilled) son repetibles; el resto deberían cogerse una vez.
+   *  El warning recuerda esa regla sin atar al usuario, que puede tener
+   *  motivos válidos para repetir (ej. Resilient con habilidad distinta,
+   *  que en la mesa se interpreta como repetible aunque RAW no lo sea). */
+  duplicateIds?: ReadonlySet<string>
 }>()
 
 const emit = defineEmits<{
@@ -44,6 +53,16 @@ function evalFeat(f: Feat): { eligible: boolean; reasons: string[] } {
   if (!props.character) return { eligible: true, reasons: [] }
   const r = checkFeatPrerequisites(props.character, f)
   return { eligible: r.satisfied, reasons: r.failingClauses }
+}
+
+/** Un feat es "duplicado" si ya está cogido en OTRO checkpoint y no es
+ *  repetible. La comprobación es por id; los repetibles del catálogo
+ *  (Magic Initiate, Skilled, ASI, Elemental Adept) NO se añaden a duplicateIds
+ *  por construcción desde el caller (AsiSelector.duplicateFeatIdsFor excluye
+ *  también el propio slot, así que no hay falsos positivos). */
+function isDuplicate(f: Feat): boolean {
+  if (!props.duplicateIds || props.duplicateIds.size === 0) return false
+  return props.duplicateIds.has(f.id)
 }
 
 const filtered = computed(() => {
@@ -99,6 +118,10 @@ const catLabel: Record<string, string> = {
           <span class="text-stone-500 ml-2">{{ catLabel[selected.category] ?? selected.category }}</span>
           <p v-if="selected.prerequisite" class="text-stone-500 mt-0.5">Req: {{ selected.prerequisite }}</p>
           <p class="text-stone-400 mt-1 italic">{{ selected.description }}</p>
+          <p v-if="isDuplicate(selected)" class="mt-1.5 text-amber-400 bg-amber-950/40 border border-amber-700/40 rounded px-2 py-1">
+            ⚠ Este feat ya está cogido en otro nivel y no es repetible según el PHB 2024.
+            Solo Ability Score Improvement, Elemental Adept, Magic Initiate y Skilled son repetibles.
+          </p>
         </div>
         <div class="flex gap-2 shrink-0">
           <button @click="open = !open"
@@ -151,6 +174,9 @@ const catLabel: Record<string, string> = {
             </span>
             <span v-if="character && !evalFeat(f).eligible" class="text-[10px] px-1 rounded bg-red-900/40 text-red-400">
               ✕ requirements
+            </span>
+            <span v-if="isDuplicate(f)" class="text-[10px] px-1 rounded bg-amber-900/40 text-amber-400" title="Ya seleccionado en otro nivel y este feat no es repetible">
+              ⚠ ya cogido
             </span>
           </div>
           <p v-if="f.prerequisite" class="text-xs mt-0.5"

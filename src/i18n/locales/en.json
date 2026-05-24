@@ -78,7 +78,13 @@
     "multiclass": "Multiclass",
     "addClass": "Add Class",
     "removeClass": "Remove",
-    "selectClassToAdd": "Select a class to add"
+    "selectClassToAdd": "Select a class to add",
+    "primary": "Primary",
+    "primaryNote": "The primary class is the one in the first slot. Reorder with ↑/↓ to change which class drives the character sheet header.",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "multiclassBlocked": "Cannot add this class — multiclass prerequisites not met:",
+    "subclassPending": "Pick a subclass"
   },
   "abilities": {
     "title": "Generate Ability Scores",
@@ -143,7 +149,9 @@
     "notACasterMulticlass": "None of your classes have spellcasting abilities.",
     "pressNext": "Press Next to continue.",
     "pactMagic": "Pact Magic",
-    "allLevels": "All levels"
+    "allLevels": "All levels",
+    "byClass": "Spells by class",
+    "overLimit": "over limit"
   },
   "details": {
     "title": "Character Details",
@@ -211,7 +219,8 @@
     "shareManual": "Copy the link below to share your character:",
     "shareFailed": "Could not generate share link. Try again.",
     "levelUp": "Level Up",
-    "levelUpBlockedTitle": "Resolve before leveling up:"
+    "levelUpBlockedTitle": "Resolve before leveling up:",
+    "levelUpPickClass": "Pick which class to level up:"
   },
   "share": {
     "error": "Invalid Share Link",

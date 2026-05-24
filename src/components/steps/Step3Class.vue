@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useCharacterStore } from '@/stores/character'
+import type { ClassEntry } from '@/stores/character'
 import { getClasses } from '@/data'
 import type { CharacterClass, Subclass } from '@/data/dnd5e/classes'
 import { SKILLS } from '@/data/dnd5e/skills'
@@ -72,11 +73,63 @@ function selectClass(cls: CharacterClass) {
     characterStore.character.spellcastingClass = ''
     characterStore.character.spellcastingAbility = ''
   }
+
+  // #139 Fase 2: sincronizar classes[0] con los campos planos.
+  // Si classes[] está vacío, crear la entrada primaria. Si ya hay entrada(s)
+  // (importado, multiclass), actualizar la primera con los campos de la
+  // clase recién seleccionada. Mantener los campos por clase (cantrips,
+  // spellsKnown, asiChoices, etc.) si ya estaban: el cambio de clase
+  // primaria conserva las elecciones del jugador en la medida posible.
+  syncPrimaryClassEntry(cls)
 }
 
-function selectSubclass(sub: Subclass) {
-  devLog('[Step3]', 'selectSubclass:', sub.id, sub.name)
-  characterStore.character.subclass = sub.id
+/** #139 Fase 2: refleja la elección de clase primaria en classes[0]. */
+function syncPrimaryClassEntry(cls: CharacterClass) {
+  const char = characterStore.character
+  if (!char.classes) char.classes = []
+  if (char.classes.length === 0) {
+    char.classes.push({
+      classId: cls.id,
+      subclass: '',
+      level: char.level,
+      hitDie: cls.hitDie,
+      spellcastingAbility: cls.spellcasting?.ability as ClassEntry['spellcastingAbility'] | undefined,
+    })
+  } else {
+    const prim = char.classes[0]!
+    prim.classId = cls.id
+    prim.subclass = ''   // cambia de clase → subclase a 0
+    prim.hitDie = cls.hitDie
+    prim.spellcastingAbility = cls.spellcasting?.ability as ClassEntry['spellcastingAbility'] | undefined
+    // No tocamos prim.cantrips ni prim.spellsKnown ni prim.asiChoices: la
+    // UI todavía vive en los campos planos (Fases 3+). Si el cambio de
+    // clase debe limpiar esos arrays, ya lo hace el código existente sobre
+    // los campos planos.
+  }
+}
+
+/**
+ * Establece la subclase de UNA clase del PJ.
+ *
+ * - Si classId es undefined o coincide con la primaria, también sincroniza
+ *   el campo plano char.subclass (compat con el resto de la app que aún
+ *   lo lee).
+ * - Si es una clase secundaria, solo escribe en classes[idx].subclass.
+ *
+ * #147 M2 — antes esta función solo manejaba la primaria.
+ */
+function selectSubclass(sub: Subclass, classId?: string) {
+  devLog('[Step3]', 'selectSubclass:', sub.id, sub.name, 'classId:', classId ?? '(primary)')
+  const classes = characterStore.character.classes ?? []
+  const idx = classId
+    ? classes.findIndex(c => c.classId === classId)
+    : 0  // primaria por defecto
+  if (idx < 0) return
+  if (classes[idx]) classes[idx].subclass = sub.id
+  // Si es la primaria, también el plano.
+  if (idx === 0) {
+    characterStore.character.subclass = sub.id
+  }
 }
 
 const subclassUnlocked = computed(() => {
@@ -124,15 +177,61 @@ const multiclassDisplay = computed(() => {
     .join(' / ')
 })
 
+/**
+ * #147 M2 — Clases SECUNDARIAS (idx >= 1) que han llegado a su subclassLevel
+ * y necesitan que el jugador elija subclase. Devuelve {entry, classObj, idx}
+ * para que la UI pueda iterar y montar un selector por cada una.
+ *
+ * La PRIMARIA NO entra aquí: ya la maneja el bloque existente del template
+ * vía selectedClass / subclassUnlocked.
+ */
+const secondaryClassesNeedingSubclass = computed(() => {
+  const out: Array<{
+    entry: { classId: string; subclass: string; level: number }
+    classObj: typeof classes.value[number]
+    idx: number
+  }> = []
+  const entries = characterStore.character.classes ?? []
+  for (let idx = 1; idx < entries.length; idx++) {
+    const entry = entries[idx]!
+    const classObj = classes.value.find(c => c.id === entry.classId)
+    if (!classObj?.subclasses?.length) continue
+    const subclassLevel = classObj.subclassLevel ?? 3
+    if (entry.level < subclassLevel) continue  // aún no desbloqueada
+    out.push({ entry, classObj, idx })
+  }
+  return out
+})
+
 const showMulticlassAdd = ref(false)
+/** #139 Fase 6 (M7) — mensaje de error cuando addMulticlass falla por prereqs. */
+const multiclassError = ref<string[] | null>(null)
 
 function addSecondaryClass(clsId: string) {
-  characterStore.addMulticlass(clsId)
-  showMulticlassAdd.value = false
+  multiclassError.value = null
+  const result = characterStore.addMulticlass(clsId)
+  if (result.ok) {
+    showMulticlassAdd.value = false
+  } else {
+    multiclassError.value = result.failures
+    // Panel se queda abierto para que el jugador vea el error y pueda
+    // cerrar / probar otra clase.
+  }
 }
 
 function removeSecondaryClass(clsId: string) {
   characterStore.removeMulticlass(clsId)
+}
+
+/** #139 Fase 2 (M9): mover una clase hacia arriba en classes[]. */
+function moveClassUp(idx: number) {
+  if (idx <= 0) return
+  characterStore.reorderClasses(idx, idx - 1)
+}
+
+/** #139 Fase 2 (M9): mover una clase hacia abajo en classes[]. */
+function moveClassDown(idx: number) {
+  characterStore.reorderClasses(idx, idx + 1)
 }
 
 // Weapon mastery slots for this class at this level (if any).
@@ -325,17 +424,37 @@ function progressionAtLevel(col: (number | string)[] | undefined): string {
       <!-- Current multiclass breakdown -->
       <div v-if="(characterStore.character.classes ?? []).length >= 2" class="mb-3">
         <p class="text-stone-300 text-sm font-medium mb-2">{{ multiclassDisplay }} ({{ t('common.level') }} {{ characterStore.character.level }})</p>
+        <p class="text-stone-500 text-xs mb-2">
+          {{ t('class.primaryNote') }}
+        </p>
         <div class="flex flex-wrap gap-2">
           <div
-            v-for="entry in characterStore.character.classes"
+            v-for="(entry, idx) in characterStore.character.classes"
             :key="entry.classId"
             class="flex items-center gap-2 bg-stone-700 rounded px-3 py-1.5 text-sm"
+            :class="idx === 0 ? 'border border-amber-700/40' : ''"
           >
             <span class="text-amber-400 font-medium">
               {{ classes.find(c => c.id === entry.classId) ? gt.className(classes.find(c => c.id === entry.classId)!.name, variant) : entry.classId }}
             </span>
             <span class="text-stone-400">Lv.{{ entry.level }}</span>
             <span class="text-stone-500 text-xs">(d{{ entry.hitDie }})</span>
+            <span v-if="idx === 0" class="text-amber-500 text-[10px] uppercase">{{ t('class.primary') }}</span>
+            <!-- #139 Fase 2 (M9): reordenar clases con flechas. -->
+            <button
+              @click="moveClassUp(idx)"
+              :disabled="idx === 0"
+              class="text-stone-400 hover:text-amber-400 text-xs ml-1 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+              :aria-label="t('class.moveUp')"
+              :title="t('class.moveUp')"
+            >↑</button>
+            <button
+              @click="moveClassDown(idx)"
+              :disabled="idx === characterStore.character.classes.length - 1"
+              class="text-stone-400 hover:text-amber-400 text-xs cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+              :aria-label="t('class.moveDown')"
+              :title="t('class.moveDown')"
+            >↓</button>
             <!-- Remove button (only for secondary classes) -->
             <button
               v-if="entry.classId !== characterStore.character.classes[0]?.classId"
@@ -343,6 +462,48 @@ function progressionAtLevel(col: (number | string)[] | undefined): string {
               class="text-red-400 hover:text-red-300 text-xs ml-1 cursor-pointer"
               :aria-label="t('class.removeClass')"
             >✕</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- #147 M2 — Selector de subclase POR CADA clase secundaria que
+           haya llegado a su subclassLevel. La primaria sigue gestionada en
+           el bloque selectedClass.subclasses arriba (no se duplica). -->
+      <div v-if="secondaryClassesNeedingSubclass.length > 0" class="mb-3 space-y-3">
+        <div
+          v-for="item in secondaryClassesNeedingSubclass"
+          :key="`subsec-${item.entry.classId}`"
+          class="border border-purple-700/30 rounded-lg p-3 bg-stone-900/40"
+        >
+          <h4 class="font-semibold text-purple-300 mb-2 text-sm">
+            {{ item.classObj.subclassName }}
+            <span class="text-stone-500 font-normal">
+              — {{ gt.className(item.classObj.name, variant) }}
+            </span>
+            <span v-if="!item.entry.subclass" class="text-amber-500 text-xs ml-2">
+              ⚠ {{ t('class.subclassPending') }}
+            </span>
+          </h4>
+          <div class="flex flex-wrap gap-2" role="radiogroup" :aria-label="item.classObj.subclassName">
+            <button
+              v-for="sub in item.classObj.subclasses"
+              :key="`${item.entry.classId}-${sub.id}`"
+              @click="selectSubclass(sub, item.entry.classId)"
+              class="px-3 py-1 rounded text-xs transition-colors cursor-pointer"
+              :class="item.entry.subclass === sub.id
+                ? 'bg-amber-600 text-stone-900 font-medium'
+                : 'bg-stone-700 text-stone-300 hover:bg-stone-600'"
+              role="radio"
+              :aria-checked="item.entry.subclass === sub.id"
+            >
+              {{ sub.name }}
+            </button>
+          </div>
+          <!-- Detalles de la subclase seleccionada en esta clase secundaria. -->
+          <div v-if="item.entry.subclass" class="bg-stone-900/60 rounded p-2 mt-2">
+            <p class="text-xs text-stone-400 italic">
+              {{ item.classObj.subclasses.find(s => s.id === item.entry.subclass)?.description }}
+            </p>
           </div>
         </div>
       </div>
@@ -359,6 +520,13 @@ function progressionAtLevel(col: (number | string)[] | undefined): string {
       </div>
       <div v-else>
         <p class="text-stone-400 text-sm mb-2">{{ t('class.selectClassToAdd') }}:</p>
+        <!-- #139 Fase 6 (M7) — Error de prereqs de habilidad PHB 2024. -->
+        <div v-if="multiclassError" class="mb-2 bg-red-900/30 border border-red-700/40 rounded p-2 text-xs">
+          <p class="text-red-300 font-medium mb-1">{{ t('class.multiclassBlocked') }}</p>
+          <ul class="text-red-400 space-y-0.5 list-disc list-inside">
+            <li v-for="(msg, i) in multiclassError" :key="i">{{ msg }}</li>
+          </ul>
+        </div>
         <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
           <button
             v-for="cls in multiclassOptions"

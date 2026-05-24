@@ -88,6 +88,15 @@ function levelUpCharacter(id: string) {
     }
     return
   }
+  // #139 Fase 5 (M5): si el PJ es multiclass, lo abrimos en el editor (Step9
+  // Review) donde el selector inline le pedirá qué clase subir. Subir la
+  // primaria silenciosamente desde esta vista sería un mal default — el
+  // jugador podría querer subir la otra clase.
+  if ((target.classes ?? []).length >= 2) {
+    characterStore.loadCharacter(id)
+    router.push({ name: 'builder', query: { step: '9' } })
+    return
+  }
   characterStore.loadCharacter(id)
   const result = characterStore.levelUp()
   if (!result) {
