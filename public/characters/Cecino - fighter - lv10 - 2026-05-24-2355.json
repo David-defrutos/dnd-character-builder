@@ -2,7 +2,7 @@
   "id": "45cf0901-c679-4580-ba48-d1f1031e4d7e",
   "variant": "dnd5e",
   "name": "Cecino",
-  "playerName": "",
+  "playerName": "Frutos",
   "race": "gnome",
   "subrace": "forest-gnome",
   "className": "fighter",
@@ -39,8 +39,7 @@
   "savingThrowProficiencies": [
     "str",
     "con",
-    "wis",
-    "dex"
+    "wis"
   ],
   "languages": [
     "Common",
@@ -76,7 +75,7 @@
     "Tactical Master",
     "Shadow Martyr",
     "ASI Feat: Crossbow Expert (lv.4)",
-    "ASI Feat: Resilient (lv.6)",
+    "ASI Feat: Sharpshooter (lv.6)",
     "ASI Feat: Resilient (lv.8)"
   ],
   "backstory": "",
@@ -99,7 +98,47 @@
   "tempHp": 0,
   "speed": 30,
   "sessionNotes": "",
-  "classes": [],
+  "classes": [
+    {
+      "classId": "fighter",
+      "subclass": "echo-knight",
+      "level": 10,
+      "hitDie": 10,
+      "asiChoices": [
+        {
+          "level": 4,
+          "type": "feat",
+          "featId": "crossbow-expert",
+          "featAbility": "dex",
+          "featChoices": {}
+        },
+        {
+          "level": 6,
+          "type": "feat",
+          "featId": "sharpshooter",
+          "featAbility": "dex",
+          "featChoices": {}
+        },
+        {
+          "level": 8,
+          "type": "feat",
+          "featId": "resilient",
+          "featChoices": {},
+          "featAbility": "wis"
+        }
+      ],
+      "spellcastingAbility": "",
+      "cantrips": [],
+      "spellsKnown": [],
+      "weaponMasteries": [
+        "Dagger",
+        "Hand Crossbow",
+        "Rapier",
+        "Heavy Crossbow",
+        "Scimitar"
+      ]
+    }
+  ],
   "asiChoices": [
     {
       "level": 4,
@@ -111,16 +150,16 @@
     {
       "level": 6,
       "type": "feat",
-      "featId": "resilient",
-      "featAbility": "wis",
+      "featId": "sharpshooter",
+      "featAbility": "dex",
       "featChoices": {}
     },
     {
       "level": 8,
       "type": "feat",
       "featId": "resilient",
-      "featAbility": "dex",
-      "featChoices": {}
+      "featChoices": {},
+      "featAbility": "wis"
     }
   ],
   "classArmorProficiencies": [
@@ -165,11 +204,13 @@
   "inventory": [
     {
       "slotId": "a1a4e2e2-9990-45c1-b9d5-aed98acebe11",
-      "kind": "magic",
-      "itemId": "hand crossbow-plus1",
+      "kind": "weapon",
+      "itemId": "Hand Crossbow",
       "name": "Hand Crossbow +1",
       "qty": 1,
-      "attuned": false
+      "attuned": false,
+      "equipped": false,
+      "magicItemId": "hand-crossbow-plus1"
     },
     {
       "slotId": "3316f954-d1d1-4a81-a0ef-b769e371a771",
@@ -199,7 +240,16 @@
       "itemId": "winged-boots",
       "name": "Winged Boots",
       "qty": 1,
-      "attuned": true
+      "attuned": true,
+      "equipped": true
+    },
+    {
+      "kind": "armor",
+      "itemId": "Shield",
+      "name": "Shield",
+      "qty": 1,
+      "slotId": "ecead7d0-46b2-4719-8e1b-ec4efa8f10dd",
+      "equipped": true
     }
   ],
   "speciesGrantedCantrips": [
@@ -210,8 +260,7 @@
   ],
   "toughHpBonus": 0,
   "featAddedSavingThrows": [
-    "wis",
-    "dex"
+    "wis"
   ],
   "featSpeedBonus": 0,
   "featInitiativeProf": false,
@@ -222,7 +271,7 @@
   "levelHistory": [
     {
       "level": 10,
-      "snapshotAt": "2026-05-23T08:15:52.259Z",
+      "snapshotAt": "2026-05-24T21:55:56.666Z",
       "snapshot": {
         "id": "45cf0901-c679-4580-ba48-d1f1031e4d7e",
         "variant": "dnd5e",
@@ -264,8 +313,7 @@
         "savingThrowProficiencies": [
           "str",
           "con",
-          "wis",
-          "dex"
+          "wis"
         ],
         "languages": [
           "Common",
@@ -301,7 +349,7 @@
           "Tactical Master",
           "Shadow Martyr",
           "ASI Feat: Crossbow Expert (lv.4)",
-          "ASI Feat: Resilient (lv.6)",
+          "ASI Feat: Sharpshooter (lv.6)",
           "ASI Feat: Resilient (lv.8)"
         ],
         "backstory": "",
@@ -324,7 +372,47 @@
         "tempHp": 0,
         "speed": 30,
         "sessionNotes": "",
-        "classes": [],
+        "classes": [
+          {
+            "classId": "fighter",
+            "subclass": "echo-knight",
+            "level": 10,
+            "hitDie": 10,
+            "asiChoices": [
+              {
+                "level": 4,
+                "type": "feat",
+                "featId": "crossbow-expert",
+                "featAbility": "dex",
+                "featChoices": {}
+              },
+              {
+                "level": 6,
+                "type": "feat",
+                "featId": "sharpshooter",
+                "featAbility": "dex",
+                "featChoices": {}
+              },
+              {
+                "level": 8,
+                "type": "feat",
+                "featId": "resilient",
+                "featChoices": {},
+                "featAbility": "wis"
+              }
+            ],
+            "spellcastingAbility": "",
+            "cantrips": [],
+            "spellsKnown": [],
+            "weaponMasteries": [
+              "Dagger",
+              "Hand Crossbow",
+              "Rapier",
+              "Heavy Crossbow",
+              "Scimitar"
+            ]
+          }
+        ],
         "asiChoices": [
           {
             "level": 4,
@@ -336,16 +424,16 @@
           {
             "level": 6,
             "type": "feat",
-            "featId": "resilient",
-            "featAbility": "wis",
+            "featId": "sharpshooter",
+            "featAbility": "dex",
             "featChoices": {}
           },
           {
             "level": 8,
             "type": "feat",
             "featId": "resilient",
-            "featAbility": "dex",
-            "featChoices": {}
+            "featChoices": {},
+            "featAbility": "wis"
           }
         ],
         "classArmorProficiencies": [
@@ -390,11 +478,13 @@
         "inventory": [
           {
             "slotId": "a1a4e2e2-9990-45c1-b9d5-aed98acebe11",
-            "kind": "magic",
-            "itemId": "hand crossbow-plus1",
+            "kind": "weapon",
+            "itemId": "Hand Crossbow",
             "name": "Hand Crossbow +1",
             "qty": 1,
-            "attuned": false
+            "attuned": false,
+            "equipped": false,
+            "magicItemId": "hand-crossbow-plus1"
           },
           {
             "slotId": "3316f954-d1d1-4a81-a0ef-b769e371a771",
@@ -424,7 +514,16 @@
             "itemId": "winged-boots",
             "name": "Winged Boots",
             "qty": 1,
-            "attuned": true
+            "attuned": true,
+            "equipped": true
+          },
+          {
+            "kind": "armor",
+            "itemId": "Shield",
+            "name": "Shield",
+            "qty": 1,
+            "slotId": "ecead7d0-46b2-4719-8e1b-ec4efa8f10dd",
+            "equipped": true
           }
         ],
         "speciesGrantedCantrips": [
@@ -435,8 +534,7 @@
         ],
         "toughHpBonus": 0,
         "featAddedSavingThrows": [
-          "wis",
-          "dex"
+          "wis"
         ],
         "featSpeedBonus": 0,
         "featInitiativeProf": false,

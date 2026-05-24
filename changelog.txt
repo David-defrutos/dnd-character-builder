@@ -2,6 +2,76 @@ D&D 2024 Character Builder — Changelog
 ═══════════════════════════════════════
 
 ────────────────────────────────────────
+2026-05-24 23:45 · #152 — Weapon Masteries del anexo: filas por mastery única + Tactical Master
+────────────────────────────────────────
+Petición del usuario: en la sección "Weapon Masteries" del anexo (Detailed
+Reference, hoja 3), mostrar todas las masteries que tienen sus armas, y si
+tiene Tactical Master añadir Push, Sap, Slow.
+
+CAMBIO DE FORMATO:
+
+Antes: una fila por cada arma elegida como mastery (Rapier | Vex, Hand
+Crossbow | Vex, Dagger | Nick, ...). Si dos armas compartían mastery, esta
+aparecía repetida.
+
+Ahora: una fila por MASTERY ÚNICA. La columna "Weapons" lista las armas del
+PJ que la disparan. Orden alfabético consistente (Cleave, Graze, Nick, Push,
+Sap, Slow, Topple, Vex).
+
+Ejemplo (Cecino Fighter 10 Echo Knight, masteries Dagger/Hand Crossbow/
+Rapier/Heavy Crossbow/Scimitar):
+  Antes: 5 filas (Dagger|Nick, Hand Crossbow|Vex, Rapier|Vex, Heavy
+         Crossbow|Push, Scimitar|Nick).
+  Ahora: 5 filas (Nick: Dagger, Scimitar / Push: Heavy Crossbow / Sap:
+         (Tactical Master) / Slow: (Tactical Master) / Vex: Hand Crossbow,
+         Rapier).
+
+TACTICAL MASTER:
+
+Feature del Fighter (PHB 2024, nivel 9, todas las subclases). Permite
+sustituir la mastery del arma con Push, Sap o Slow al atacar. Cuando el PJ
+tiene Tactical Master, la tabla añade Push/Sap/Slow al repertorio aunque
+ninguna arma propia las tenga. Esas filas se marcan con "(Tactical Master)"
+en la columna Weapons para distinguirlas.
+
+DETECCIÓN: classes[].some(c => c.classId === 'fighter' && c.level >= 9).
+Funciona en monoclase y multiclass donde Fighter es secundario.
+
+REFACTOR PARA TESTABILIDAD:
+
+La lógica de decisión de filas se extrae a una función pura exportada
+buildWeaponMasteryRows(char): { mastery, weapons, description }[]. La fn
+drawWeaponMasteries del anexo la consume y solo se encarga de renderizar.
+Permite testar sin montar pdf-lib.
+
+TESTS NUEVOS (9 en src/utils/pdfAppendixWeaponMasteries.test.ts):
+  - PJ sin masteries y sin Fighter 9+: [].
+  - Una arma con Vex: 1 fila Vex.
+  - Dos armas con misma mastery: una fila con ambas listadas.
+  - Cecino (Fighter 10 Echo Knight): Nick/Push/Sap/Slow/Vex.
+  - Fighter 8 (sin Tactical Master aún): solo masteries del arma.
+  - Fighter 9 sin masteries: solo Push/Sap/Slow por Tactical Master.
+  - Wizard 5 / Fighter 9 multiclass: Tactical Master sí activa.
+  - Fighter 8 / Wizard 1: NO activa (Fighter en 8, no 9).
+  - Orden alfabético consistente.
+
+DEUDA TÉCNICA DETECTADA (anotada en memoria, NO se aborda ahora):
+
+sanitizeMasteries y getWeaponMasterySlots usan char.className (primaria) en
+lugar de iterar classes[]. Eso significa que un Wizard primario / Fighter
+secundario no rellena masteries del Fighter automáticamente. Tactical
+Master sí se detecta vía classes[], pero los slots de armas elegibles no.
+Si en el futuro se aborda: refactorizar para sumar slots y elegibles por
+clase del catálogo.
+
+ARCHIVOS:
+- src/utils/pdfAppendix.ts (buildWeaponMasteryRows exportada + refactor
+  drawWeaponMasteries)
+- src/utils/pdfAppendixWeaponMasteries.test.ts (nuevo, 9 tests)
+
+TESTS: 1038/1038 OK. `npm run build` OK. TS strict OK.
+
+────────────────────────────────────────
 2026-05-24 23:08 · #151 — Fix BUG raíz #150: regex mal escapada generaba IDs con espacios + ticket en badge
 ────────────────────────────────────────
 El fix #150 estaba INCOMPLETO. El usuario reportó que tras desplegarlo, el

@@ -710,37 +710,97 @@ function fmt(n: number): string {
   return n >= 0 ? `+${n}` : `${n}`
 }
 
-// ─── Weapon Masteries (#89) ───────────────────────────────────────────────
+// ─── Weapon Masteries (#89, rediseñado en #152) ───────────────────────────
 
 /**
- * #110 — Tabla con las armas dominadas: Arma | Mastery | Descripción.
- * Si el PJ no tiene maestrías elegidas, se omite la sección.
+ * #152 — Construye las filas que tocan en la tabla de Weapon Masteries.
+ *
+ * Función pura y exportada para que pueda testarse sin renderizar el PDF.
+ *
+ * Reglas:
+ * - Una fila por MASTERY ÚNICA presente en el PJ (no por arma). Si dos armas
+ *   comparten mastery, solo aparece una fila con ambas armas en la columna
+ *   "Weapons".
+ * - Si el PJ tiene Tactical Master (Fighter 9+, PHB 2024), añade Push/Sap/
+ *   Slow al repertorio aunque ninguna de sus armas las tenga; en ese caso
+ *   la columna "Weapons" indica "(Tactical Master)".
+ * - Orden de masteries: el de masteryDescriptions (alfabético: Cleave,
+ *   Graze, Nick, Push, Sap, Slow, Topple, Vex).
+ *
+ * Devuelve [] si no hay nada que mostrar.
+ */
+export function buildWeaponMasteryRows(
+  char: CharacterData,
+): Array<{ mastery: string; weapons: string; description: string }> {
+  const weaponMasteries = sanitizeMasteries(char)
+  const hasTacticalMaster = (char.classes ?? []).some(
+    c => c.classId === 'fighter' && c.level >= 9,
+  )
+
+  if (!weaponMasteries.length && !hasTacticalMaster) return []
+
+  // Mapa mastery → armas que la tienen (en el PJ).
+  const byMastery = new Map<string, string[]>()
+  for (const weaponName of weaponMasteries) {
+    const prop = getMasteryFor(weaponName)
+    if (!prop) continue
+    const list = byMastery.get(prop) ?? []
+    list.push(weaponName)
+    byMastery.set(prop, list)
+  }
+
+  // Tactical Master: asegurar Push/Sap/Slow aunque ninguna arma las tenga.
+  if (hasTacticalMaster) {
+    for (const extra of ['Push', 'Sap', 'Slow']) {
+      if (!byMastery.has(extra)) {
+        byMastery.set(extra, [])
+      }
+    }
+  }
+
+  if (byMastery.size === 0) return []
+
+  const orderedKeys = Object.keys(masteryDescriptions).filter(k => byMastery.has(k))
+
+  return orderedKeys.map(prop => {
+    const weapons = byMastery.get(prop) ?? []
+    const weaponsCell = weapons.length > 0
+      ? weapons.join(', ')
+      : hasTacticalMaster && (prop === 'Push' || prop === 'Sap' || prop === 'Slow')
+        ? '(Tactical Master)'
+        : '—'
+    const desc = masteryDescriptions[prop as keyof typeof masteryDescriptions] ?? ''
+    return { mastery: prop, weapons: weaponsCell, description: desc }
+  })
+}
+
+/**
+ * #152 — Tabla de Weapon Masteries en el anexo, agrupadas POR PROPIEDAD ÚNICA.
+ * Toma las filas de buildWeaponMasteryRows y las dibuja con la tabla
+ * estándar del anexo. Si no hay filas, omite la sección.
  */
 function drawWeaponMasteries(state: DrawState, char: CharacterData): void {
-  const masteries = sanitizeMasteries(char)
-  if (!masteries.length) return
+  const rows = buildWeaponMasteryRows(char)
+  if (rows.length === 0) return
 
   drawSectionHeader(state, 'Weapon Masteries')
 
   const w = contentWidth()
-  const colWeapon = Math.round(w * 0.28)
   const colMastery = Math.round(w * 0.15)
-  const colDesc = w - colWeapon - colMastery
+  const colWeapons = Math.round(w * 0.28)
+  const colDesc = w - colMastery - colWeapons
 
   const columns: readonly TableColumn[] = [
-    { header: 'Weapon',       width: colWeapon },
     { header: 'Mastery',      width: colMastery },
+    { header: 'Weapons',      width: colWeapons },
     { header: 'Description',  width: colDesc },
   ]
-  const rows: TableRow[] = masteries.map(weaponName => {
-    const prop = getMasteryFor(weaponName)
-    const desc = prop && masteryDescriptions[prop as keyof typeof masteryDescriptions]
-      ? masteryDescriptions[prop as keyof typeof masteryDescriptions]
-      : ''
-    return { cells: [weaponName, prop ?? '—', desc] }
-  })
 
-  drawTable(state, columns, rows)
+  const tableRows: TableRow[] = rows.map(r => ({
+    cells: [r.mastery, r.weapons, r.description],
+  }))
+
+  drawTable(state, columns, tableRows)
 }
 
 // ─── Resource usage table (#78, rediseñado en #111) ──────────────────────
