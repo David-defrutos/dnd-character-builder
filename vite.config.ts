@@ -85,7 +85,14 @@ export default defineConfig({
     vue(),
     tailwindcss(),
     VitePWA({
-      registerType: 'prompt',
+      // #154 — Antes era 'prompt' lo cual NO actualizaba el SW automáticamente
+      // y no había UI que confirmara la nueva versión: el usuario veía siempre
+      // el bundle viejo cacheado aunque el deploy nuevo estuviera en el servidor.
+      // 'autoUpdate' + skipWaiting + clientsClaim hace que al detectar versión
+      // nueva al recargar, el SW nuevo tome control inmediatamente sin
+      // requerir confirmación. Idóneo para esta app, donde no hay datos en
+      // memoria volátiles que perder al recargar.
+      registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'pwa-192x192.svg', 'pwa-512x512.svg'],
       manifest: {
         name: 'D&D Character Builder',
@@ -112,6 +119,15 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // #154 — clientsClaim + skipWaiting: el SW nuevo toma control de los
+        // clients abiertos en cuanto se activa, sin esperar a que se cierren
+        // todas las pestañas (comportamiento por defecto de los SWs).
+        clientsClaim: true,
+        skipWaiting: true,
+        // #154 — cleanupOutdatedCaches limpia cachés de versiones anteriores
+        // al activarse el SW nuevo, evitando que Application > Cache acumule
+        // bundles obsoletos consumiendo espacio del navegador.
+        cleanupOutdatedCaches: true,
         globPatterns: ['**/*.{js,css,html,svg,woff2}'],
         runtimeCaching: [
           {

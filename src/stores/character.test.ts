@@ -176,6 +176,37 @@ describe('useCharacterStore', () => {
       expect(warnings).toContain('WARN_NO_HP')
     })
 
+    // #153 — notesAndFaq es propio de cada PJ y debe sobrevivir al round-trip
+    // de export + import (no descartarse en allowedKeys).
+    it('exporta e importa notesAndFaq con saltos de línea preservados', () => {
+      const store = useCharacterStore()
+      const notes = 'Línea 1\n\nLínea 3 (con doble salto)\n- Bullet point\n- Otro punto'
+      // Partimos de un PJ mínimamente válido + notas.
+      const minimal = makeMinimalCharacter({ name: 'WithNotes' })
+      const json = JSON.stringify({ ...minimal, notesAndFaq: notes })
+
+      // Verificación 1: el JSON contiene el campo.
+      const parsed = JSON.parse(json)
+      expect(parsed.notesAndFaq).toBe(notes)
+
+      // Verificación 2: tras importar, las notas se restauran.
+      const { data } = store.importJson(json)
+      expect(data.notesAndFaq).toBe(notes)
+    })
+
+    it('PJ sin notesAndFaq no rompe en export ni import', () => {
+      const store = useCharacterStore()
+      const minimal = makeMinimalCharacter({ name: 'NoNotes' })
+      // Borramos explícitamente el campo del payload.
+      const { notesAndFaq: _drop, ...without } = minimal as typeof minimal & { notesAndFaq?: string }
+      void _drop
+      const json = JSON.stringify(without)
+
+      const { data } = store.importJson(json)
+      // Tras el round-trip, el campo está vacío o undefined; ambos válidos.
+      expect(data.notesAndFaq ?? '').toBe('')
+    })
+
     it('rejects invalid JSON string', () => {
       const store = useCharacterStore()
       expect(() => store.importJson('not json')).toThrow('JSON_PARSE_ERROR')

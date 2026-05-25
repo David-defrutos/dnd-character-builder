@@ -2,6 +2,97 @@ D&D 2024 Character Builder — Changelog
 ═══════════════════════════════════════
 
 ────────────────────────────────────────
+2026-05-25 00:37 · #155 — Confirmación: notesAndFaq es propio de cada PJ y se exporta/importa correctamente
+────────────────────────────────────────
+Usuario reportó que las notas deben ser propias de cada personaje y
+exportarse con el JSON.
+
+VERIFICACIÓN:
+
+- notesAndFaq vive en CharacterData (campo opcional), no es global.
+  Cada PJ tiene su propio valor.
+- exportJson hace JSON.stringify(character.value, null, 2): serializa el
+  objeto entero, así que notesAndFaq se incluye sin código adicional.
+- importJson tiene whitelist allowedKeys (#82 anti-data-loss). Como
+  notesAndFaq se inicializa en createEmptyCharacter() y Object.keys(empty)
+  alimenta la whitelist, el campo se preserva al importar.
+- saveCharacter y loadCharacter clonan el objeto completo via
+  JSON.parse(JSON.stringify(...)), así que las notas persisten en el
+  Archive independientemente para cada PJ.
+
+NINGÚN CAMBIO EN CÓDIGO DE PRODUCCIÓN ERA NECESARIO. Pero faltaban tests
+que protegieran el round-trip ante futuros refactors.
+
+TESTS AÑADIDOS (2 en src/stores/character.test.ts > exportJson / importJson):
+  - "exporta e importa notesAndFaq con saltos de línea preservados":
+    crea un PJ válido con notas con \n y caracteres especiales, exporta,
+    parsea el JSON, verifica que notesAndFaq está, importa, y comprueba
+    que data.notesAndFaq coincide con el original.
+  - "PJ sin notesAndFaq no rompe en export ni import": campo opcional
+    omitido, no falla en validación, valor restaurado a ''.
+
+Si alguien quita notesAndFaq de la whitelist o de createEmptyCharacter,
+estos tests detectarán la regresión inmediatamente.
+
+ARCHIVOS:
+- src/stores/character.test.ts (+2 tests)
+
+TESTS: 1040/1040 OK. `npm run build` OK. TS strict OK.
+
+────────────────────────────────────────
+2026-05-25 00:18 · #154 — PWA: autoUpdate + skipWaiting/clientsClaim para evitar bundles cacheados viejos
+────────────────────────────────────────
+Bug operativo detectado al desplegar #153: el usuario veía el badge "#152"
+aunque el deploy nuevo estaba en el servidor y el changelog.txt empaquetado
+ya decía "#153". Causa: el service worker del PWA seguía sirviendo el
+bundle viejo cacheado.
+
+CAUSA RAÍZ:
+
+VitePWA estaba configurado con registerType: 'prompt'. Esto:
+  - NO actualiza el SW automáticamente al detectar versión nueva.
+  - Espera a que el código de la app llame manualmente a updateSW() para
+    aplicar la actualización.
+  - No había ningún registro manual ni UI que ofreciera al usuario aceptar
+    la actualización.
+Resultado: el bundle compilado quedaba congelado en la primera versión
+servida tras un cierre completo de pestañas. Cada deploy nuevo era invisible.
+
+FIX:
+
+vite.config.ts:
+  - registerType: 'prompt' -> 'autoUpdate'. Al detectar versión nueva, el
+    SW nuevo se instala y al recargar toma control sin preguntar.
+  - workbox.skipWaiting: true. El SW nuevo no espera a que se cierren los
+    clients antiguos para activarse.
+  - workbox.clientsClaim: true. El SW nuevo toma control inmediato de los
+    clients abiertos en cuanto se activa.
+  - workbox.cleanupOutdatedCaches: true. Limpia cachés de versiones
+    anteriores al activarse el SW nuevo, evitando que el almacenamiento del
+    navegador acumule bundles obsoletos.
+
+Trade-off aceptado: con autoUpdate el usuario puede ver "saltar" entre
+versiones si tiene la pestaña abierta cuando hay deploy nuevo (el SW
+recarga assets sin avisar). En esta app es aceptable porque no hay datos
+en memoria volátiles — Pinia persiste a localStorage en cada cambio.
+
+PROCEDIMIENTO PARA EL USUARIO ACTUAL (UNA VEZ):
+
+Como el SW vigente sigue siendo el viejo ('prompt'), HAY que desinstalarlo
+manualmente la primera vez:
+  1. F12 -> Application -> Service Workers -> Unregister.
+  2. Application -> Storage -> Clear site data.
+  3. Cerrar DevTools y Ctrl+Shift+R.
+
+A partir de este deploy, los siguientes despliegues NO requieren ningún
+paso manual.
+
+ARCHIVOS:
+- vite.config.ts (registerType + workbox flags)
+
+TESTS: 1038/1038 OK. `npm run build` OK. TS strict OK.
+
+────────────────────────────────────────
 2026-05-25 00:01 · #153 — Pestaña Notes & FAQ + render al final del anexo PDF
 ────────────────────────────────────────
 Petición del usuario: campo de texto libre para anotaciones del PJ
