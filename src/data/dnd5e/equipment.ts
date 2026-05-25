@@ -200,6 +200,9 @@ export const adventuringGear: readonly GearItem[] = [
 
   // ─── Utility / general ──────────────────────────────────────────────────
   { id: 'rope', name: 'Rope, Hempen (50 ft)',  category: 'utility', weight: 10, costCp: 100,  costLabel: '1 GP',   description: 'AC 11, 5 HP, can be burst with DC 17 STR check.' },
+  // #156 — Variante a media longitud, útil cuando el PJ va encumbered o no
+  // necesita los 50 ft completos. Mitad de peso (5 lb) y mitad de coste (5 SP).
+  { id: 'rope-25', name: 'Rope, Hempen (25 ft)',  category: 'utility', weight: 5,  costCp: 50,   costLabel: '5 SP',   description: 'Half-length variant. AC 11, 3 HP.' },
   { id: 'rope-silk', name: 'Rope, Silk (50 ft)',    category: 'utility', weight: 5,  costCp: 1000, costLabel: '10 GP',  description: 'AC 11, 5 HP, can be burst with DC 17 STR check.' },
   { id: 'chain', name: 'Chain (10 ft)',         category: 'utility', weight: 10, costCp: 500,  costLabel: '5 GP',   description: 'AC 19, 10 HP. DC 20 STR check to break.' },
   { id: 'grappling-hook', name: 'Grappling Hook',        category: 'utility', weight: 4,  costCp: 200,  costLabel: '2 GP' },

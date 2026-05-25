@@ -6,6 +6,7 @@ import { getFeatById } from '@/data/dnd5e/feats'
 import { getSpellById } from '@/data/dnd5e/spells'
 import { armor as dnd5eArmorCatalogue } from '@/data/dnd5e/equipment'
 import { computeAcBreakdown } from './armorClassBreakdown'
+import { shortCastingTime } from './shortCastingTime'
 import { computeWeaponAttack } from './weaponCalc'
 
 /** Capitalize a class ID for English display (e.g., "barbarian" → "Barbarian") */
@@ -567,7 +568,9 @@ export function getDnd2024FieldMapping(char: CharacterData): Record<string, stri
     fields[`SName_${n}`]  = displayName
 
     if (spell) {
-      fields[`STime_${n}`]  = spell.castingTime
+      // #159 — Acortar castingTime para que no se auto-shrink en el campo
+      // estrecho. El ritual lo recoge el checkbox SR_N más abajo.
+      fields[`STime_${n}`]  = shortCastingTime(spell.castingTime)
       fields[`SRange_${n}`] = spell.range
       // SNotes_N: duration (decisión del usuario, opción A — solo duration).
       fields[`SNotes_${n}`] = spell.duration

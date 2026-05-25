@@ -278,7 +278,11 @@ describe('#120 — PDF spell columns', () => {
     expect(f['SName_1']).toBe('Tiny Hut')
     expect(f['SR_1']).toBe(true)
     expect(f['SM_1']).toBe(true)
-    expect(f['STime_1']).toMatch(/Ritual/)
+    // #159 — STime ya NO contiene "Ritual" (va al checkbox SR_1). El texto
+    // visible se abrevia a la forma compacta para evitar auto-shrink del PDF.
+    // Tiny Hut tiene castingTime "1 minute or Ritual" → "1 min".
+    expect(f['STime_1']).toBe('1 min')
+    expect(f['STime_1']).not.toMatch(/Ritual/)
     expect(f['SNotes_1']).toBe('8 hours')
   })
 

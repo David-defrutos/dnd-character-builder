@@ -209,8 +209,23 @@ const hasMagicalContainer = computed(() =>
 const equippedItems = computed(() =>
   inventoryItems.value.filter(i => i.equipped && !i.stored)
 )
+// #158 (F6) — Orden por TIPO y luego nombre. Antes los items aparecían en
+// el orden en que se añadieron, lo cual mezclaba weapon/armor/magic/gear
+// sin criterio visible. Ahora: weapons primero, luego armor, magic, gear,
+// custom; dentro de cada grupo, alfabético por nombre.
+const KIND_ORDER: Record<string, number> = {
+  weapon: 0, armor: 1, magic: 2, gear: 3, custom: 4,
+}
 const carriedItems = computed(() =>
-  inventoryItems.value.filter(i => !i.equipped && !i.stored)
+  inventoryItems.value
+    .filter(i => !i.equipped && !i.stored)
+    .slice()  // no mutar el array reactivo original
+    .sort((a, b) => {
+      const ka = KIND_ORDER[a.kind] ?? 99
+      const kb = KIND_ORDER[b.kind] ?? 99
+      if (ka !== kb) return ka - kb
+      return a.name.localeCompare(b.name)
+    })
 )
 const storedItems = computed(() =>
   inventoryItems.value.filter(i => i.stored)
@@ -525,30 +540,54 @@ function rarityBg(rarity: string): string {
     <!-- ↑ Fin del MAIN TAB: MY EQUIPMENT -->
 
     <!-- #125 — Custom item adder: vive bajo "Add New" porque ES la
-         interfaz de creación de items. Visible en cualquier sub-tab. -->
+         interfaz de creación de items. Visible en cualquier sub-tab.
+         #157 (F5) — Reescrito de fila flex a grid con LABELS visibles encima.
+         Antes solo había placeholders en gris claro y campos como Weight
+         pasaban desapercibidos. -->
     <div v-if="activeMainTab === 'add-new'" class="p-4 border-t border-stone-700">
-      <p class="text-xs text-stone-500 mb-2">Add a custom item</p>
-      <div class="flex gap-2">
-        <input v-model="customItemName" @keyup.enter="addCustomItem"
-          class="flex-1 bg-stone-800 border border-stone-700 rounded px-2 py-1 text-sm text-stone-200 placeholder-stone-600"
-          placeholder="Item name" />
-        <input v-model="customItemNotes"
-          class="flex-1 bg-stone-800 border border-stone-700 rounded px-2 py-1 text-sm text-stone-200 placeholder-stone-600"
-          placeholder="Notes (optional)" />
-        <input v-model.number="customItemQty" type="number" min="1"
-          class="w-14 bg-stone-800 border border-stone-700 rounded px-2 py-1 text-sm text-stone-200 text-center" />
-        <input v-model.number="customItemWeight" type="number" min="0" step="0.25"
-          class="w-24 bg-stone-800 border border-stone-700 rounded px-2 py-1 text-sm text-stone-200 text-center"
-          placeholder="Weight (lbs)" />
-        <button @click="addCustomItem"
-          class="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-stone-900 rounded text-sm font-semibold cursor-pointer">+</button>
+      <p class="text-sm text-stone-300 font-medium mb-3">Add a custom item</p>
+      <div class="grid grid-cols-2 sm:grid-cols-12 gap-3">
+        <!-- Name (ancho amplio) -->
+        <div class="col-span-2 sm:col-span-4">
+          <label for="custom-name" class="block text-xs text-stone-400 mb-1">Name</label>
+          <input id="custom-name" v-model="customItemName" @keyup.enter="addCustomItem"
+            class="w-full bg-stone-800 border border-stone-700 rounded px-2 py-1 text-sm text-stone-200"
+            placeholder="e.g. Rope, hempen (25 ft)" />
+        </div>
+        <!-- Notes -->
+        <div class="col-span-2 sm:col-span-3">
+          <label for="custom-notes" class="block text-xs text-stone-400 mb-1">Notes <span class="text-stone-600">(optional)</span></label>
+          <input id="custom-notes" v-model="customItemNotes"
+            class="w-full bg-stone-800 border border-stone-700 rounded px-2 py-1 text-sm text-stone-200"
+            placeholder="Charges, condition…" />
+        </div>
+        <!-- Quantity -->
+        <div class="col-span-1 sm:col-span-1">
+          <label for="custom-qty" class="block text-xs text-stone-400 mb-1">Qty</label>
+          <input id="custom-qty" v-model.number="customItemQty" type="number" min="1"
+            class="w-full bg-stone-800 border border-stone-700 rounded px-2 py-1 text-sm text-stone-200 text-center" />
+        </div>
+        <!-- Weight -->
+        <div class="col-span-1 sm:col-span-2">
+          <label for="custom-weight" class="block text-xs text-stone-400 mb-1">Weight (lbs)</label>
+          <input id="custom-weight" v-model.number="customItemWeight" type="number" min="0" step="0.25"
+            class="w-full bg-stone-800 border border-stone-700 rounded px-2 py-1 text-sm text-stone-200 text-center"
+            placeholder="0" />
+        </div>
+        <!-- Add button -->
+        <div class="col-span-2 sm:col-span-2 flex items-end">
+          <button @click="addCustomItem"
+            class="w-full px-3 py-1 bg-amber-600 hover:bg-amber-500 text-stone-900 rounded text-sm font-semibold cursor-pointer">
+            Add item
+          </button>
+        </div>
       </div>
-      <!-- #123 — slot + container -->
-      <div class="flex items-center gap-3 mt-2 text-xs text-stone-500">
-        <label class="flex items-center gap-1">
-          <span>Slot:</span>
-          <select v-model="customItemSlot"
-            class="bg-stone-800 border border-stone-700 rounded px-1 py-0.5 text-xs text-stone-200">
+      <!-- #123 — slot + container, ahora con label propio también -->
+      <div class="grid grid-cols-2 sm:grid-cols-12 gap-3 mt-3">
+        <div class="col-span-1 sm:col-span-3">
+          <label for="custom-slot" class="block text-xs text-stone-400 mb-1">Slot <span class="text-stone-600">(if equippable)</span></label>
+          <select id="custom-slot" v-model="customItemSlot"
+            class="w-full bg-stone-800 border border-stone-700 rounded px-2 py-1 text-sm text-stone-200">
             <option value="">None</option>
             <option value="armor">Armor</option>
             <option value="shield">Shield</option>
@@ -561,12 +600,14 @@ function rarityBg(rarity: string): string {
             <option value="ring">Ring</option>
             <option value="other">Other</option>
           </select>
-        </label>
-        <label class="flex items-center gap-1">
-          <input v-model="customItemIsContainer" type="checkbox"
-            class="bg-stone-800 border-stone-700" />
-          <span>Magical container (extradimensional)</span>
-        </label>
+        </div>
+        <div class="col-span-1 sm:col-span-9 flex items-end">
+          <label class="flex items-center gap-2 text-xs text-stone-400 cursor-pointer">
+            <input v-model="customItemIsContainer" type="checkbox"
+              class="bg-stone-800 border-stone-700" />
+            <span>Magical container (extradimensional, contents don't add weight)</span>
+          </label>
+        </div>
       </div>
     </div>
 

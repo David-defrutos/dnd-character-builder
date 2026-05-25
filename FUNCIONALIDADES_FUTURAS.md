@@ -86,6 +86,48 @@ a importar (p.ej. exportación a partida real).
 
 ---
 
+### F7 — Normalizar tamaños de fuente en el PDF base (a mano con Acrobat)
+
+**Origen**: usuario reportó 2026-05-25 que en la sección "Cantrips & Prepared
+Spells" del PDF, algunos campos se ven con letra grande (Range "30 feet",
+"Self", Notes "10 minutes", "1 minute") y otros con letra normal o
+microscópica.
+
+**Estado**: pospuesto. Decisión del usuario: tocar el PDF base, no el código.
+
+**MITIGACIÓN PARCIAL YA APLICADA (#159)**: para el caso concreto de
+castingTime ("Action or Ritual" ilegible), se aplica `shortCastingTime()`
+en `pdfFieldMapping.ts` que envía "Action" en lugar de "Action or Ritual"
+al PDF (la R va en el checkbox aparte). Cubre el caso peor pero no resuelve
+la incoherencia general entre filas.
+
+**Diagnóstico residual**:
+- Cada campo del AcroForm en `public/dnd5e/<plantilla>.pdf` tiene su propia
+  configuración de fuente y `MaxLen` heredada del PDF original de WotC.
+- Algunos campos tienen tamaño FIJO (12pt aprox.) — texto se ve grande
+  aunque sea corto, pero se SALE si es largo.
+- Otros campos tienen autosize-to-fit — texto encoge si no cabe.
+- La incoherencia entre filas viene del PDF base, no del código.
+
+**Lo que hay que hacer** (en el PDF base, con Acrobat Pro o similar):
+- Abrir `public/dnd5e/<plantilla>.pdf`.
+- Para los campos de las filas de spells (SName_N, STime_N, SRange_N,
+  SNotes_N): unificar configuración de fuente.
+  - Recomendación: autosize-to-fit en TODOS, tamaño máximo 10-11pt y
+    mínimo ~7pt para que campos cortos no salgan gigantes y largos no
+    salgan microscópicos.
+- Guardar y reemplazar el archivo en `public/dnd5e/`.
+
+**Coste**: 30-45 min con Acrobat Pro. Sin código, sin tests.
+
+**Alternativa via código** (descartada): un script con pdf-lib y
+`field.setFontSize()`. Coste estimado 1-1.5 sesiones por el ciclo de
+calibración + variabilidad entre visores. Se prefiere la solución manual.
+
+**Cuándo merece la pena**: cuando tengas acceso a Acrobat Pro.
+
+---
+
 ## 2. Decididas NO HACER (con justificación)
 
 ### NH1 — Limpiar nomenclatura `spellsKnown` vs `spellsPrepared` (H11)

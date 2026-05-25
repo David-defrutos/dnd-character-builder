@@ -2,6 +2,120 @@ D&D 2024 Character Builder — Changelog
 ═══════════════════════════════════════
 
 ────────────────────────────────────────
+2026-05-25 09:26 · #159 — Abreviar castingTime en el campo STime del PDF (acabar con auto-shrink ilegible)
+────────────────────────────────────────
+Bug visual: el campo STime del PDF se ve microscópico para hechizos con
+castingTime largo ("Action or Ritual", "1 minute or Ritual", "10 minutes"
+etc.). El campo del AcroForm tiene auto-shrink y solo cabe ~7 chars con
+fuente legible.
+
+ENFOQUE:
+
+El checkbox SR_N (Ritual) YA se rellena aparte cuando castingTime contiene
+"Ritual" (lógica existente). Por tanto, podemos retirar el texto "or Ritual"
+del campo STime sin perder información. Igualmente "minute(s)" → "min" y
+"hour(s)" → "h" para que campos cortos queden legibles a tamaño grande.
+
+CAMBIOS:
+
+src/utils/shortCastingTime.ts (nuevo):
+  Función pura shortCastingTime(s) con transformaciones:
+    "Action"               → "Action"      (sin cambio)
+    "Action or Ritual"     → "Action"      (R va al checkbox)
+    "Bonus Action"         → "Bonus"
+    "Bonus Action or Ritual" → "Bonus"
+    "Reaction"             → "Reaction"    (sin cambio)
+    "1 minute"             → "1 min"
+    "1 minute or Ritual"   → "1 min"
+    "10 minutes"           → "10 min"
+    "1 hour"               → "1 h"
+    "8 hours"              → "8 h"
+  Para cadenas no contempladas devuelve el original sin tocar (fail-safe).
+
+src/utils/pdfFieldMapping.ts:
+  - Import shortCastingTime.
+  - fields[`STime_${n}`] = shortCastingTime(spell.castingTime).
+  - El check SR_N sigue usando la castingTime ORIGINAL (con "Ritual"), así
+    el cambio no afecta a la marca de ritual.
+
+src/utils/shortCastingTime.test.ts (nuevo, 15 tests):
+  Cubre todos los patrones del catálogo, case-insensitive, trim de espacios,
+  combinaciones como "Bonus Action or Ritual", y fallback para cadenas
+  no contempladas.
+
+src/utils/pdfFieldMapping.test.ts:
+  - 1 test adaptado: "tiny-hut" ya NO contiene "Ritual" en STime. Ahora
+    valida el nuevo contrato: STime es "1 min", SR_1 sigue siendo true.
+
+────────────────────────────────────────
+2026-05-25 09:26 · #158 (F6) — Ordenar items "Carried" por tipo y nombre
+────────────────────────────────────────
+Petición del usuario: los items en el bloque "Carried" aparecían en el
+orden de adición, mezclando armas/armaduras/magic/gear sin criterio.
+
+src/components/shared/EquipmentManager.vue:
+  - Nuevo KIND_ORDER: { weapon: 0, armor: 1, magic: 2, gear: 3, custom: 4 }.
+  - carriedItems ahora hace .slice().sort() con comparador que ordena
+    primero por kind y luego alfabéticamente por name.
+  - No muta el array reactivo original (slice antes de sort).
+  - Equipped y Stored se dejan SIN tocar — la petición era solo Carried.
+
+────────────────────────────────────────
+2026-05-25 09:26 · #157 (F5) — Labels visibles en el form "Add a custom item"
+────────────────────────────────────────
+Usuario reportó que no encontró el campo Weight porque solo había
+placeholder en gris pequeño y sin label visible.
+
+src/components/shared/EquipmentManager.vue:
+  - Reescrito el form de fila flex a GRID responsivo (2 cols en mobile,
+    12 cols en desktop).
+  - Cada input lleva <label for="..."> visible encima con el nombre claro:
+    Name, Notes, Qty, Weight (lbs), Slot.
+  - El bloque "Magical container" pasa de checkbox suelto a label clara
+    con descripción ("extradimensional, contents don't add weight").
+  - El botón "+" pasa a "Add item" para que sea autoexplicativo.
+  - Placeholder de Name ahora es ejemplo realista: "e.g. Rope, hempen
+    (25 ft)".
+
+────────────────────────────────────────
+2026-05-25 09:26 · #156 — Cuerda Hempen (25 ft) en el catálogo
+────────────────────────────────────────
+Petición del usuario: variante a media longitud de la cuerda Hempen para
+cuando el PJ va encumbered y no necesita los 50 ft completos.
+
+src/data/dnd5e/equipment.ts:
+  - Nueva entrada adventuringGear:
+      { id: 'rope-25', name: 'Rope, Hempen (25 ft)', category: 'utility',
+        weight: 5, costCp: 50, costLabel: '5 SP',
+        description: 'Half-length variant. AC 11, 3 HP.' }
+  - Mitad de longitud, peso y coste de la 'rope' original (50 ft, 10 lb,
+    1 GP).
+  - Insertada justo después de la original para que aparezcan juntas en
+    la UI del Add New.
+
+────────────────────────────────────────
+
+FUNCIONALIDADES_FUTURAS.md:
+  - F5 (labels form) borrado: cerrado en #157.
+  - F6 (ordenar Carried) borrado: cerrado en #158.
+  - F7 actualizado: ahora menciona la mitigación parcial de #159 para
+    castingTime; queda por hacer SOLO el ajuste manual del PDF base con
+    Acrobat Pro (resto de campos: SName, SRange, SNotes).
+
+TESTS: 1055/1055 OK (antes 1038, +15 nuevos del helper shortCastingTime,
++2 dejados por adaptación). `npm run build` OK. TS strict OK.
+
+ARCHIVOS:
+- src/data/dnd5e/equipment.ts (+1 entrada gear)
+- src/components/shared/EquipmentManager.vue (form custom item rediseñado
+  con labels + carriedItems ordenado)
+- src/utils/shortCastingTime.ts (nuevo)
+- src/utils/shortCastingTime.test.ts (nuevo, 15 tests)
+- src/utils/pdfFieldMapping.ts (import + uso del helper)
+- src/utils/pdfFieldMapping.test.ts (1 test adaptado al nuevo contrato)
+- FUNCIONALIDADES_FUTURAS.md (limpieza de F5/F6, actualización F7)
+
+────────────────────────────────────────
 2026-05-25 00:37 · #155 — Confirmación: notesAndFaq es propio de cada PJ y se exporta/importa correctamente
 ────────────────────────────────────────
 Usuario reportó que las notas deben ser propias de cada personaje y
